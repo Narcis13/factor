@@ -1,16 +1,32 @@
-import { MATCH_RULES } from '@factor/content';
+import { MATCH_RULES, parseReplay, REPLAY_VERSION, type Replay } from '@factor/content';
 import { checkInvariants, createMatch, hashState, step, TICKS_PER_SECOND, type SimState } from '@factor/sim';
 
+/** A match with no commands. There are no cards or bot yet, so every match is one of these. */
+export function emptyReplay(seed: number): Replay {
+  return { version: REPLAY_VERSION, seed, decks: [[], []], commands: [] };
+}
+
 /**
- * Plays a match with no commands, checking invariants after every tick.
+ * Validates and plays a replay, feeding each command at its tick and checking invariants after every tick.
  * Stops when the match ends, or at `stopTick` if that comes first.
+ * Throws if the match ends with commands still unplayed: the replay can't be from this match.
  */
-export function runMatch(seed: number, stopTick?: number): SimState {
-  let state = createMatch({ seed, rules: MATCH_RULES });
+export function playReplay(replay: Replay, stopTick?: number): SimState {
+  const { commands } = parseReplay(replay);
+  let state = createMatch({ seed: replay.seed, rules: MATCH_RULES });
   assertHealthy(state);
+  let next = 0;
   while (state.result === null && state.tick !== stopTick) {
-    state = step(state, []);
+    const first = next;
+    while (commands[next]?.tick === state.tick) {
+      next++;
+    }
+    state = step(state, commands.slice(first, next));
     assertHealthy(state);
+  }
+  if (state.result !== null && next < commands.length) {
+    const left = commands.length - next;
+    throw new Error(`The match ended at tick ${String(state.tick)} with ${String(left)} commands unplayed`);
   }
   return state;
 }

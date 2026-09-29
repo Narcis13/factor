@@ -6,34 +6,48 @@ Sculpt log. The **Current state** block is rewritten at the end of every session
 
 ## Current state
 
-**Stage:** 0 — Armature (in progress: exit criteria 4 of 5 met)
-**Last session:** S5 · 2026-09-29
+**Stage:** 1 — Block-in (just started; Stage 0 complete in S6)
+**Last session:** S6 · 2026-09-29
 **Works:**
 - A pnpm monorepo with `sim`, `content`, `tools` and `client` packages, strict TS 6.0, no build step.
-- `pnpm check` is green: typecheck, lint, 84 tests (one of them drives headless Chromium).
+- `pnpm check` is green: typecheck, lint, 126 tests (one of them drives headless Chromium).
 - ESLint enforces the sim's hard rules (imports, Math/Date/timers, async, classes, `**`, float literals), in sim tests too.
 - Sim: `createMatch({ seed, rules })`, pure `step(state, commands)` at a fixed tick, sfc32 RNG in state, `hashState` (FNV-1a over canonical JSON). Commands are validated; with hands still empty, every one is rejected and recorded.
-- Match timer and result: 3:00 regulation, then up to 2:00 overtime while stars are tied; any star lead after regulation wins, still tied at the end is a draw. Stepping an ended match throws.
-- `checkInvariants(state)`; `pnpm sim match --seed <n> [--dump <tick>]` plays an empty match to a draw at tick 6000 with invariants checked every tick.
+- Match timer and result: 3:00 regulation, then up to 2:00 overtime while stars are tied; any star lead wins after regulation, still tied at the end is a draw.
+- Replay v0 (`content`): `{ version: 0, seed, decks, commands }`, zod-validated on load and save (strict objects, integers, tick order). `playReplay` (tools) validates, feeds each command at its tick, checks invariants every tick, and fails if commands are left unplayed.
+- `pnpm sim match --seed <n>` saves `replays/seed-<n>.json` (gitignored); `pnpm sim replay <file>` plays it back to the same hash. Both take `--dump <tick>`.
 - `content` exports `ARENA` (D7) and `towerFootprint`. The sim doesn't read the arena yet.
-- Client (Vite 8 + PixiJS 8.21, WebGL): `pnpm dev` draws `ARENA` letterboxed at whole px per tile, side 0 (blue) at the bottom, side 1 (red) on top. It draws once per resize (`autoStart: false`); no ticker yet.
-- `pnpm shots` saves `shots/arena.png` (540×960, gitignored); it is byte-identical across runs.
+- Client (Vite 8 + PixiJS 8.21, WebGL): `pnpm dev` draws `ARENA` once per resize, side 0 at the bottom. `pnpm shots` saves a byte-identical `shots/arena.png`.
 **Known issues:**
 - No formatter configured yet (the code follows the existing style by convention).
 - Nothing earns stars yet (no towers); the end-of-match scenarios set stars directly.
-- A fresh machine needs Chromium for shots: `pnpm --filter @factor/tools exec playwright install --only-shell chromium`.
+- Shots need Playwright's pinned Chromium (`pnpm --filter @factor/tools exec playwright install --only-shell chromium`) or `FACTOR_CHROMIUM=<path>`. The cloud container has only build 1194: use `FACTOR_CHROMIUM=/opt/pw-browsers/chromium_headless_shell-1194/chrome-linux/headless_shell`.
 - If the client throws before drawing, `pnpm shots` reports the page error only after its 15 s ready timeout.
+- Replays don't carry `MATCH_RULES`; a content change silently changes what an old replay plays (goldens will catch this).
 **Golden replays:** none (the RNG sequence is pinned in `rng-sequence-is-fixed-per-seed.test.ts`)
 
 **Next cuts** (in order):
-1. Replay format v0 with a save/load round-trip test; zod-validate commands loaded from outside (the sim trusts `Command` field types). `pnpm sim match` then saves one. This closes Stage 0.
-2. Stage 1: towers become sim entities: `ARENA`'s sites reach the sim through `MatchSetup` (D7), tower hp in `content`; the client draws towers from sim state.
-3. Stage 1: the client runs the sim live at 20 ticks/s, interpolating between ticks, and shows the timer. `pnpm shots` learns `?replay=&tick=`.
-4. Stage 1: energy, a hand of 4 plus next, and a deck shuffled from the seed; a played card spends energy and cycles (still no units).
+1. Towers become sim entities: `ARENA`'s sites reach the sim through `MatchSetup` (D7), tower hp in `content`; the client draws towers from sim state.
+2. Energy, a hand of 4 plus next, and a deck shuffled from the seed (replay `decks` become real, via `MatchSetup`); a played card spends energy and cycles (still no units).
+3. The client runs the sim live at 20 ticks/s, interpolating between ticks, and shows the timer; `?replay=` plays a replay back, and `pnpm shots` learns `?replay=&tick=`.
+4. The 4 Stage 1 cards as colored shapes: units spawn, cross bridges, fight; towers shoot and fall, earning stars.
+5. A random-legal-move bot; `pnpm sim match` plays bot vs bot and records its commands into the replay.
 
 ---
 
 ## Sessions
+
+### S6 · 2026-09-29 · Replay format v0
+**Stage:** 0 — Armature
+**Cut:** Replay format v0 with a save/load round trip and zod validation of anything loaded from outside, played back headless: the last Stage 0 criterion.
+**Done:**
+- Content: `replay.ts` with `REPLAY_VERSION`, `Replay`, `parseReplay`, `loadReplay` and `saveReplay`, and `zod` 4.6 as a dependency. The command schema is typed as the sim's `Command`.
+- Tools: `emptyReplay` and `playReplay` replace `runMatch`. `match` saves its replay (`--replay <file>`), and a new `replay <file> [--dump]` command plays one. Bad input gets a clean one-line error.
+- Shots: the `FACTOR_CHROMIUM` env var overrides the browser (this container's Playwright build didn't match).
+**Verified:** `pnpm check` green (21 files, 126 tests; the shots test needed `FACTOR_CHROMIUM` here). Round trip: save → load gives an equal replay with identical text. A reloaded replay with commands at ticks 0, 50 (both sides) and 5999 gives the same hash at 7 checkpoints. Moving one command changes the hash from its tick on. 15 kinds of malformed replay are each rejected with their path. CLI: match → replay prints the same summary. 4 mutations were each caught (non-strict command object, off-by-one order check, commands fed a tick late, unplayed commands ignored). Seed 42 still hashes `330933a4`.
+**Decisions:** Command objects are strict, because rejected commands are copied into the state, so an extra key would change the hash. Replays keep VISION's four fields and carry no rules. `playReplay` validates in-code replays too, since out-of-order commands otherwise stall playback. Decks are free-form string arrays until cards exist.
+**Left out / noticed:** Client `?replay=` playback (Next cuts 3). Recording bot commands (Next cuts 5). Rules missing from replays went to Known issues. Node here is 22.22 while `engines` asks for ≥24; it works, with a warning.
+**Status:** complete (Stage 0 complete)
 
 ### S5 · 2026-09-29 · The client draws the arena; `pnpm shots`
 **Stage:** 0 — Armature

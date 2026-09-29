@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@factor/sim": "workspace:*"
+    "@factor/sim": "workspace:*",
+    "zod": "^4.6.5"
   }
 }

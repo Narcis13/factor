@@ -29,7 +29,9 @@ export async function shootArena(): Promise<Shot> {
     if (url === undefined) {
       throw new Error('The Vite server has no local URL');
     }
-    const browser = await chromium.launch();
+    // FACTOR_CHROMIUM points at a Chromium to use instead of the one Playwright pins (e.g. a preinstalled older build).
+    const executablePath = process.env.FACTOR_CHROMIUM;
+    const browser = await chromium.launch(executablePath === undefined ? {} : { executablePath });
     try {
       const page = await browser.newPage({ viewport: SHOT_VIEWPORT, deviceScaleFactor: 1 });
       const errors: string[] = [];

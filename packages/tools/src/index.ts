@@ -1,1 +1,1 @@
-export { describeResult, formatClock, runMatch } from './match.ts';
+export { describeResult, emptyReplay, formatClock, playReplay } from './match.ts';

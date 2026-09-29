@@ -9,3 +9,4 @@ export {
   type TowerSite,
 } from './arena.ts';
 export { MATCH_RULES } from './match.ts';
+export { loadReplay, parseReplay, REPLAY_VERSION, saveReplay, type Replay } from './replay.ts';
