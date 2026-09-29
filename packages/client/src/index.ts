@@ -1,6 +1,7 @@
 // The PixiJS view (VISION §5). main.ts is the browser entry; this exports the parts that don't need a browser.
 export {
   arenaScene,
+  blastScene,
   fitView,
   groundScene,
   hpBarScene,
@@ -9,6 +10,7 @@ export {
   toScreen,
   towerScene,
   unitScene,
+  type BlastShape,
   type GroundKind,
   type HpBar,
   type ScreenRect,

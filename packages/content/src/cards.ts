@@ -4,7 +4,7 @@ const TICKS = TICKS_PER_SECOND;
 
 /**
  * The Stage 1 cards (VISION §8). `juggernaut` is the tank that only targets buildings, `warden` the
- * melee unit, `slinger` the ranged unit and `flare` the damage spell (its effect comes next). Speeds
+ * melee unit, `slinger` the ranged unit and `flare` the damage spell (a 2.5-tile burst that hits towers for 30%). Speeds
  * are milli-tiles per tick (50 = 1 tile/s); radius, range and sight are milli-tiles, edge to edge.
  * Hit times are in ticks.
  */
@@ -24,7 +24,7 @@ export const CARDS = {
     type: 'troop',
     unit: { hp: 600, speed: 50, radius: 450, range: 5000, sight: 5500, targets: 'ground', damage: 90, hitTicks: (6 * TICKS) / 5, firstHitTicks: (2 * TICKS) / 5 },
   },
-  flare: { cost: 4, type: 'spell' },
+  flare: { cost: 4, type: 'spell', spell: { radius: 2500, damage: 500, towerDamageBp: 3000 } },
 } as const satisfies Record<CardId, CardStats>;
 
 export type ContentCardId = keyof typeof CARDS;

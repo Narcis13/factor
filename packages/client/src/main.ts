@@ -3,12 +3,12 @@
 import { matchSetup } from '@factor/content';
 import { createMatch } from '@factor/sim';
 import { Application, Graphics } from 'pixi.js';
-import { groundScene, hpBarScene, noDeployRect, toScreen, towerScene, unitScene } from './arena-view.ts';
+import { blastScene, groundScene, hpBarScene, noDeployRect, toScreen, towerScene, unitScene } from './arena-view.ts';
 import { tap, type Controls } from './controls.ts';
-import { BACKGROUND, drawArena, drawHpBars, drawNoDeploy, drawUnits } from './draw-arena.ts';
+import { BACKGROUND, drawArena, drawBlasts, drawHpBars, drawNoDeploy, drawUnits } from './draw-arena.ts';
 import { HudView } from './draw-hud.ts';
 import { hudScene } from './hud-view.ts';
-import { advance, alpha, createLoop, stepTo } from './match-loop.ts';
+import { advance, alpha, BLAST_TICKS, createLoop, stepTo } from './match-loop.ts';
 import { layoutScreen, type ScreenLayout } from './screen-layout.ts';
 
 const app = new Application();
@@ -43,7 +43,7 @@ function resize(): ScreenLayout {
   return next;
 }
 
-/** Towers, the no-deploy shade while a troop is selected, units and hp bars, then the HUD: every frame. */
+/** Towers, the no-deploy shade while a troop is selected, units, recent spells and hp bars, then the HUD: every frame. */
 function render(): void {
   const { previous, current } = loop;
   const t = alpha(loop);
@@ -55,6 +55,7 @@ function render(): void {
   }
   const units = unitScene(previous, current, t, layout.view);
   drawUnits(field, units);
+  drawBlasts(field, blastScene(loop.blasts, current, t, BLAST_TICKS, layout.view));
   drawHpBars(field, hpBarScene(current, units, layout.view));
   hud.draw(hudScene(previous, current, t, layout.hud, controls.side, controls.selected));
   app.render();

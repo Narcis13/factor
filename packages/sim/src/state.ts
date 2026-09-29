@@ -2,6 +2,8 @@ import type { ArenaLayout, AttackStats, Terrain, Tower, TowerKind, TowerStats } 
 import { dealPlayer, pickCards, type CardId, type CardStats, type EnergyRules, type Player } from './cards.ts';
 import { hashJson } from './hash.ts';
 import { seedRng, type Rng } from './rng.ts';
+import { BASIS_POINTS } from './units.ts';
+import type { Blast } from './spells.ts';
 import type { Unit } from './troops.ts';
 
 export type Side = 0 | 1;
@@ -72,6 +74,8 @@ export interface SimState {
   result: MatchResult | null;
   /** Commands rejected by the step that produced this state, in resolution order. */
   rejected: RejectedCommand[];
+  /** Spells that landed in the step that produced this state, in resolution order. */
+  blasts: Blast[];
 }
 
 /** Everything a match starts from. The numbers come from `content` (D7). */
@@ -123,6 +127,11 @@ export function createMatch(setup: MatchSetup): SimState {
       if (!(['ground', 'buildings'] as readonly string[]).includes(targets)) {
         throw new RangeError(`${id} targets must be ground or buildings, got ${targets}`);
       }
+    } else {
+      const { radius, damage, towerDamageBp } = card.spell;
+      requireInteger(`${id} radius`, radius, 0);
+      requireInteger(`${id} damage`, damage, 0);
+      requireInteger(`${id} towerDamageBp`, towerDamageBp, 0, BASIS_POINTS);
     }
   }
   // Fields are copied one by one, so nothing from the setup is shared with the state or leaks into it.
@@ -149,6 +158,7 @@ export function createMatch(setup: MatchSetup): SimState {
     stars: [0, 0],
     result: null,
     rejected: [],
+    blasts: [],
   };
 }
 

@@ -88,6 +88,11 @@ export function checkInvariants(state: SimState): string[] {
       }
     }
   }
+  for (const { side, card, x, y } of state.blasts) {
+    if (cards[card]?.type !== 'spell' || !isIntegerIn(x, 0, arena.width - 1) || !isIntegerIn(y, 0, arena.height - 1)) {
+      violations.push(`side ${String(side)}'s blast of ${card} at (${String(x)}, ${String(y)}) is not a known spell inside the arena`);
+    }
+  }
   for (const side of [0, 1] as const) {
     if (!isIntegerIn(stars[side], 0, 3)) {
       violations.push(`side ${String(side)} has ${String(stars[side])} stars`);

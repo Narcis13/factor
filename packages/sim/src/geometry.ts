@@ -26,9 +26,14 @@ export function divRound(a: number, b: number): number {
 
 /** From a point to the nearest point of a rectangle; 0 inside it. */
 export function distanceToRect(point: Point, rect: Rect): number {
+  return isqrt(squaredDistanceToRect(point, rect));
+}
+
+/** The square of `distanceToRect`, exact: for comparisons that must not round. */
+export function squaredDistanceToRect(point: Point, rect: Rect): number {
   const dx = Math.max(rect.x - point.x, 0, point.x - (rect.x + rect.width));
   const dy = Math.max(rect.y - point.y, 0, point.y - (rect.y + rect.height));
-  return isqrt(dx * dx + dy * dy);
+  return dx * dx + dy * dy;
 }
 
 /** Moves `point` in place up to `length` toward `to`, landing exactly on it when it is that close. */

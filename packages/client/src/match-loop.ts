@@ -1,4 +1,4 @@
-import { step, TICKS_PER_SECOND, type Command, type Side, type SimState } from '@factor/sim';
+import { step, TICKS_PER_SECOND, type Blast, type Command, type Side, type SimState } from '@factor/sim';
 
 /** Real time per tick: 50 ms at 20 ticks/s. */
 export const TICK_MS = 1000 / TICKS_PER_SECOND;
@@ -8,6 +8,14 @@ export const TICK_MS = 1000 / TICKS_PER_SECOND;
  * down instead of freezing the page to catch up.
  */
 export const MAX_TICKS_PER_FRAME = 5;
+
+/** How long a landed spell stays on screen: half a second. */
+export const BLAST_TICKS = TICKS_PER_SECOND / 2;
+
+/** A spell that landed, and the tick of the state it landed in. */
+export interface RecentBlast extends Blast {
+  tick: number;
+}
 
 /** A command before it has a tick: the loop stamps it with the tick it is played on. */
 export type Play = Omit<Command, 'tick'>;
@@ -25,10 +33,12 @@ export interface MatchLoop {
   queued: Play[];
   /** Every command sent to the sim, in order: what a replay needs. */
   commands: Command[];
+  /** Spells that landed in the last `BLAST_TICKS` ticks, oldest first, for the client to show. */
+  blasts: RecentBlast[];
 }
 
 export function createLoop(state: SimState): MatchLoop {
-  return { previous: state, current: state, pendingMs: 0, queued: [], commands: [] };
+  return { previous: state, current: state, pendingMs: 0, queued: [], commands: [], blasts: [] };
 }
 
 /** Queues a play for the next tick. Once the match has ended, it is dropped. */
@@ -53,6 +63,9 @@ export function advance(loop: MatchLoop, elapsedMs: number): number {
     loop.commands.push(...commands);
     loop.previous = loop.current;
     loop.current = step(loop.current, commands);
+    const now = loop.current.tick;
+    loop.blasts = loop.blasts.filter((blast) => now - blast.tick < BLAST_TICKS);
+    loop.blasts.push(...loop.current.blasts.map((blast) => ({ ...blast, tick: now })));
     loop.pendingMs -= TICK_MS;
     ticks++;
   }

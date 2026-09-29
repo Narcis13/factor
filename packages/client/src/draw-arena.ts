@@ -1,5 +1,5 @@
 import type { Graphics } from 'pixi.js';
-import type { GroundKind, HpBar, ScreenRect, Shape, UnitShape } from './arena-view.ts';
+import type { BlastShape, GroundKind, HpBar, ScreenRect, Shape, UnitShape } from './arena-view.ts';
 import { cardColor, SIDE_COLOR } from './palette.ts';
 
 export { BACKGROUND } from './palette.ts';
@@ -50,5 +50,15 @@ export function drawHpBars(graphics: Graphics, bars: HpBar[]): void {
   for (const { side, rect, fraction } of bars) {
     graphics.rect(rect.x, rect.y, rect.width, rect.height).fill({ color: HP_TRACK });
     graphics.rect(rect.x, rect.y, rect.width * fraction, rect.height).fill({ color: SIDE_COLOR[side] });
+  }
+}
+
+/** A landed spell: its card's color over its whole area, ringed in its caster's, fading out. */
+export function drawBlasts(graphics: Graphics, blasts: BlastShape[]): void {
+  for (const blast of blasts) {
+    graphics
+      .circle(blast.x, blast.y, blast.radius)
+      .fill({ color: cardColor(blast.card), alpha: 0.5 * blast.fade })
+      .stroke({ color: SIDE_COLOR[blast.side], width: 3, alpha: blast.fade });
   }
 }

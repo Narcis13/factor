@@ -35,6 +35,16 @@ test.each<{ label: string; broken: SimState; message: RegExp }>([
   },
   { label: 'more than 3 stars', broken: { ...healthy, stars: [4, 0] }, message: /side 0 has 4 stars/ },
   {
+    label: 'a blast from a card that is not a spell',
+    broken: { ...healthy, blasts: [{ side: 1, card: 'c9', x: 0, y: 0 }] },
+    message: /side 1's blast of c9 at \(0, 0\) is not a known spell/,
+  },
+  {
+    label: 'a blast outside the arena',
+    broken: { ...healthy, blasts: [{ side: 0, card: 'c1', x: 0, y: 20_000 }] },
+    message: /blast of c1 at \(0, 20000\)/,
+  },
+  {
     label: 'a fallen Keep with no result',
     broken: { ...healthy, towers: withTower(3, { hp: 0 }) },
     message: /side 1's Keep has fallen but the match has no result/,

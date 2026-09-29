@@ -7,22 +7,23 @@ Sculpt log. The **Current state** block is rewritten at the end of every session
 ## Current state
 
 **Stage:** 1 — Block-in
-**Last session:** S11 · 2026-09-29
+**Last session:** S12 · 2026-09-29
 **Works:**
 - A pnpm monorepo with `sim`, `content`, `tools` and `client` packages, strict TS 6.0, no build step.
-- `pnpm check` is green: typecheck, lint, 268 tests (one of them drives headless Chromium).
+- `pnpm check` is green: typecheck, lint, 280 tests (one of them drives headless Chromium).
 - ESLint enforces the sim's hard rules (imports, Math/Date/timers, async, classes, `**`, float literals), in sim tests too.
 - Sim: `createMatch(setup)`, pure `step(state, commands)` at a fixed tick, sfc32 RNG in state, `hashState`. `MatchSetup` carries rules, the `ArenaLayout`, tower stats, a card catalog and both decks.
 - Players: energy 5 → 10, +1 per 56 ticks, 2× from 2:00 and in overtime. Decks of 8 shuffled from the seed; hand of 4 + queue; plays spend and cycle, with 5 rejection reasons.
-- Troops deploy one `Unit` on their own half, wait 20 ticks, then act. Fighting: a unit keeps hitting its locked target while it stays in range; otherwise it takes the nearest valid enemy in sight (edge to edge; `targets: ground | buildings`), or else the nearest enemy tower, locks on in range, and walks toward it (over its lane's bridge if the river is in the way). Towers lock on to the nearest enemy unit in range. Hits land `firstHitTicks` after locking on, then every `hitTicks`, instantly, and all of a tick's hits land together. The dead leave the field; fallen towers stay at 0 hp. An Outpost gives 1 star, the Keep brings its destroyer to 3 and ends the match (both Keeps at once is a draw). The Keep shoots from the start.
+- Troops deploy one `Unit` on their own half, wait 20 ticks, then act: lock-on, acquisition in sight (`ground | buildings`), lane and bridge walking, hits `firstHitTicks` after locking on and then every `hitTicks`. Towers lock on to the nearest enemy unit in range. All of a tick's hits land together; the dead leave; an Outpost gives 1 star, the Keep brings its destroyer to 3 and ends the match.
+- Spells land instantly anywhere: every enemy unit or tower their circle touches takes `damage`, towers only `towerDamageBp` of it. Hits land with the fight's; `state.blasts` records the spells that landed this tick.
 - Match timer and result: 3:00 regulation, then up to 2:00 overtime while stars are tied.
-- Content: `CARDS` (juggernaut 5 buildings-only tank, warden 3 melee, slinger 4 ranged; flare 4 spell with no effect yet), `TOWER_STATS` (Keep 4000 hp/100 dmg, Outpost 2500/90, both 7-tile range, every 0.8 s), `MATCH_RULES`, `ARENA`, `matchSetup(seed, decks?)`, replay v0.
-- `pnpm sim match --seed <n>` / `pnpm sim replay <file>` play headless (no commands yet) and agree on the hash (seed 42: `81d7d01a`).
-- Client: `pnpm dev` runs seed 0 live with a HUD; taps become side-0 commands. Towers (grey rubble once fallen), units, and hp bars (every standing tower; units once damaged) are drawn every frame. `pnpm shots` shoots `?tick=90`, byte-identical.
+- Content: `CARDS` (juggernaut 5 buildings-only tank, warden 3 melee, slinger 4 ranged, flare 4: 2.5 tiles, 500 damage, 30% to towers), `TOWER_STATS` (Keep 4000/100, Outpost 2500/90, 7-tile range, every 0.8 s), `MATCH_RULES`, `ARENA`, `matchSetup(seed, decks?)`, replay v0.
+- `pnpm sim match --seed <n>` / `pnpm sim replay <file>` play headless (no commands yet) and agree on the hash (seed 42: `53f43fdb`).
+- Client: `pnpm dev` runs seed 0 live with a HUD; taps become side-0 commands. Towers (rubble once fallen), units, hp bars, and a landed spell's area fading out over 0.5 s. `pnpm shots` shoots `?tick=90`, byte-identical.
 **Known issues:**
 - No formatter configured yet.
-- `flare` does nothing yet. Units don't collide, and they can be deployed on a tower's footprint. No Keep dormancy (Stage 2).
-- Hp bars are thin (4 px at phone size); unit bars have only been seen in tests, not in a shot. Units are small and low-contrast on the grass.
+- Units don't collide, and they can be deployed on a tower's footprint. No Keep dormancy (Stage 2).
+- Hp bars are thin (4 px at phone size); unit bars have only been seen in tests, not in a shot. Units are small and low-contrast on the grass. The flare marker's fill is faint.
 - The client shows no stars and nothing when the match ends; side 1 never plays.
 - Shots need Playwright's pinned Chromium or `FACTOR_CHROMIUM=<path>`. In the cloud container use `FACTOR_CHROMIUM=/opt/pw-browsers/chromium_headless_shell-1194/chrome-linux/headless_shell`.
 - Replays don't carry rules, layout or stats; a content change silently changes what an old replay plays.
@@ -30,14 +31,26 @@ Sculpt log. The **Current state** block is rewritten at the end of every session
 **Golden replays:** none (the RNG sequence and the seed-1234 shuffle are pinned in tests)
 
 **Next cuts** (in order):
-1. `flare`: area damage at its aim point (radius, damage and a reduced share against towers, in basis points, all in `content`), with a brief marker in the client.
-2. A random-legal-move bot playing side 1 in the client and in `pnpm sim match`, which records its commands into the replay.
-3. Stars on the HUD and a win/lose/draw screen; the client auto-saves the replay of a finished match.
-4. `?replay=` plays a replay back in the client, and `pnpm shots` learns `?replay=&tick=`.
+1. A random-legal-move bot playing side 1 in the client and in `pnpm sim match`, which records its commands into the replay.
+2. Stars on the HUD and a win/lose/draw screen; the client auto-saves the replay of a finished match.
+3. `?replay=` plays a replay back in the client, and `pnpm shots` learns `?replay=&tick=`.
+4. Stage 1 exit review: play a full match against the bot headless and in the browser, then close the stage.
 
 ---
 
 ## Sessions
+
+### S12 · 2026-09-29 · Flare deals area damage
+**Stage:** 1 — Block-in
+**Cut:** Give `flare` its effect (Next cuts 1): instant area damage at the aim point, reduced against towers, with a brief marker in the client. The last Stage 1 card that did nothing.
+**Done:**
+- Sim: `SpellStats` (radius, damage, `towerDamageBp`) on spell cards, validated in `createMatch`. `spells.ts`: `blastHits` (enemy towers whose footprint the circle touches, then enemy units whose circle it touches; squared compares, exact) and `Blast`. `step` collects spell hits while resolving commands and lands them with the fight's. `state.blasts` holds this tick's spells. New: `squaredDistanceToRect`, `BASIS_POINTS`, and a blast invariant. `place`/`runChecked` moved into the fixtures (second use).
+- Content: flare is 2.5 tiles, 500 damage, 3000 bp to towers.
+- Client: the loop keeps `blasts` for `BLAST_TICKS` (10); `blastScene` and `drawBlasts` draw the area in the card's color, ringed in the caster's, fading out.
+**Verified:** `pnpm check` green (36 files, 280 tests; 12 new). Scenarios: circles that exactly touch vs. 1 mm clear, own units and towers spared, the tower share (30 of 100), tower edge touching vs. clear, a flare kill leaving the field, a flare-felled Outpost scoring, energy and cycling, blasts in side order for one tick only, a flare landing on a unit deployed earlier the same tick, and bad spell stats rejected. A scripted troops-and-flares match plays to its end with invariants on, twice to the same hash. 4 mutations were each caught. `pnpm shots` is unchanged (`152f06566ee3`). A live headless run cast a flare on the enemy Outpost: the circle showed, the bar notched, and it was gone 1 s later, with no page errors (looked at both). Seed 42 → `53f43fdb` in both `match` and `replay`.
+**Decisions:** A spell picks its victims when its command resolves and its hits land with the fight's, so a unit it kills still acts that tick, as with any hit (pillar 1). Spells hit enemies only. The marker's half-second life is a client display number, so it lives in the client, not in `content`. Seed 42's hash changed from `81d7d01a` on purpose (the state grew).
+**Left out / noticed:** Spell hits on towers don't wake anything yet (Keep dormancy, Stage 2). The marker's faint fill is in Known issues. **Playtest (director):** does a flare read at a glance? Are 2.5 tiles and 500 damage (a slinger dies, a warden survives) the right feel?
+**Status:** complete
 
 ### S11 · 2026-09-29 · Units and towers fight
 **Stage:** 1 — Block-in

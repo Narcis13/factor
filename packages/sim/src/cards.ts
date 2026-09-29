@@ -23,10 +23,22 @@ export interface UnitStats extends AttackStats {
 }
 
 /**
- * What the sim needs to know about a card. A troop deploys one unit on its side's half; a spell
- * can target anywhere (its effect comes with fighting). Energy spent to play it is `cost`.
+ * A spell's instant area effect (VISION §4): every enemy unit its circle touches and every enemy tower
+ * whose footprint it touches takes `damage`, towers only `towerDamageBp` basis points of it.
  */
-export type CardStats = { cost: number; type: 'troop'; unit: UnitStats } | { cost: number; type: 'spell' };
+export interface SpellStats {
+  /** In milli-tiles, from the aim point. */
+  radius: number;
+  damage: number;
+  /** The share of `damage` a tower takes, in basis points (10000 = all of it). */
+  towerDamageBp: number;
+}
+
+/**
+ * What the sim needs to know about a card. A troop deploys one unit on its side's half; a spell
+ * lands anywhere. Energy spent to play it is `cost`.
+ */
+export type CardStats = { cost: number; type: 'troop'; unit: UnitStats } | { cost: number; type: 'spell'; spell: SpellStats };
 
 /** Energy (VISION §4). The numbers come from `content`. */
 export interface EnergyRules {
@@ -107,7 +119,8 @@ export function pickCards(catalog: Readonly<Record<CardId, CardStats>>, ids: rea
 
 function copyCard(stats: CardStats): CardStats {
   if (stats.type === 'spell') {
-    return { cost: stats.cost, type: 'spell' };
+    const { radius, damage, towerDamageBp } = stats.spell;
+    return { cost: stats.cost, type: 'spell', spell: { radius, damage, towerDamageBp } };
   }
   const { hp, speed, radius, range, sight, targets, damage, hitTicks, firstHitTicks } = stats.unit;
   return {

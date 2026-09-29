@@ -1,4 +1,6 @@
+import { expect } from 'vitest';
 import {
+  checkInvariants,
   createMatch,
   step,
   type ArenaLayout,
@@ -9,6 +11,7 @@ import {
   type SimState,
   type TowerKind,
   type TowerStats,
+  type Unit,
 } from '../src/index.ts';
 
 /**
@@ -24,20 +27,25 @@ export const RULES: MatchRules = {
   deployDelayTicks: 20,
 };
 
+/** A spell of this cost that touches nothing. */
+export function dud(cost: number): CardStats {
+  return { cost, type: 'spell', spell: { radius: 0, damage: 0, towerDamageBp: 0 } };
+}
+
 /**
  * Eight spells named by their cost, so a test can read what a play spends and nothing lands on the field.
  * Then two troops: `walker` (speed 50, radius 500, melee, 50 damage) and `archer` (speed 40, radius 400,
  * range 3000, 20 damage).
  */
 export const CARDS: Record<CardId, CardStats> = {
-  c1: { cost: 1, type: 'spell' },
-  c2: { cost: 2, type: 'spell' },
-  c3: { cost: 3, type: 'spell' },
-  c4: { cost: 4, type: 'spell' },
-  c5: { cost: 5, type: 'spell' },
-  c6: { cost: 6, type: 'spell' },
-  c7: { cost: 7, type: 'spell' },
-  c8: { cost: 8, type: 'spell' },
+  c1: dud(1),
+  c2: dud(2),
+  c3: dud(3),
+  c4: dud(4),
+  c5: dud(5),
+  c6: dud(6),
+  c7: dud(7),
+  c8: dud(8),
 };
 
 /** Both hit every 10 ticks, the first time 5 ticks after locking on, and notice enemies 4 tiles off. */
@@ -114,4 +122,27 @@ export function idle(state: SimState, ticks: number): SimState {
     current = step(current, []);
   }
   return current;
+}
+
+export type Placement = Pick<Unit, 'side' | 'card' | 'x' | 'y'> & Partial<Unit>;
+
+/** Puts units straight onto the field, ready to act, with ids from `nextId`. */
+export function place(state: SimState, ...placements: Placement[]): SimState {
+  const units = placements.map((placement, i): Unit => {
+    const card = state.cards[placement.card];
+    const hp = card?.type === 'troop' ? card.unit.hp : 1;
+    return { id: state.nextId + i, hp, maxHp: hp, deployTicks: 0, targetId: null, cooldown: 0, ...placement };
+  });
+  return { ...state, units: [...state.units, ...units], nextId: state.nextId + units.length };
+}
+
+/** Steps with no commands, checking invariants every tick; returns every state, the first one included. */
+export function runChecked(state: SimState, ticks: number): SimState[] {
+  const states = [state];
+  for (let i = 0; i < ticks; i++) {
+    const next = step(states[states.length - 1] ?? state, []);
+    expect(checkInvariants(next)).toEqual([]);
+    states.push(next);
+  }
+  return states;
 }

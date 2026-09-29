@@ -1,5 +1,6 @@
 import { copyPlayer, playCard, regenerate } from './cards.ts';
 import { decideResult } from './result.ts';
+import { blastHits } from './spells.ts';
 import { copyCards, copyRules, copyTerrain, copyTowerStats, type Command, type RejectReason, type SimState } from './state.ts';
 import { actTower, actUnit, deployZone, inRect, unitStats, type Hit } from './troops.ts';
 
@@ -26,9 +27,12 @@ export function step(state: SimState, commands: readonly Command[]): SimState {
     stars: [state.stars[0], state.stars[1]],
     result: null,
     rejected: [],
+    blasts: [],
   };
   // Side 0 resolves first, whatever order the commands arrived in; order within a side is kept.
-  // Each command sees the energy and hand the ones before it left.
+  // Each command sees the energy and hand the ones before it left. A spell picks its victims from the
+  // field as it stands then (units deployed by earlier commands included); its hits land with the fight's.
+  const hits: Hit[] = [];
   const ordered = [...commands].sort((p, q) => p.side - q.side);
   for (const command of ordered) {
     const reason = validate(state.tick, next, command);
@@ -41,12 +45,16 @@ export function step(state: SimState, commands: readonly Command[]): SimState {
         const deployTicks = next.rules.deployDelayTicks;
         next.units.push({ id: next.nextId, side, card: card.id, x, y, hp, maxHp: hp, deployTicks, targetId: null, cooldown: 0 });
         next.nextId += 1;
+      } else {
+        const { side, x, y } = command;
+        next.blasts.push({ side, card: card.id, x, y });
+        blastHits(next, side, x, y, card.stats.spell, hits);
       }
     } else {
       next.rejected.push({ command: { ...command }, reason });
     }
   }
-  fight(next);
+  fight(next, hits);
   const { energy } = next.rules;
   const rate = state.tick >= energy.doubleFromTick ? 2 : 1;
   for (const player of next.players) {
@@ -58,12 +66,11 @@ export function step(state: SimState, commands: readonly Command[]): SimState {
 
 /**
  * Towers, then units, act in id order; a new unit starts its deploy delay this very tick. Their hits
- * land together afterwards, so a unit that dies this tick still lands its own hit. Then the dead leave
+ * join the spells' `hits` and land together afterwards, so a unit that dies this tick still lands its own hit. Then the dead leave
  * the field and fallen towers score (VISION §4, Winning): an Outpost earns its destroyer 1 star, the
  * Keep brings them to 3.
  */
-function fight(state: SimState): void {
-  const hits: Hit[] = [];
+function fight(state: SimState, hits: Hit[]): void {
   for (const tower of state.towers) {
     actTower(tower, state.towerStats[tower.kind], state, hits);
   }

@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
-import { checkInvariants, createMatch, step, type SimState, type Unit } from '../src/index.ts';
-import { idle, matchSetup, TOWER_STATS, TROOP_DECK, TROOPS, troopMatch } from './fixtures.ts';
+import { createMatch, step, type SimState } from '../src/index.ts';
+import { idle, matchSetup, place, runChecked as run, TOWER_STATS, TROOP_DECK, TROOPS, troopMatch } from './fixtures.ts';
 
 // Fixture numbers: towers hit for 10 every 10 ticks, 5 ticks after locking on, 2 tiles past their
 // footprint. A walker (hp 500, radius 500, melee) hits for 50 and an archer (hp 200, radius 400, range 3000)
@@ -10,29 +10,6 @@ import { idle, matchSetup, TOWER_STATS, TROOP_DECK, TROOPS, troopMatch } from '.
 function duelMatch(): SimState {
   const towerStats = { keep: { ...TOWER_STATS.keep, damage: 0 }, outpost: { ...TOWER_STATS.outpost, damage: 0 } };
   return createMatch({ ...matchSetup(5), towerStats, cards: TROOPS, decks: [TROOP_DECK, TROOP_DECK] });
-}
-
-type Placement = Pick<Unit, 'side' | 'card' | 'x' | 'y'> & Partial<Unit>;
-
-/** Puts units straight onto the field, ready to act, with ids from `nextId`. */
-function place(state: SimState, ...placements: Placement[]): SimState {
-  const units = placements.map((placement, i): Unit => {
-    const card = state.cards[placement.card];
-    const hp = card?.type === 'troop' ? card.unit.hp : 1;
-    return { id: state.nextId + i, hp, maxHp: hp, deployTicks: 0, targetId: null, cooldown: 0, ...placement };
-  });
-  return { ...state, units: [...state.units, ...units], nextId: state.nextId + units.length };
-}
-
-/** Steps with no commands, checking invariants every tick; returns every state, the first one included. */
-function run(state: SimState, ticks: number): SimState[] {
-  const states = [state];
-  for (let i = 0; i < ticks; i++) {
-    const next = step(states[states.length - 1] ?? state, []);
-    expect(checkInvariants(next)).toEqual([]);
-    states.push(next);
-  }
-  return states;
 }
 
 const hpOf = (state: SimState | undefined, id: number) => state?.units.find((unit) => unit.id === id)?.hp;

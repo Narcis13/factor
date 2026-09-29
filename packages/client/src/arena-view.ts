@@ -1,5 +1,5 @@
 import { towerFootprint } from '@factor/content';
-import { deployZone, MILLI_PER_TILE, type CardId, type Rect, type Side, type SimState, type Terrain } from '@factor/sim';
+import { deployZone, MILLI_PER_TILE, type Blast, type CardId, type Rect, type Side, type SimState, type Terrain } from '@factor/sim';
 
 /**
  * How the arena sits on the screen: a whole number of pixels per tile, centered, with side 0 at the
@@ -49,6 +49,16 @@ export interface UnitShape {
   deploying: boolean;
   hp: number;
   maxHp: number;
+}
+
+/** A landed spell on the screen: its area as a circle, fading out as `fade` falls from 1 toward 0. */
+export interface BlastShape {
+  side: Side;
+  card: CardId;
+  x: number;
+  y: number;
+  radius: number;
+  fade: number;
 }
 
 /** The largest whole tile size that fits the arena on a screen, at least 1 px. */
@@ -154,6 +164,29 @@ export function unitScene(previous: SimState, current: SimState, alpha: number, 
     const { id, side, card, hp, maxHp } = unit;
     return { id, side, card, ...pointToScreen(view, x, y), radius, deploying: unit.deployTicks > 0, hp, maxHp };
   });
+}
+
+/**
+ * Recent spells as circles of their radius where they landed. Each fades linearly from the moment it
+ * lands (tick + alpha) and is gone `lifeTicks` later.
+ */
+export function blastScene(
+  blasts: readonly (Blast & { tick: number })[],
+  current: Pick<SimState, 'tick' | 'cards'>,
+  alpha: number,
+  lifeTicks: number,
+  view: View,
+): BlastShape[] {
+  const scale = view.tilePx / MILLI_PER_TILE;
+  const shapes: BlastShape[] = [];
+  for (const { side, card, x, y, tick } of blasts) {
+    const stats = current.cards[card];
+    const fade = 1 - (current.tick - tick + alpha) / lifeTicks;
+    if (stats?.type === 'spell' && fade > 0) {
+      shapes.push({ side, card, ...pointToScreen(view, x, y), radius: stats.spell.radius * scale, fade: Math.min(1, fade) });
+    }
+  }
+  return shapes;
 }
 
 /** Where `side` may not deploy a troop, to shade while one is selected: the rest of the arena. */
