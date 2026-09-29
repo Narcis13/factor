@@ -7,7 +7,8 @@ test('a new match has one tower per site, ids in layout order, at full hp for it
   expect(towers.map((tower) => tower.id)).toEqual([0, 1, 2, 3, 4, 5]);
   towers.forEach((tower, i) => {
     const site = ARENA.towers[i];
-    expect(tower).toEqual({ ...site, id: i, hp: TOWER_STATS[tower.kind].hp, maxHp: TOWER_STATS[tower.kind].hp });
+    const { hp } = TOWER_STATS[tower.kind];
+    expect(tower).toEqual({ ...site, id: i, hp, maxHp: hp, targetId: null, cooldown: 0 });
   });
   expect(towers.filter((tower) => tower.kind === 'keep').map((tower) => tower.hp)).toEqual([300, 300]);
   expect(towers.filter((tower) => tower.kind === 'outpost').map((tower) => tower.hp)).toEqual([200, 200, 200, 200]);
@@ -45,7 +46,7 @@ test('each step has its own towers and terrain', () => {
 
 test('tower stats and layout are part of the hash', () => {
   const base = newMatch(1);
-  const tougher = createMatch({ ...matchSetup(1), towerStats: { ...TOWER_STATS, keep: { hp: 301 } } });
+  const tougher = createMatch({ ...matchSetup(1), towerStats: { ...TOWER_STATS, keep: { ...TOWER_STATS.keep, hp: 301 } } });
   const moved = createMatch({
     ...matchSetup(1),
     arena: { ...ARENA, towers: ARENA.towers.map((site, i) => (i === 0 ? { ...site, x: site.x + 1 } : site)) },
@@ -55,6 +56,6 @@ test('tower stats and layout are part of the hash', () => {
 });
 
 test.each([0, -1, 3 / 2, Number.NaN])('tower hp %s is rejected', (hp) => {
-  const towerStats = { ...TOWER_STATS, outpost: { hp } };
+  const towerStats = { ...TOWER_STATS, outpost: { ...TOWER_STATS.outpost, hp } };
   expect(() => createMatch({ ...matchSetup(1), towerStats })).toThrow(RangeError);
 });

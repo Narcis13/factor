@@ -1,14 +1,29 @@
-import type { CardId, CardStats } from '@factor/sim';
+import { TICKS_PER_SECOND, type CardId, type CardStats } from '@factor/sim';
+
+const TICKS = TICKS_PER_SECOND;
 
 /**
- * The Stage 1 cards (VISION §8). `juggernaut` is the tank (it will target buildings), `warden` the
- * melee unit, `slinger` the ranged unit and `flare` the damage spell. Speeds are milli-tiles per tick
- * (50 = 1 tile/s); radius and range are milli-tiles. Damage and targeting come with fighting.
+ * The Stage 1 cards (VISION §8). `juggernaut` is the tank that only targets buildings, `warden` the
+ * melee unit, `slinger` the ranged unit and `flare` the damage spell (its effect comes next). Speeds
+ * are milli-tiles per tick (50 = 1 tile/s); radius, range and sight are milli-tiles, edge to edge.
+ * Hit times are in ticks.
  */
 export const CARDS = {
-  juggernaut: { cost: 5, type: 'troop', unit: { hp: 3000, speed: 40, radius: 700, range: 300 } },
-  warden: { cost: 3, type: 'troop', unit: { hp: 1200, speed: 60, radius: 500, range: 300 } },
-  slinger: { cost: 4, type: 'troop', unit: { hp: 600, speed: 50, radius: 450, range: 5000 } },
+  juggernaut: {
+    cost: 5,
+    type: 'troop',
+    unit: { hp: 3000, speed: 40, radius: 700, range: 300, sight: 5000, targets: 'buildings', damage: 180, hitTicks: (3 * TICKS) / 2, firstHitTicks: TICKS / 2 },
+  },
+  warden: {
+    cost: 3,
+    type: 'troop',
+    unit: { hp: 1200, speed: 60, radius: 500, range: 300, sight: 5500, targets: 'ground', damage: 150, hitTicks: (6 * TICKS) / 5, firstHitTicks: (2 * TICKS) / 5 },
+  },
+  slinger: {
+    cost: 4,
+    type: 'troop',
+    unit: { hp: 600, speed: 50, radius: 450, range: 5000, sight: 5500, targets: 'ground', damage: 90, hitTicks: (6 * TICKS) / 5, firstHitTicks: (2 * TICKS) / 5 },
+  },
   flare: { cost: 4, type: 'spell' },
 } as const satisfies Record<CardId, CardStats>;
 

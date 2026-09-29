@@ -33,6 +33,7 @@ export function checkInvariants(state: SimState): string[] {
     if (!isIntegerIn(maxHp, 1, Number.MAX_SAFE_INTEGER) || !isIntegerIn(hp, 0, maxHp)) {
       violations.push(`${name} has hp ${String(hp)} of ${String(maxHp)}`);
     }
+    violations.push(...checkAttack(name, tower));
     const half = Math.floor(size / 2);
     const inside =
       isIntegerIn(size, 1, arena.width) &&
@@ -52,6 +53,7 @@ export function checkInvariants(state: SimState): string[] {
     if (!isIntegerIn(maxHp, 1, Number.MAX_SAFE_INTEGER) || !isIntegerIn(hp, 1, maxHp)) {
       violations.push(`${name} has hp ${String(hp)} of ${String(maxHp)}`);
     }
+    violations.push(...checkAttack(name, unit));
     if (!isIntegerIn(deployTicks, 0, rules.deployDelayTicks)) {
       violations.push(`${name} has ${String(deployTicks)} deploy ticks left`);
     }
@@ -87,8 +89,13 @@ export function checkInvariants(state: SimState): string[] {
     }
   }
   for (const side of [0, 1] as const) {
-    if (!isIntegerIn(stars[side], 0, Number.MAX_SAFE_INTEGER)) {
+    if (!isIntegerIn(stars[side], 0, 3)) {
       violations.push(`side ${String(side)} has ${String(stars[side])} stars`);
+    }
+  }
+  for (const keep of towers) {
+    if (keep.kind === 'keep' && keep.hp === 0 && result === null) {
+      violations.push(`side ${String(keep.side)}'s Keep has fallen but the match has no result`);
     }
   }
   if (result !== null) {
@@ -103,6 +110,12 @@ export function checkInvariants(state: SimState): string[] {
     }
   }
   return violations;
+}
+
+/** A target id, if any, is an id an entity has had; the cooldown is a whole number of ticks. */
+function checkAttack(name: string, { targetId, cooldown }: { targetId: number | null; cooldown: number }): string[] {
+  const bad = (targetId !== null && !isIntegerIn(targetId, 0, Number.MAX_SAFE_INTEGER)) || !isIntegerIn(cooldown, 0, Number.MAX_SAFE_INTEGER);
+  return bad ? [`${name} has target ${String(targetId)} and cooldown ${String(cooldown)}`] : [];
 }
 
 function inRiver({ river }: SimState['arena'], x: number, y: number): boolean {

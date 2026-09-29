@@ -3,9 +3,9 @@
 import { matchSetup } from '@factor/content';
 import { createMatch } from '@factor/sim';
 import { Application, Graphics } from 'pixi.js';
-import { groundScene, noDeployRect, toScreen, towerScene, unitScene } from './arena-view.ts';
+import { groundScene, hpBarScene, noDeployRect, toScreen, towerScene, unitScene } from './arena-view.ts';
 import { tap, type Controls } from './controls.ts';
-import { BACKGROUND, drawArena, drawNoDeploy, drawUnits } from './draw-arena.ts';
+import { BACKGROUND, drawArena, drawHpBars, drawNoDeploy, drawUnits } from './draw-arena.ts';
 import { HudView } from './draw-hud.ts';
 import { hudScene } from './hud-view.ts';
 import { advance, alpha, createLoop, stepTo } from './match-loop.ts';
@@ -43,7 +43,7 @@ function resize(): ScreenLayout {
   return next;
 }
 
-/** Towers, the no-deploy shade while a troop is selected, and units, then the HUD: every frame. */
+/** Towers, the no-deploy shade while a troop is selected, units and hp bars, then the HUD: every frame. */
 function render(): void {
   const { previous, current } = loop;
   const t = alpha(loop);
@@ -53,7 +53,9 @@ function render(): void {
   if (selected !== undefined && current.cards[selected]?.type === 'troop') {
     drawNoDeploy(field, toScreen(layout.view, noDeployRect(current.arena, controls.side)));
   }
-  drawUnits(field, unitScene(previous, current, t, layout.view));
+  const units = unitScene(previous, current, t, layout.view);
+  drawUnits(field, units);
+  drawHpBars(field, hpBarScene(current, units, layout.view));
   hud.draw(hudScene(previous, current, t, layout.hud, controls.side, controls.selected));
   app.render();
 }

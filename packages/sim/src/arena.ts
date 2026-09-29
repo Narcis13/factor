@@ -48,13 +48,30 @@ export interface ArenaLayout extends Terrain {
   towers: TowerSite[];
 }
 
-export interface TowerStats {
+/** How something hits (VISION §4). Every hit lands instantly for now; projectiles come later. */
+export interface AttackStats {
+  damage: number;
+  /** Ticks between hits once it's attacking. */
+  hitTicks: number;
+  /** Ticks from locking on to the first hit. At least 1. */
+  firstHitTicks: number;
+  /** Edge to edge, in milli-tiles: how close it must be to hit. */
+  range: number;
+}
+
+/** A tower hits the nearest enemy unit in range, and stays locked on while it stays in range. */
+export interface TowerStats extends AttackStats {
   hp: number;
 }
 
-/** A tower as an entity in the match: its site plus an id and hp. */
+/** A tower as an entity in the match: its site plus an id, hp and what it's shooting. */
 export interface Tower extends TowerSite {
   id: number;
+  /** 0 once it has fallen. A fallen tower stays in the list and does nothing. */
   hp: number;
   maxHp: number;
+  /** The unit it's locked on to, or `null`. May name a unit that died since; it's dropped on the next act. */
+  targetId: number | null;
+  /** Ticks until its next hit while locked on. */
+  cooldown: number;
 }

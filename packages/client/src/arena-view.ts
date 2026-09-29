@@ -24,8 +24,18 @@ export interface ScreenRect {
 
 export type GroundKind = 'tile-light' | 'tile-dark' | 'river' | 'bridge';
 
-/** Something to draw. Towers carry their owner; the ground belongs to no one. */
-export type Shape = { kind: GroundKind; rect: ScreenRect } | { kind: 'keep' | 'outpost'; side: Side; rect: ScreenRect };
+/** Something to draw. Towers carry their owner and whether they've fallen; the ground belongs to no one. */
+export type Shape =
+  | { kind: GroundKind; rect: ScreenRect }
+  | { kind: 'keep' | 'outpost'; side: Side; rect: ScreenRect; fallen: boolean };
+
+/** How much hp something has left, as a bar on the screen: `fraction` of it filled in its side's color. */
+export interface HpBar {
+  side: Side;
+  rect: ScreenRect;
+  /** In [0, 1]. */
+  fraction: number;
+}
 
 /** A unit on the screen: a circle, in CSS pixels. */
 export interface UnitShape {
@@ -37,6 +47,8 @@ export interface UnitShape {
   radius: number;
   /** Still waiting out its deploy delay. */
   deploying: boolean;
+  hp: number;
+  maxHp: number;
 }
 
 /** The largest whole tile size that fits the arena on a screen, at least 1 px. */
@@ -95,7 +107,35 @@ export function groundScene(arena: Terrain, view: View): Shape[] {
 }
 
 export function towerScene(state: Pick<SimState, 'towers'>, view: View): Shape[] {
-  return state.towers.map((tower) => ({ kind: tower.kind, side: tower.side, rect: toScreen(view, towerFootprint(tower)) }));
+  return state.towers.map((tower) => ({
+    kind: tower.kind,
+    side: tower.side,
+    rect: toScreen(view, towerFootprint(tower)),
+    fallen: tower.hp === 0,
+  }));
+}
+
+/**
+ * Hp bars, just above what they measure: every standing tower's (as wide as it is), and every damaged
+ * unit's (as wide as its circle). A full-hp unit shows none, so the field stays readable.
+ */
+export function hpBarScene(state: Pick<SimState, 'towers'>, units: readonly UnitShape[], view: View): HpBar[] {
+  const height = Math.max(3, Math.round(view.tilePx / 6));
+  const gap = Math.max(1, Math.round(height / 2));
+  const bars: HpBar[] = [];
+  for (const tower of state.towers) {
+    if (tower.hp > 0) {
+      const { x, y, width } = toScreen(view, towerFootprint(tower));
+      bars.push({ side: tower.side, rect: { x, y: y - gap - height, width, height }, fraction: tower.hp / tower.maxHp });
+    }
+  }
+  for (const unit of units) {
+    if (unit.hp < unit.maxHp) {
+      const rect = { x: unit.x - unit.radius, y: unit.y - unit.radius - gap - height, width: unit.radius * 2, height };
+      bars.push({ side: unit.side, rect, fraction: unit.hp / unit.maxHp });
+    }
+  }
+  return bars;
 }
 
 /**
@@ -111,7 +151,8 @@ export function unitScene(previous: SimState, current: SimState, alpha: number, 
     const y = from.y + (unit.y - from.y) * alpha;
     const stats = current.cards[unit.card];
     const radius = stats?.type === 'troop' ? stats.unit.radius * scale : scale * MILLI_PER_TILE / 2;
-    return { id: unit.id, side: unit.side, card: unit.card, ...pointToScreen(view, x, y), radius, deploying: unit.deployTicks > 0 };
+    const { id, side, card, hp, maxHp } = unit;
+    return { id, side, card, ...pointToScreen(view, x, y), radius, deploying: unit.deployTicks > 0, hp, maxHp };
   });
 }
 

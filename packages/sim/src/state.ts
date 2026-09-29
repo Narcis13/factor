@@ -1,4 +1,4 @@
-import type { ArenaLayout, Terrain, Tower, TowerKind, TowerStats } from './arena.ts';
+import type { ArenaLayout, AttackStats, Terrain, Tower, TowerKind, TowerStats } from './arena.ts';
 import { dealPlayer, pickCards, type CardId, type CardStats, type EnergyRules, type Player } from './cards.ts';
 import { hashJson } from './hash.ts';
 import { seedRng, type Rng } from './rng.ts';
@@ -56,6 +56,8 @@ export interface SimState {
   arena: Terrain;
   /** Ascending by id. */
   towers: Tower[];
+  /** Never changes during a match. */
+  towerStats: Record<TowerKind, TowerStats>;
   /** Troops on the field, ascending by id. Their ids follow the towers'. */
   units: Unit[];
   /** The id the next unit gets. */
@@ -96,8 +98,10 @@ export function createMatch(setup: MatchSetup): SimState {
   requireInteger('ticksPerEnergy', energy.ticksPerEnergy, 1);
   requireInteger('doubleFromTick', energy.doubleFromTick, 0);
   requireInteger('deployDelayTicks', deployDelayTicks, 0);
+  const towerStats = copyTowerStats(setup.towerStats);
   for (const kind of ['keep', 'outpost'] as const) {
-    requireInteger(`${kind} hp`, setup.towerStats[kind].hp, 1);
+    requireInteger(`${kind} hp`, towerStats[kind].hp, 1);
+    requireAttack(kind, towerStats[kind]);
   }
   for (const side of [0, 1] as const) {
     const size = setup.decks[side].length;
@@ -109,17 +113,22 @@ export function createMatch(setup: MatchSetup): SimState {
   for (const [id, card] of Object.entries(cards)) {
     requireInteger(`${id} cost`, card.cost, 0, energy.max);
     if (card.type === 'troop') {
-      const { hp, speed, radius, range } = card.unit;
+      const { hp, speed, radius, sight, targets } = card.unit;
       requireInteger(`${id} hp`, hp, 1);
       requireInteger(`${id} speed`, speed, 1);
       requireInteger(`${id} radius`, radius, 1);
-      requireInteger(`${id} range`, range, 0);
+      requireAttack(id, card.unit);
+      requireInteger(`${id} sight`, sight, card.unit.range);
+      // Setups come from outside the type system too (hand-edited content), so check the string.
+      if (!(['ground', 'buildings'] as readonly string[]).includes(targets)) {
+        throw new RangeError(`${id} targets must be ground or buildings, got ${targets}`);
+      }
     }
   }
   // Fields are copied one by one, so nothing from the setup is shared with the state or leaks into it.
   const towers = setup.arena.towers.map(({ kind, side, lane, x, y, size }, id): Tower => {
-    const { hp } = setup.towerStats[kind];
-    return { id, kind, side, lane, x, y, size, hp, maxHp: hp };
+    const { hp } = towerStats[kind];
+    return { id, kind, side, lane, x, y, size, hp, maxHp: hp, targetId: null, cooldown: 0 };
   });
   const rng = seedRng(setup.seed);
   const players: [Player, Player] = [
@@ -132,6 +141,7 @@ export function createMatch(setup: MatchSetup): SimState {
     rules,
     arena: copyTerrain(setup.arena),
     towers,
+    towerStats,
     units: [],
     nextId: towers.length,
     cards,
@@ -166,6 +176,18 @@ export function copyRules({ regulationTicks, overtimeTicks, deckSize, handSize, 
     energy: { start, max, ticksPerEnergy, doubleFromTick },
     deployDelayTicks,
   };
+}
+
+export function copyTowerStats(stats: Readonly<Record<TowerKind, TowerStats>>): Record<TowerKind, TowerStats> {
+  const copy = ({ hp, damage, hitTicks, firstHitTicks, range }: TowerStats): TowerStats => ({ hp, damage, hitTicks, firstHitTicks, range });
+  return { keep: copy(stats.keep), outpost: copy(stats.outpost) };
+}
+
+function requireAttack(name: string, { damage, hitTicks, firstHitTicks, range }: AttackStats): void {
+  requireInteger(`${name} damage`, damage, 0);
+  requireInteger(`${name} hitTicks`, hitTicks, 1);
+  requireInteger(`${name} firstHitTicks`, firstHitTicks, 1);
+  requireInteger(`${name} range`, range, 0);
 }
 
 export function copyCards(cards: Readonly<Record<CardId, CardStats>>): Record<CardId, CardStats> {

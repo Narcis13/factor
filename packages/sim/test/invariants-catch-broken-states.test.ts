@@ -33,6 +33,17 @@ test.each<{ label: string; broken: SimState; message: RegExp }>([
     broken: { ...healthy, rng: { ...healthy.rng, c: -1 } },
     message: /rng\.c -1/,
   },
+  { label: 'more than 3 stars', broken: { ...healthy, stars: [4, 0] }, message: /side 0 has 4 stars/ },
+  {
+    label: 'a fallen Keep with no result',
+    broken: { ...healthy, towers: withTower(3, { hp: 0 }) },
+    message: /side 1's Keep has fallen but the match has no result/,
+  },
+  {
+    label: 'a tower with a fractional cooldown',
+    broken: { ...healthy, towers: withTower(2, { targetId: 9, cooldown: 3 / 2 }) },
+    message: /tower 2 has target 9 and cooldown 1\.5/,
+  },
   { label: 'negative stars', broken: { ...healthy, stars: [0, -1] }, message: /side 1 has -1 stars/ },
   {
     label: 'a draw with untied stars',

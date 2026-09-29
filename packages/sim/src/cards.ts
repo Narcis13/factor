@@ -1,17 +1,25 @@
+import type { AttackStats } from './arena.ts';
 import { shuffle, type Rng } from './rng.ts';
 
 /** A card's id, as `content` names it. */
 export type CardId = string;
 
-/** What a troop's unit is made of (VISION §4). The fighting stats come with fighting. */
-export interface UnitStats {
+/**
+ * What a unit may lock on to (VISION §4): `ground` means ground units and buildings; `buildings` means
+ * towers only. Air comes with flying units.
+ */
+export type TargetFilter = 'ground' | 'buildings';
+
+/** What a troop's unit is made of (VISION §4). `range` is how close its edge gets to its target's edge. */
+export interface UnitStats extends AttackStats {
   hp: number;
   /** Milli-tiles moved per tick. */
   speed: number;
   /** The unit is a circle of this radius, in milli-tiles. */
   radius: number;
-  /** How close its edge gets to its target's edge, in milli-tiles. */
-  range: number;
+  /** Edge to edge, in milli-tiles: how far it notices enemies. */
+  sight: number;
+  targets: TargetFilter;
 }
 
 /**
@@ -101,6 +109,10 @@ function copyCard(stats: CardStats): CardStats {
   if (stats.type === 'spell') {
     return { cost: stats.cost, type: 'spell' };
   }
-  const { hp, speed, radius, range } = stats.unit;
-  return { cost: stats.cost, type: 'troop', unit: { hp, speed, radius, range } };
+  const { hp, speed, radius, range, sight, targets, damage, hitTicks, firstHitTicks } = stats.unit;
+  return {
+    cost: stats.cost,
+    type: 'troop',
+    unit: { hp, speed, radius, range, sight, targets, damage, hitTicks, firstHitTicks },
+  };
 }

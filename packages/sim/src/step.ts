@@ -1,7 +1,7 @@
 import { copyPlayer, playCard, regenerate } from './cards.ts';
 import { decideResult } from './result.ts';
-import { copyCards, copyRules, copyTerrain, type Command, type RejectReason, type SimState } from './state.ts';
-import { actUnit, deployZone, inRect } from './troops.ts';
+import { copyCards, copyRules, copyTerrain, copyTowerStats, type Command, type RejectReason, type SimState } from './state.ts';
+import { actTower, actUnit, deployZone, inRect, unitStats, type Hit } from './troops.ts';
 
 /**
  * Advances the match by exactly one tick. `commands` are the commands for `state.tick`.
@@ -18,6 +18,7 @@ export function step(state: SimState, commands: readonly Command[]): SimState {
     rules: copyRules(state.rules),
     arena: copyTerrain(state.arena),
     towers: state.towers.map((tower) => ({ ...tower })),
+    towerStats: copyTowerStats(state.towerStats),
     units: state.units.map((unit) => ({ ...unit })),
     nextId: state.nextId,
     cards: copyCards(state.cards),
@@ -37,21 +38,15 @@ export function step(state: SimState, commands: readonly Command[]): SimState {
       if (card.stats.type === 'troop') {
         const { hp } = card.stats.unit;
         const { side, x, y } = command;
-        next.units.push({ id: next.nextId, side, card: card.id, x, y, hp, maxHp: hp, deployTicks: next.rules.deployDelayTicks });
+        const deployTicks = next.rules.deployDelayTicks;
+        next.units.push({ id: next.nextId, side, card: card.id, x, y, hp, maxHp: hp, deployTicks, targetId: null, cooldown: 0 });
         next.nextId += 1;
       }
     } else {
       next.rejected.push({ command: { ...command }, reason });
     }
   }
-  // Units act in id order; new ones start their deploy delay this very tick.
-  for (const unit of next.units) {
-    const stats = next.cards[unit.card];
-    if (stats?.type !== 'troop') {
-      throw new RangeError(`Unit ${String(unit.id)} comes from ${unit.card}, which is not a troop`);
-    }
-    actUnit(unit, stats.unit, next.arena, next.towers);
-  }
+  fight(next);
   const { energy } = next.rules;
   const rate = state.tick >= energy.doubleFromTick ? 2 : 1;
   for (const player of next.players) {
@@ -59,6 +54,36 @@ export function step(state: SimState, commands: readonly Command[]): SimState {
   }
   next.result = decideResult(next);
   return next;
+}
+
+/**
+ * Towers, then units, act in id order; a new unit starts its deploy delay this very tick. Their hits
+ * land together afterwards, so a unit that dies this tick still lands its own hit. Then the dead leave
+ * the field and fallen towers score (VISION §4, Winning): an Outpost earns its destroyer 1 star, the
+ * Keep brings them to 3.
+ */
+function fight(state: SimState): void {
+  const hits: Hit[] = [];
+  for (const tower of state.towers) {
+    actTower(tower, state.towerStats[tower.kind], state, hits);
+  }
+  for (const unit of state.units) {
+    actUnit(unit, unitStats(state, unit), state, hits);
+  }
+  const standing = state.towers.filter((tower) => tower.hp > 0);
+  for (const { targetId, damage } of hits) {
+    const target = state.towers.find((tower) => tower.id === targetId) ?? state.units.find((unit) => unit.id === targetId);
+    if (target !== undefined) {
+      target.hp = Math.max(0, target.hp - damage);
+    }
+  }
+  state.units = state.units.filter((unit) => unit.hp > 0);
+  for (const tower of standing) {
+    if (tower.hp === 0) {
+      const scorer = tower.side === 0 ? 1 : 0;
+      state.stars[scorer] = tower.kind === 'keep' ? 3 : Math.min(3, state.stars[scorer] + 1);
+    }
+  }
 }
 
 /** `null` if `command` can be played on `state`, which is the state being built for the tick after `tick`. */

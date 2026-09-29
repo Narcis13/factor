@@ -26,7 +26,8 @@ export const RULES: MatchRules = {
 
 /**
  * Eight spells named by their cost, so a test can read what a play spends and nothing lands on the field.
- * Then two troops: `walker` (speed 50, radius 500, melee) and `archer` (speed 40, radius 400, range 3000).
+ * Then two troops: `walker` (speed 50, radius 500, melee, 50 damage) and `archer` (speed 40, radius 400,
+ * range 3000, 20 damage).
  */
 export const CARDS: Record<CardId, CardStats> = {
   c1: { cost: 1, type: 'spell' },
@@ -39,15 +40,29 @@ export const CARDS: Record<CardId, CardStats> = {
   c8: { cost: 8, type: 'spell' },
 };
 
+/** Both hit every 10 ticks, the first time 5 ticks after locking on, and notice enemies 4 tiles off. */
+const FIGHT = { hitTicks: 10, firstHitTicks: 5, sight: 4000, targets: 'ground' } as const;
+
 export const TROOPS: Record<CardId, CardStats> = {
-  walker: { cost: 1, type: 'troop', unit: { hp: 500, speed: 50, radius: 500, range: 0 } },
-  archer: { cost: 1, type: 'troop', unit: { hp: 200, speed: 40, radius: 400, range: 3000 } },
+  walker: { cost: 1, type: 'troop', unit: { hp: 500, speed: 50, radius: 500, range: 0, damage: 50, ...FIGHT } },
+  archer: { cost: 1, type: 'troop', unit: { hp: 200, speed: 40, radius: 400, range: 3000, damage: 20, ...FIGHT } },
 };
 
 export const DECK: CardId[] = ['c1', 'c2', 'c3', 'c4', 'c5', 'c6', 'c7', 'c8'];
 
 /** Only `walker`s and `archer`s, alternating, so any hand slot holds a troop that costs 1. */
 export const TROOP_DECK: CardId[] = ['walker', 'archer', 'walker', 'archer', 'walker', 'archer', 'walker', 'archer'];
+
+/** `TROOPS` and `TOWER_STATS` that deal no damage, for tests about movement alone. */
+export const HARMLESS_TROOPS: Record<CardId, CardStats> = Object.fromEntries(
+  Object.entries(TROOPS).map(([id, card]) => [id, card.type === 'troop' ? { ...card, unit: { ...card.unit, damage: 0 } } : card]),
+);
+
+/** A troop match where nothing can hurt anything: units still lock on, but only walk and stand. */
+export function walkMatch(seed: number): SimState {
+  const towerStats = { keep: { ...TOWER_STATS.keep, damage: 0 }, outpost: { ...TOWER_STATS.outpost, damage: 0 } };
+  return createMatch({ ...matchSetup(seed), towerStats, cards: HARMLESS_TROOPS, decks: [TROOP_DECK, TROOP_DECK] });
+}
 
 /** A match where both sides play `TROOP_DECK`. */
 export function troopMatch(seed: number, rules: MatchRules = RULES): SimState {
@@ -76,7 +91,13 @@ export const ARENA: ArenaLayout = {
   ],
 };
 
-export const TOWER_STATS: Record<TowerKind, TowerStats> = { keep: { hp: 300 }, outpost: { hp: 200 } };
+/** Towers reach 2 tiles past their footprint and hit for 10 every 10 ticks, the first time 5 ticks after locking on. */
+const TOWER_ATTACK = { damage: 10, hitTicks: 10, firstHitTicks: 5, range: 2000 };
+
+export const TOWER_STATS: Record<TowerKind, TowerStats> = {
+  keep: { hp: 300, ...TOWER_ATTACK },
+  outpost: { hp: 200, ...TOWER_ATTACK },
+};
 
 export function matchSetup(seed: number, rules: MatchRules = RULES): MatchSetup {
   return { seed, rules, arena: ARENA, towerStats: TOWER_STATS, cards: CARDS, decks: [DECK, DECK] };

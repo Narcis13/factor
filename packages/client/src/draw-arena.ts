@@ -1,5 +1,5 @@
 import type { Graphics } from 'pixi.js';
-import type { GroundKind, ScreenRect, Shape, UnitShape } from './arena-view.ts';
+import type { GroundKind, HpBar, ScreenRect, Shape, UnitShape } from './arena-view.ts';
 import { cardColor, SIDE_COLOR } from './palette.ts';
 
 export { BACKGROUND } from './palette.ts';
@@ -11,6 +11,8 @@ const GROUND: Record<GroundKind, number> = {
   bridge: 0xa07b4f,
 };
 const TOWER_EDGE = 0x1d2733;
+const RUBBLE = 0x6b6f75;
+const HP_TRACK = 0x1d2733;
 const NO_DEPLOY = 0x000000;
 
 export function drawArena(graphics: Graphics, shapes: Shape[]): void {
@@ -18,7 +20,9 @@ export function drawArena(graphics: Graphics, shapes: Shape[]): void {
     const { x, y, width, height } = shape.rect;
     graphics.rect(x, y, width, height);
     if (shape.kind === 'keep' || shape.kind === 'outpost') {
-      graphics.fill({ color: SIDE_COLOR[shape.side] }).stroke({ color: TOWER_EDGE, width: 2 });
+      // A fallen tower stays as grey rubble, ringed in its side's color.
+      const [fill, edge] = shape.fallen ? [RUBBLE, SIDE_COLOR[shape.side]] : [SIDE_COLOR[shape.side], TOWER_EDGE];
+      graphics.fill({ color: fill }).stroke({ color: edge, width: 2 });
     } else {
       graphics.fill({ color: GROUND[shape.kind] });
     }
@@ -38,5 +42,13 @@ export function drawUnits(graphics: Graphics, units: UnitShape[]): void {
       .circle(unit.x, unit.y, unit.radius)
       .fill({ color: cardColor(unit.card), alpha })
       .stroke({ color: SIDE_COLOR[unit.side], width: 3, alpha });
+  }
+}
+
+/** A dark track with the hp left filled in the owner's color. */
+export function drawHpBars(graphics: Graphics, bars: HpBar[]): void {
+  for (const { side, rect, fraction } of bars) {
+    graphics.rect(rect.x, rect.y, rect.width, rect.height).fill({ color: HP_TRACK });
+    graphics.rect(rect.x, rect.y, rect.width * fraction, rect.height).fill({ color: SIDE_COLOR[side] });
   }
 }

@@ -7,32 +7,30 @@ Sculpt log. The **Current state** block is rewritten at the end of every session
 ## Current state
 
 **Stage:** 1 — Block-in
-**Last session:** S10 · 2026-09-29
+**Last session:** S11 · 2026-09-29
 **Works:**
 - A pnpm monorepo with `sim`, `content`, `tools` and `client` packages, strict TS 6.0, no build step.
-- `pnpm check` is green: typecheck, lint, 252 tests (one of them drives headless Chromium).
+- `pnpm check` is green: typecheck, lint, 268 tests (one of them drives headless Chromium).
 - ESLint enforces the sim's hard rules (imports, Math/Date/timers, async, classes, `**`, float literals), in sim tests too.
 - Sim: `createMatch(setup)`, pure `step(state, commands)` at a fixed tick, sfc32 RNG in state, `hashState`. `MatchSetup` carries rules, the `ArenaLayout`, tower stats, a card catalog and both decks.
-- Towers are entities (site, `id`, `hp`, `maxHp`); they don't act yet.
-- Players: energy 5 → 10, +1 per 56 ticks, 2× from 2:00 and in overtime. Decks of 8 shuffled from the seed; hand of 4 + queue. A legal play spends and cycles; rejects: `wrong-tick`, `bad-slot`, `out-of-bounds` (also non-integer aims), `outside-deploy-zone`, `not-enough-energy`.
-- Cards are `troop` (with `UnitStats`: hp, speed, radius, range) or `spell`. A troop deploys only on its side's half (`deployZone`) and puts one `Unit` there (ids follow the towers', `nextId`). It stands for `deployDelayTicks` (20), then walks its lane (by x; the middle column is right) to its bridge, crosses, and heads for the nearest enemy tower, stopping with its edge `range` from the footprint. Integer geometry: `isqrt`, symmetric `divRound`. The sides mirror exactly. Spells do nothing yet.
+- Players: energy 5 → 10, +1 per 56 ticks, 2× from 2:00 and in overtime. Decks of 8 shuffled from the seed; hand of 4 + queue; plays spend and cycle, with 5 rejection reasons.
+- Troops deploy one `Unit` on their own half, wait 20 ticks, then act. Fighting: a unit keeps hitting its locked target while it stays in range; otherwise it takes the nearest valid enemy in sight (edge to edge; `targets: ground | buildings`), or else the nearest enemy tower, locks on in range, and walks toward it (over its lane's bridge if the river is in the way). Towers lock on to the nearest enemy unit in range. Hits land `firstHitTicks` after locking on, then every `hitTicks`, instantly, and all of a tick's hits land together. The dead leave the field; fallen towers stay at 0 hp. An Outpost gives 1 star, the Keep brings its destroyer to 3 and ends the match (both Keeps at once is a draw). The Keep shoots from the start.
 - Match timer and result: 3:00 regulation, then up to 2:00 overtime while stars are tied.
-- Content: `CARDS` (juggernaut 5, warden 3, slinger 4 as troops; flare 4 as a spell), `STARTER_DECK`, `MATCH_RULES`, `ARENA`, `TOWER_STATS`, `matchSetup(seed, decks?)`, replay v0.
-- `pnpm sim match --seed <n>` / `pnpm sim replay <file>` play headless (no commands yet) and agree on the hash (seed 42: `551f99dc`).
-- Client: `pnpm dev` runs seed 0 live (fixed-step loop, interpolation), HUD (clock, energy, hand, next), and taps become side-0 commands. The ground is drawn per resize; towers and units (interpolated circles, faint while deploying) every frame; the illegal zone is shaded while a troop is selected. `?tick=<n>` freezes the match; `pnpm shots` shoots `?tick=90`, byte-identical.
+- Content: `CARDS` (juggernaut 5 buildings-only tank, warden 3 melee, slinger 4 ranged; flare 4 spell with no effect yet), `TOWER_STATS` (Keep 4000 hp/100 dmg, Outpost 2500/90, both 7-tile range, every 0.8 s), `MATCH_RULES`, `ARENA`, `matchSetup(seed, decks?)`, replay v0.
+- `pnpm sim match --seed <n>` / `pnpm sim replay <file>` play headless (no commands yet) and agree on the hash (seed 42: `81d7d01a`).
+- Client: `pnpm dev` runs seed 0 live with a HUD; taps become side-0 commands. Towers (grey rubble once fallen), units, and hp bars (every standing tower; units once damaged) are drawn every frame. `pnpm shots` shoots `?tick=90`, byte-identical.
 **Known issues:**
 - No formatter configured yet.
-- Nothing fights: units stop at towers, towers don't shoot, nothing earns stars. The end-of-match scenarios set stars directly.
-- Units don't collide, and they can be deployed on a tower's footprint. Ranged units only look for towers once across the river, so they stop on the far bank even when in range sooner.
-- Units are small and low-contrast on the grass (readability; art direction pending).
+- `flare` does nothing yet. Units don't collide, and they can be deployed on a tower's footprint. No Keep dormancy (Stage 2).
+- Hp bars are thin (4 px at phone size); unit bars have only been seen in tests, not in a shot. Units are small and low-contrast on the grass.
 - The client shows no stars and nothing when the match ends; side 1 never plays.
 - Shots need Playwright's pinned Chromium or `FACTOR_CHROMIUM=<path>`. In the cloud container use `FACTOR_CHROMIUM=/opt/pw-browsers/chromium_headless_shell-1194/chrome-linux/headless_shell`.
 - Replays don't carry rules, layout or stats; a content change silently changes what an old replay plays.
-- Context7 isn't reachable from the cloud container; PixiJS APIs were checked against the installed 8.21 type definitions.
+- Context7 isn't reachable from the cloud container; library APIs were checked against the installed type definitions.
 **Golden replays:** none (the RNG sequence and the seed-1234 shuffle are pinned in tests)
 
 **Next cuts** (in order):
-1. Fighting: units acquire the nearest enemy (unit or tower) in sight and hit it (damage, hit interval, first-hit delay, ranged as instant hits for now); towers get damage/range and shoot; units and towers die; a fallen Outpost earns a star and a fallen Keep ends the match. `flare` deals area damage (less to towers). The client shows hp bars.
+1. `flare`: area damage at its aim point (radius, damage and a reduced share against towers, in basis points, all in `content`), with a brief marker in the client.
 2. A random-legal-move bot playing side 1 in the client and in `pnpm sim match`, which records its commands into the replay.
 3. Stars on the HUD and a win/lose/draw screen; the client auto-saves the replay of a finished match.
 4. `?replay=` plays a replay back in the client, and `pnpm shots` learns `?replay=&tick=`.
@@ -40,6 +38,18 @@ Sculpt log. The **Current state** block is rewritten at the end of every session
 ---
 
 ## Sessions
+
+### S11 · 2026-09-29 · Units and towers fight
+**Stage:** 1 — Block-in
+**Cut:** First slice of Fighting (Next cuts 1, split): targeting, lock-on and hits for units and towers, deaths, stars, and the Keep ending the match, with hp bars in the client. `flare` is the next slice.
+**Done:**
+- Sim: `AttackStats` (damage, hitTicks, firstHitTicks, range) on `TowerStats` and `UnitStats` (plus sight and `targets`). `Tower`/`Unit` gain `targetId` and `cooldown`; the state gains `towerStats`. `troops.ts`: `actUnit` (lock-on, acquisition, goal-based bridge routing), `actTower`, `Hit`. `step` gains `fight`: towers then units act, hits land together, the dead leave, fallen towers score. `decideResult`: a fallen Keep ends the match. New invariants: stars ≤ 3, a fallen Keep has a result, and attack fields are integers.
+- Content: fighting stats for the three troops and both towers.
+- Client: `hpBarScene`, `drawHpBars`, rubble for fallen towers; `UnitShape` carries hp.
+**Verified:** `pnpm check` green (34 files, 268 tests; 16 new). Scenarios cover: tower lock-on and hit timing (ticks 6, 16), nearest target and staying locked, retargeting when out of range, a walker duel falling together at tick 96, a dying archer still landing its hit, sight before the tower, buildings-only ignoring units, an Outpost star, a Keep ending the match at tick 56 with 3 stars, and a double Keep draw. Mirror fights end on the same tick; the scripted match plays to a Keep kill (tick 760) with invariants on. With content numbers, a one-sided push takes an Outpost at ~1:20 and the Keep at 2:40. 7 mutations were each caught. The shot is `152f06566ee3` (tower bars); a live headless run showed a damaged Outpost bar and no page errors (looked at both). Seed 42 → `81d7d01a` in both `match` and `replay`.
+**Decisions:** Hits are decided first and land together, so no side hits first (pillar 1). The Keep sets its destroyer's stars to 3; stars never exceed 3. Ranged units check range before walking, which fixes the far-bank stop. Movement tests use a no-damage `walkMatch`. Seed 42's hash changed from `551f99dc` on purpose (the state grew).
+**Left out / noticed:** Flare (Next cuts 1). Keep dormancy, collision and air are Stage 2. Hp bar size and unit contrast are in Known issues. **Playtest (director):** do fights read at a glance? Do wardens and slingers survive long enough under an Outpost? Are hp bars visible on a phone?
+**Status:** complete
 
 ### S10 · 2026-09-29 · Troops deploy and walk
 **Stage:** 1 — Block-in

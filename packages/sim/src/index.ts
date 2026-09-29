@@ -1,5 +1,5 @@
-export type { ArenaLayout, Bridge, Lane, Rect, Terrain, Tower, TowerKind, TowerSite, TowerStats } from './arena.ts';
-export type { CardId, CardStats, EnergyRules, Player, UnitStats } from './cards.ts';
+export type { ArenaLayout, AttackStats, Bridge, Lane, Rect, Terrain, Tower, TowerKind, TowerSite, TowerStats } from './arena.ts';
+export type { CardId, CardStats, EnergyRules, Player, TargetFilter, UnitStats } from './cards.ts';
 export { canonicalJson, fnv1a32, hashJson } from './hash.ts';
 export { checkInvariants } from './invariants.ts';
 export { nextBelow, nextUint32, seedRng, shuffle, type Rng } from './rng.ts';

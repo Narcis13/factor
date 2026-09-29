@@ -26,8 +26,9 @@ test('a unit is drawn at its position, as a circle of its radius, faint while it
   const { state, card } = withTroop(0);
   const stats = state.cards[card];
   const radius = stats?.type === 'troop' ? stats.unit.radius : 0;
+  const hp = stats?.type === 'troop' ? stats.unit.hp : 0;
   expect(unitScene(state, state, 0, VIEW)).toEqual([
-    { id: 6, side: 0, card, x: 3.5 * 30, y: (32 - 8) * 30, radius: (radius * 30) / 1000, deploying: true },
+    { id: 6, side: 0, card, x: 3.5 * 30, y: (32 - 8) * 30, radius: (radius * 30) / 1000, deploying: true, hp, maxHp: hp },
   ]);
   const later = stepTo(state, state.tick + 40);
   expect(unitScene(later, later, 0, VIEW)[0]?.deploying).toBe(false);

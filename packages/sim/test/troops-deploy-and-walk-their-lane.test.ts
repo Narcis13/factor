@@ -1,10 +1,11 @@
 import { expect, test } from 'vitest';
 import { checkInvariants, deployZone, hashState, step, type Command, type SimState, type Unit } from '../src/index.ts';
-import { ARENA, idle, newMatch, troopMatch } from './fixtures.ts';
+import { ARENA, idle, newMatch, troopMatch, walkMatch } from './fixtures.ts';
 
 // The fixture arena: 10 × 20 tiles, the river at y 9000–11000, bridges at x 1000–3000 (left) and
 // 7000–9000 (right). Side 1's left Outpost stands on 1000–3000 × 14000–16000.
-const START = troopMatch(5);
+// Nothing deals damage here, so these tests see movement alone; fighting has its own tests.
+const START = walkMatch(5);
 
 function play(state: SimState, side: 0 | 1, x: number, y: number, handSlot = 0): Command {
   return { tick: state.tick, side, handSlot, x, y };
@@ -43,7 +44,18 @@ test('a troop play puts one unit where it was aimed, at full hp, waiting out its
   const after = step(START, [play(START, 0, 2000, 4000, slot)]);
   expect(after.rejected).toEqual([]);
   // Towers hold ids 0–5, so the first unit is 6. Its delay already counted down once this tick.
-  expect(after.units).toEqual([{ id: 6, side: 0, card: 'walker', x: 2000, y: 4000, hp: 500, maxHp: 500, deployTicks: 19 }]);
+  expect(after.units).toEqual([{
+    id: 6,
+    side: 0,
+    card: 'walker',
+    x: 2000,
+    y: 4000,
+    hp: 500,
+    maxHp: 500,
+    deployTicks: 19,
+    targetId: null,
+    cooldown: 0,
+  }]);
   expect(after.nextId).toBe(7);
   expect(after.players[0].queue.at(-1)).toBe('walker');
 });
@@ -131,7 +143,7 @@ test('a unit off its lane heads for its bridge, never touching the river beside 
   const last = path.at(-1);
   expect(last && distanceToFootprint(last)).toBeGreaterThanOrEqual(499);
   expect(last && distanceToFootprint(last)).toBeLessThanOrEqual(500);
-  expect(path.at(-2)).toEqual(last);
+  expect(path.at(-2)).toMatchObject({ x: last?.x, y: last?.y });
 });
 
 test('the middle column belongs to the right lane', () => {
@@ -140,26 +152,36 @@ test('the middle column belongs to the right lane', () => {
   expect(path.some((u) => u.y === 9000 && u.x === 7500)).toBe(true);
 });
 
-test('a ranged unit stops as soon as it is within range, once across the river', () => {
+test('a ranged unit stops as soon as it is within range, even on the bridge', () => {
   const archer = step(START, [play(START, 0, 2000, 4000, START.players[0].hand.indexOf('archer'))]);
   const last = run(archer, 400).at(-1);
-  // 3400 from the footprint (range + radius) is y 10600, on the bridge: it stops on the far bank.
-  expect(last && unit(last, 6)).toMatchObject({ x: 2000, y: 11_000 });
+  // 3400 from the footprint (range + radius) is y 10600, on the bridge: it stops there and locks on.
+  expect(last && unit(last, 6)).toMatchObject({ x: 2000, y: 10_600, targetId: 4 });
 });
 
-test('both sides walk the mirror image of each other, tick for tick', () => {
-  const both = step(START, [play(START, 0, 4200, 2500), play(START, 1, 4200, 20_000 - 2500)]);
+test('both sides walk and fight the mirror image of each other, tick for tick, and die on the same tick', () => {
+  const fighting = troopMatch(5);
+  const both = step(fighting, [play(fighting, 0, 4200, 2500), play(fighting, 1, 4200, 20_000 - 2500)]);
   expect(unit(both, 6).card).toBe(unit(both, 7).card);
-  for (const state of run(both, 500)) {
-    const [mine, theirs] = [unit(state, 6), unit(state, 7)];
+  let died = false;
+  for (const state of run(both, 800)) {
+    const [mine, theirs] = [state.units.find((u) => u.id === 6), state.units.find((u) => u.id === 7)];
+    if (mine === undefined || theirs === undefined) {
+      expect(mine).toBe(theirs);
+      died = true;
+      continue;
+    }
     expect(theirs.x).toBe(mine.x);
     expect(theirs.y).toBe(20_000 - mine.y);
+    expect(theirs.hp).toBe(mine.hp);
   }
+  expect(died).toBe(true);
 });
 
-test('a match full of troops plays to the end with invariants holding every tick, the same every time', () => {
+test('a match full of troops plays until a Keep falls, with invariants holding every tick, the same every time', () => {
   const playOut = () => {
     let state = troopMatch(77);
+    let deaths = 0;
     let turn = 0;
     while (state.result === null) {
       const commands: Command[] = [];
@@ -169,15 +191,20 @@ test('a match full of troops plays to the end with invariants holding every tick
         commands.push(play(state, 0, x, (turn * 1300) % 9000, turn % 4));
         commands.push(play(state, 1, 10_000 - 1 - x, 11_000 + ((turn * 2900) % 9000), (turn + 1) % 4));
       }
-      state = step(state, commands);
+      const next = step(state, commands);
+      deaths += state.units.length + (next.nextId - state.nextId) - next.units.length;
+      state = next;
       expect(checkInvariants(state)).toEqual([]);
     }
-    return state;
+    return { state, deaths };
   };
   const first = playOut();
-  expect(first.nextId - 6).toBeGreaterThan(300);
-  expect(first.units.length).toBe(first.nextId - 6);
-  expect(hashState(playOut())).toBe(hashState(first));
+  // The fixture's towers are weak, so a Keep falls long before the timer: side 0 takes all three at tick 760.
+  expect(first.state.result).toEqual({ winner: 0 });
+  expect(first.state.tick).toBe(760);
+  expect(first.state.stars).toEqual([3, 0]);
+  expect(first.deaths).toBeGreaterThan(10);
+  expect(hashState(playOut().state)).toBe(hashState(first.state));
 });
 
 test('units never act after the match; stepping past the end still throws', () => {
