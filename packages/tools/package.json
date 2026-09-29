@@ -11,6 +11,8 @@
   },
   "dependencies": {
     "@factor/content": "workspace:*",
-    "@factor/sim": "workspace:*"
+    "@factor/sim": "workspace:*",
+    "playwright": "^1.63.0",
+    "vite": "^8.3.1"
   }
 }

@@ -67,6 +67,12 @@ export const ARENA: ArenaLayout = {
   towers: [...SIDE_0_TOWERS, ...SIDE_0_TOWERS.map((site) => ({ ...site, side: 1 as const, y: HEIGHT - site.y }))],
 };
 
+/** The square of ground a tower stands on. */
+export function towerFootprint(site: TowerSite): Rect {
+  const half = site.size / 2;
+  return { x: site.x - half, y: site.y - half, width: site.size, height: site.size };
+}
+
 /** Tiles to milli-tiles, refusing anything that isn't a whole number of milli-tiles. */
 function tiles(count: number): number {
   const milli = count * MILLI_PER_TILE;

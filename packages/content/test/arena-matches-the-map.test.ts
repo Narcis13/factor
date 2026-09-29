@@ -1,6 +1,6 @@
 import { MILLI_PER_TILE } from '@factor/sim';
 import { expect, test } from 'vitest';
-import { ARENA, type Rect } from '../src/index.ts';
+import { ARENA, towerFootprint, type Rect } from '../src/index.ts';
 
 // Side 1 (lowercase) at the top, side 0 (uppercase) at the bottom, as side 0's player sees it.
 // K/k: Keep. O/o: Outpost. ~: river. =: bridge.
@@ -52,9 +52,7 @@ function draw(): string {
     for (let col = 0; col < ARENA.width / MILLI_PER_TILE; col++) {
       const x = col * MILLI_PER_TILE + half;
       const y = row * MILLI_PER_TILE + half;
-      const tower = ARENA.towers.find((site) =>
-        contains({ x: site.x - site.size / 2, y: site.y - site.size / 2, width: site.size, height: site.size }, x, y),
-      );
+      const tower = ARENA.towers.find((site) => contains(towerFootprint(site), x, y));
       if (tower !== undefined) {
         const mark = tower.kind === 'keep' ? 'K' : 'O';
         line += tower.side === 0 ? mark : mark.toLowerCase();

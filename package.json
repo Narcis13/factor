@@ -11,7 +11,9 @@
     "typecheck": "tsc --noEmit -p tsconfig.json && pnpm -r typecheck",
     "lint": "eslint . --max-warnings=0",
     "test": "vitest run",
-    "sim": "node packages/tools/src/cli.ts"
+    "sim": "node packages/tools/src/cli.ts",
+    "shots": "node packages/tools/src/cli.ts shots",
+    "dev": "pnpm --filter @factor/client dev"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

@@ -6,31 +6,46 @@ Sculpt log. The **Current state** block is rewritten at the end of every session
 
 ## Current state
 
-**Stage:** 0 — Armature (in progress: exit criteria 3 of 5 met)
-**Last session:** S4 · 2026-09-29
+**Stage:** 0 — Armature (in progress: exit criteria 4 of 5 met)
+**Last session:** S5 · 2026-09-29
 **Works:**
 - A pnpm monorepo with `sim`, `content`, `tools` and `client` packages, strict TS 6.0, no build step.
-- `pnpm check` is green: typecheck, lint, 78 tests.
+- `pnpm check` is green: typecheck, lint, 84 tests (one of them drives headless Chromium).
 - ESLint enforces the sim's hard rules (imports, Math/Date/timers, async, classes, `**`, float literals), in sim tests too.
 - Sim: `createMatch({ seed, rules })`, pure `step(state, commands)` at a fixed tick, sfc32 RNG in state, `hashState` (FNV-1a over canonical JSON). Commands are validated; with hands still empty, every one is rejected and recorded.
 - Match timer and result: 3:00 regulation, then up to 2:00 overtime while stars are tied; any star lead after regulation wins, still tied at the end is a draw. Stepping an ended match throws.
-- `checkInvariants(state)` (tick range, timer → result, rng words, stars, result vs stars).
-- `content` exports `MATCH_RULES`; `pnpm sim match --seed <n> [--dump <tick>]` plays an empty match to a draw at tick 6000 with invariants checked every tick.
-- `content` exports `ARENA` (D7): 18 × 32 tiles, a 2-tile river, one 3-wide bridge per lane, and a 4×4 Keep plus two 3×3 Outposts per side. Side 1 is built as side 0 mirrored across the river. An ASCII map test pins it. The sim doesn't read it yet.
+- `checkInvariants(state)`; `pnpm sim match --seed <n> [--dump <tick>]` plays an empty match to a draw at tick 6000 with invariants checked every tick.
+- `content` exports `ARENA` (D7) and `towerFootprint`. The sim doesn't read the arena yet.
+- Client (Vite 8 + PixiJS 8.21, WebGL): `pnpm dev` draws `ARENA` letterboxed at whole px per tile, side 0 (blue) at the bottom, side 1 (red) on top. It draws once per resize (`autoStart: false`); no ticker yet.
+- `pnpm shots` saves `shots/arena.png` (540×960, gitignored); it is byte-identical across runs.
 **Known issues:**
 - No formatter configured yet (the code follows the existing style by convention).
 - Nothing earns stars yet (no towers); the end-of-match scenarios set stars directly.
+- A fresh machine needs Chromium for shots: `pnpm --filter @factor/tools exec playwright install --only-shell chromium`.
+- If the client throws before drawing, `pnpm shots` reports the page error only after its 15 s ready timeout.
 **Golden replays:** none (the RNG sequence is pinned in `rng-sequence-is-fixed-per-seed.test.ts`)
 
 **Next cuts** (in order):
-1. Client skeleton: Vite + PixiJS v8 draws `ARENA` (tiles, river, bridges, towers as shapes) with side 0 at the bottom. Look up the PixiJS v8 and Vite docs via Context7 first.
-2. `pnpm shots`: Playwright opens the client and saves a PNG (closes Stage 0's criterion 4). It may fit in the same session as 1.
-3. Replay format v0 with a save/load round-trip test; zod-validate commands loaded from outside (the sim trusts `Command` field types). `pnpm sim match` then saves one.
-4. Stage 1, when towers become sim entities: pass `ARENA`'s tower sites to the sim through `MatchSetup` (D7).
+1. Replay format v0 with a save/load round-trip test; zod-validate commands loaded from outside (the sim trusts `Command` field types). `pnpm sim match` then saves one. This closes Stage 0.
+2. Stage 1: towers become sim entities: `ARENA`'s sites reach the sim through `MatchSetup` (D7), tower hp in `content`; the client draws towers from sim state.
+3. Stage 1: the client runs the sim live at 20 ticks/s, interpolating between ticks, and shows the timer. `pnpm shots` learns `?replay=&tick=`.
+4. Stage 1: energy, a hand of 4 plus next, and a deck shuffled from the seed; a played card spends energy and cycles (still no units).
 
 ---
 
 ## Sessions
+
+### S5 · 2026-09-29 · The client draws the arena; `pnpm shots`
+**Stage:** 0 — Armature
+**Cut:** Draw `ARENA` in the browser with Vite + PixiJS v8, and let the agent see it through a deterministic PNG (Stage 0 criterion 4).
+**Done:**
+- Client: `arena-view.ts` (pure: `fitView`, `toScreen` with the y-flip, `arenaScene` → screen-space `Shape`s, back to front), `draw-arena.ts` (Pixi `Graphics`, placeholder palette), `main.ts`, `index.html`. `pnpm dev` serves it.
+- Tools: `shots.ts` (Vite dev server on a free port + Playwright headless shell, waits for `html[data-ready]`, collects page errors) and a `shots [--out <dir>]` CLI command, loaded lazily. `pnpm shots` prints the PNG's sha256.
+- Content: `towerFootprint(site)` (second use: the map test and the client).
+**Verified:** `pnpm check` green (17 files, 84 tests). The scene test rasterizes the on-screen shapes back to S4's ASCII map at 540×960 and a letterboxed 600×1000. The shots test takes two shots in one process and checks that they're identical, 540×960 and drawn with WebGL. `pnpm shots` gave the same hash in separate processes (`fe618e00cf92`). I looked at the PNG: it matches the map. Mutations caught: no y-flip, towers drawn under the ground, a client that throws. `pnpm sim match --seed 42` still hashes `330933a4`.
+**Decisions:** The client draws on demand (`autoStart: false`) and sets `data-ready`, so a shot captures one exact frame. There's no `vite.config.ts` because the defaults suffice. The browser test runs inside `pnpm check` so the sense stays working. Chromium headless shell only (Playwright 1.63 → revision 1243).
+**Left out / noticed:** Replay URLs for shots wait for replays (Next cuts 1, 3). The slow failure when the client throws went to Known issues.
+**Status:** complete
 
 ### S4 · 2026-09-29 · Arena layout in content
 **Stage:** 0 — Armature

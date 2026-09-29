@@ -102,8 +102,8 @@ Update this table when a command is added or changes.
 | `pnpm sim` | ✅ | tools CLI (`node packages/tools/src/cli.ts`); prints usage |
 | `pnpm sim match --seed <n> [--dump <tick>]` | ✅ | headless match (no commands yet), invariants checked every tick; prints result + final hash, or the state at `<tick>` as JSON |
 | `pnpm sim sweep --matches <n>` | planned | bot-vs-bot balance sweep |
-| `pnpm dev` | planned | client dev server |
-| `pnpm shots` | planned | deterministic screenshots via Playwright |
+| `pnpm dev [--host]` | ✅ | client dev server (Vite); `--host` exposes it to a phone on the LAN |
+| `pnpm shots [--out <dir>]` | ✅ | headless Chromium saves the arena as `shots/arena.png` and prints its sha256. A fresh machine first needs `pnpm --filter @factor/tools exec playwright install --only-shell chromium` |
 
 ## Conventions
 
