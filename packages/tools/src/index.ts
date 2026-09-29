@@ -1,2 +1,1 @@
-// Shared helpers for the CLI commands land here.
-export {};
+export { describeResult, formatClock, runMatch } from './match.ts';

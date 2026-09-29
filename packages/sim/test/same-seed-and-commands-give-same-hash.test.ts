@@ -1,5 +1,6 @@
 import { expect, test } from 'vitest';
-import { createMatch, hashState, step, type Command } from '../src/index.ts';
+import { hashState, step, type Command } from '../src/index.ts';
+import { newMatch } from './fixtures.ts';
 
 // Commands spread over the match, including one on the last tick so it reaches the tick-1000 state.
 const SCRIPT: Command[] = [
@@ -11,7 +12,7 @@ const SCRIPT: Command[] = [
 
 /** Runs to `ticks` and returns the hash after every tick. */
 function run(seed: number, script: readonly Command[], ticks = 1000): string[] {
-  let state = createMatch({ seed });
+  let state = newMatch(seed);
   const hashes: string[] = [];
   while (state.tick < ticks) {
     const tick = state.tick;

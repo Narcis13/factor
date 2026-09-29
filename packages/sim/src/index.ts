@@ -1,9 +1,12 @@
 export { canonicalJson, fnv1a32, hashJson } from './hash.ts';
+export { checkInvariants } from './invariants.ts';
 export { nextUint32, seedRng, type Rng } from './rng.ts';
 export {
   createMatch,
   hashState,
   type Command,
+  type MatchResult,
+  type MatchRules,
   type MatchSetup,
   type RejectedCommand,
   type RejectReason,

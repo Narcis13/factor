@@ -1,2 +1,2 @@
 // Card, unit and arena definitions live here as data (VISION §5).
-export {};
+export { MATCH_RULES } from './match.ts';

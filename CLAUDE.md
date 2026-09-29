@@ -99,8 +99,8 @@ Update this table when a command is added or changes.
 | `pnpm typecheck` | ✅ | `tsc` on the root config files, then on every package |
 | `pnpm lint` | ✅ | ESLint, zero warnings allowed |
 | `pnpm test` | ✅ | Vitest, every package as a project; `pnpm test packages/sim` for one |
-| `pnpm sim` | ✅ | tools CLI (`node packages/tools/src/cli.ts`); no subcommands yet |
-| `pnpm sim match --seed <n> [--dump <tick>]` | planned | headless match |
+| `pnpm sim` | ✅ | tools CLI (`node packages/tools/src/cli.ts`); prints usage |
+| `pnpm sim match --seed <n> [--dump <tick>]` | ✅ | headless match (no commands yet), invariants checked every tick; prints result + final hash, or the state at `<tick>` as JSON |
 | `pnpm sim sweep --matches <n>` | planned | bot-vs-bot balance sweep |
 | `pnpm dev` | planned | client dev server |
 | `pnpm shots` | planned | deterministic screenshots via Playwright |

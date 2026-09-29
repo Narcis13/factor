@@ -6,26 +6,40 @@ Sculpt log. The **Current state** block is rewritten at the end of every session
 
 ## Current state
 
-**Stage:** 0 — Armature (in progress: exit criteria 2 of 5 met)
-**Last session:** S2 · 2026-09-29
+**Stage:** 0 — Armature (in progress: exit criteria 3 of 5 met)
+**Last session:** S3 · 2026-09-29
 **Works:**
 - A pnpm monorepo with `sim`, `content`, `tools` and `client` packages, strict TS 6.0, no build step.
-- `pnpm check` is green: typecheck, lint, 37 tests.
+- `pnpm check` is green: typecheck, lint, 69 tests.
 - ESLint enforces the sim's hard rules (imports, Math/Date/timers, async, classes, `**`, float literals), in sim tests too.
-- Sim: `createMatch({ seed })`, pure `step(state, commands)` at a fixed tick, sfc32 RNG in state, `hashState` (FNV-1a over canonical JSON, 8 hex digits). Commands are validated; with hands still empty, every one is rejected and recorded in the next state.
-- `pnpm sim` runs the tools CLI stub directly under Node 24.
+- Sim: `createMatch({ seed, rules })`, pure `step(state, commands)` at a fixed tick, sfc32 RNG in state, `hashState` (FNV-1a over canonical JSON). Commands are validated; with hands still empty, every one is rejected and recorded.
+- Match timer and result: 3:00 regulation, then up to 2:00 overtime while stars are tied; any star lead after regulation wins, still tied at the end is a draw. Stepping an ended match throws.
+- `checkInvariants(state)` (tick range, timer → result, rng words, stars, result vs stars).
+- `content` exports `MATCH_RULES`; `pnpm sim match --seed <n> [--dump <tick>]` plays an empty match to a draw at tick 6000 with invariants checked every tick.
 **Known issues:**
 - No formatter configured yet (the code follows the existing style by convention).
+- Nothing earns stars yet (no towers); the end-of-match scenarios set stars directly.
 **Golden replays:** none (the RNG sequence is pinned in `rng-sequence-is-fixed-per-seed.test.ts`)
 
 **Next cuts** (in order):
-1. Match timer and end-of-match result in the sim, with the match length passed in from `content` through `MatchSetup` (the sim can't import content). `pnpm sim match --seed <n> [--dump <tick>]` runs an empty match headless and prints the result and final hash.
-2. Client skeleton: Vite + PixiJS v8 draws the arena (tiles, river, bridges, towers as shapes) from sim constants; `pnpm shots` saves a PNG.
-3. Replay format v0 with a save/load round-trip test; zod-validate commands loaded from outside (the sim trusts `Command` field types).
+1. Arena layout as data (18 × 32, river, bridges, Keep and Outpost positions): VISION §5 puts the arena in `content`, while Stage 0 says the client draws it "from sim constants". Settle which, then pass it to the sim like `MatchRules` if the sim needs it.
+2. Client skeleton: Vite + PixiJS v8 draws that arena (tiles, river, bridges, towers as shapes); `pnpm shots` saves a PNG. Split from 1 if both don't fit in one session.
+3. Replay format v0 with a save/load round-trip test; zod-validate commands loaded from outside (the sim trusts `Command` field types). `pnpm sim match` then saves one.
 
 ---
 
 ## Sessions
+
+### S3 · 2026-09-29 · Match timer and result
+**Stage:** 0 — Armature
+**Cut:** Give the match an end (a timer, overtime and a result) with the length coming from `content`, and add `pnpm sim match` to play one headless.
+**Done:**
+- Sim: `MatchRules` in `MatchSetup` and state, `stars`, `result`, `decideResult`, `checkInvariants`. Sim tests share a `fixtures.ts`.
+- Content: `MATCH_RULES` (3600 + 2400 ticks). Tools: `runMatch`, `describeResult`, and the `match` command with `--seed` and `--dump`.
+**Verified:** `pnpm check` green (13 files, 69 tests). Scenario tests: more stars at 3:00 wins on that tick, a lead mid-regulation doesn't end it, tied → overtime, first overtime star wins, tied at the end → draw, zero overtime, stepping an ended match throws, bad rules rejected. Each invariant is shown to fire. The CLI prints the same hash in separate processes (seed 42 → `330933a4`). 6 hand mutations (off-by-one end, no overtime, wrong winner, …) were each caught.
+**Decisions:** The rules live in the state, so `step(state, commands)` keeps its signature and the hash covers them. Stepping an ended match throws instead of silently doing nothing. One rule covers both ways to win on stars: after regulation, any star lead wins. The tower-HP tiebreak waits for towers, so for now tied stars are always a draw. Content writes times as `seconds * TICKS_PER_SECOND`.
+**Left out / noticed:** The question of where the arena lives (content or sim) went into Next cuts. There's no bot yet, so the "bot-vs-bot with invariants" check ran as an empty match.
+**Status:** complete
 
 ### S2 · 2026-09-29 · Sim skeleton
 **Stage:** 0 — Armature
