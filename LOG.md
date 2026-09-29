@@ -7,28 +7,41 @@ Sculpt log. The **Current state** block is rewritten at the end of every session
 ## Current state
 
 **Stage:** 0 — Armature (in progress: exit criteria 3 of 5 met)
-**Last session:** S3 · 2026-09-29
+**Last session:** S4 · 2026-09-29
 **Works:**
 - A pnpm monorepo with `sim`, `content`, `tools` and `client` packages, strict TS 6.0, no build step.
-- `pnpm check` is green: typecheck, lint, 69 tests.
+- `pnpm check` is green: typecheck, lint, 78 tests.
 - ESLint enforces the sim's hard rules (imports, Math/Date/timers, async, classes, `**`, float literals), in sim tests too.
 - Sim: `createMatch({ seed, rules })`, pure `step(state, commands)` at a fixed tick, sfc32 RNG in state, `hashState` (FNV-1a over canonical JSON). Commands are validated; with hands still empty, every one is rejected and recorded.
 - Match timer and result: 3:00 regulation, then up to 2:00 overtime while stars are tied; any star lead after regulation wins, still tied at the end is a draw. Stepping an ended match throws.
 - `checkInvariants(state)` (tick range, timer → result, rng words, stars, result vs stars).
 - `content` exports `MATCH_RULES`; `pnpm sim match --seed <n> [--dump <tick>]` plays an empty match to a draw at tick 6000 with invariants checked every tick.
+- `content` exports `ARENA` (D7): 18 × 32 tiles, a 2-tile river, one 3-wide bridge per lane, and a 4×4 Keep plus two 3×3 Outposts per side. Side 1 is built as side 0 mirrored across the river. An ASCII map test pins it. The sim doesn't read it yet.
 **Known issues:**
 - No formatter configured yet (the code follows the existing style by convention).
 - Nothing earns stars yet (no towers); the end-of-match scenarios set stars directly.
 **Golden replays:** none (the RNG sequence is pinned in `rng-sequence-is-fixed-per-seed.test.ts`)
 
 **Next cuts** (in order):
-1. Arena layout as data (18 × 32, river, bridges, Keep and Outpost positions): VISION §5 puts the arena in `content`, while Stage 0 says the client draws it "from sim constants". Settle which, then pass it to the sim like `MatchRules` if the sim needs it.
-2. Client skeleton: Vite + PixiJS v8 draws that arena (tiles, river, bridges, towers as shapes); `pnpm shots` saves a PNG. Split from 1 if both don't fit in one session.
+1. Client skeleton: Vite + PixiJS v8 draws `ARENA` (tiles, river, bridges, towers as shapes) with side 0 at the bottom. Look up the PixiJS v8 and Vite docs via Context7 first.
+2. `pnpm shots`: Playwright opens the client and saves a PNG (closes Stage 0's criterion 4). It may fit in the same session as 1.
 3. Replay format v0 with a save/load round-trip test; zod-validate commands loaded from outside (the sim trusts `Command` field types). `pnpm sim match` then saves one.
+4. Stage 1, when towers become sim entities: pass `ARENA`'s tower sites to the sim through `MatchSetup` (D7).
 
 ---
 
 ## Sessions
+
+### S4 · 2026-09-29 · Arena layout in content
+**Stage:** 0 — Armature
+**Cut:** Put the arena layout in `content` as data, as the director decided, so the client has something to draw next.
+**Done:**
+- `content/src/arena.ts`: `ArenaLayout`, `Rect`, `Bridge`, `Lane`, `TowerSite`, and `ARENA`, written in tiles via a `tiles()` helper that refuses fractional milli-tiles.
+- VISION.md: Stage 0 now says "from the arena layout in `content`", and D7 is added (the director approved in chat).
+**Verified:** `pnpm check` green (15 files, 78 tests). An ASCII map test renders one character per tile. Property tests cover integer measurements, a full-width river at the middle, one bridge per lane spanning it, the Keep at back center, one Outpost per lane, mirror symmetry, towers on whole tiles on their own half, and no overlaps. 4 layout mutations were each caught.
+**Decisions:** D7. Side 0 holds the low-y half (as S2's test commands already assumed). The layout types live in `content` for now: the sim will define what it needs when it consumes the layout.
+**Left out / noticed:** Deploy zones and their extension, tower stats, and passing the layout into the sim are left for Stage 1+ (Next cuts 4).
+**Status:** complete
 
 ### S3 · 2026-09-29 · Match timer and result
 **Stage:** 0 — Armature

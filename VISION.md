@@ -127,7 +127,7 @@ We work like a sculptor: rough out the whole figure first, then refine it everyw
 - Monorepo, TS strict, and `pnpm check` (typecheck + lint + tests) all green.
 - Sim: state, seeded RNG, fixed tick, and state hash. A test proves that the same seed and commands give the same hash at tick 1000.
 - `pnpm sim match` runs an empty match to the end of the timer and prints the result.
-- The client draws the arena (tiles, river, bridges, towers as shapes) from sim constants, and `pnpm shots` saves a PNG.
+- The client draws the arena (tiles, river, bridges, towers as shapes) from the arena layout in `content`, and `pnpm shots` saves a PNG.
 - Replay format v0 with a save/load round-trip test.
 
 **Stage 1 — Block-in** (the whole match loop, crude)
@@ -170,6 +170,7 @@ We work like a sculptor: rough out the whole figure first, then refine it everyw
 | D4 | 2026-09-29 | Single-player vs bot first, PvP later | Fun gets proven before netcode; the architecture stays PvP-ready |
 | D5 | 2026-09-29 | Original names and assets only | The mechanics are fair game; the IP isn't |
 | D6 | 2026-09-29 | Sculpt coding: one cut per session, logged in LOG.md | Keeps the whole working and gives each new session its context back |
+| D7 | 2026-09-29 | The arena layout (size, river, bridges, tower sites) is data in `content`; the sim receives it through `MatchSetup` once it needs it | Game numbers never live in the sim, and §5 already lists the arena under `content`. Stage 0 had said "sim constants" |
 
 ## 11. Open questions (director to decide)
 
