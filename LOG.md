@@ -7,37 +7,51 @@ Sculpt log. The **Current state** block is rewritten at the end of every session
 ## Current state
 
 **Stage:** 1 — Block-in
-**Last session:** S8 · 2026-09-29
+**Last session:** S9 · 2026-09-29
 **Works:**
 - A pnpm monorepo with `sim`, `content`, `tools` and `client` packages, strict TS 6.0, no build step.
-- `pnpm check` is green: typecheck, lint, 201 tests (one of them drives headless Chromium).
+- `pnpm check` is green: typecheck, lint, 220 tests (one of them drives headless Chromium).
 - ESLint enforces the sim's hard rules (imports, Math/Date/timers, async, classes, `**`, float literals), in sim tests too.
 - Sim: `createMatch(setup)`, pure `step(state, commands)` at a fixed tick, sfc32 RNG in state, `hashState` (FNV-1a over canonical JSON). `MatchSetup` carries rules, the `ArenaLayout`, tower stats, a card catalog and both decks.
 - Towers are entities (site, `id`, `hp`, `maxHp`); they don't act yet.
-- Players (`state.players[side]`): energy 5 → 10, +1 per 56 ticks, 2× from 2:00 and in overtime, kept as whole `energy` plus `energyProgress`. Decks of 8 are shuffled from the seed (side 0 first); 4 in `hand`, the rest in `queue` (next first). A legal play spends the card's cost and cycles it; rejects: `wrong-tick`, `bad-slot`, `out-of-bounds`, `not-enough-energy`. `state.cards` holds the stats of the cards in play. Played cards deploy nothing yet.
-- Match timer and result: 3:00 regulation, then up to 2:00 overtime while stars are tied; any star lead wins after regulation, still tied at the end is a draw.
-- Content: `CARDS` (juggernaut 5, warden 3, slinger 4, flare 4: costs only), `STARTER_DECK` (each twice), `MATCH_RULES`, `ARENA`, `TOWER_STATS`, `matchSetup(seed, decks?)`. Replay v0 validates decks as 8 known card ids.
-- `pnpm sim match --seed <n>` plays the starter decks with no commands and saves `replays/seed-<n>.json`; `pnpm sim replay <file>` plays it back to the same hash. Both take `--dump <tick>`.
-- Client (Vite 8 + PixiJS 8.21, WebGL): `pnpm dev` draws a fresh match's terrain and towers once per resize. `pnpm shots` saves a byte-identical `shots/arena.png`.
+- Players: energy 5 → 10, +1 per 56 ticks, 2× from 2:00 and in overtime (`energy` + `energyProgress`). Decks of 8 shuffled from the seed; 4 in `hand`, the rest in `queue`. A legal play spends and cycles; rejects: `wrong-tick`, `bad-slot`, `out-of-bounds`, `not-enough-energy`. Played cards deploy nothing yet.
+- Match timer and result: 3:00 regulation, then up to 2:00 overtime while stars are tied.
+- Content: `CARDS` (juggernaut 5, warden 3, slinger 4, flare 4: costs only), `STARTER_DECK`, `MATCH_RULES`, `ARENA`, `TOWER_STATS`, `matchSetup(seed, decks?)`, replay v0.
+- `pnpm sim match --seed <n>` / `pnpm sim replay <file>` play headless (no commands yet) and agree on the hash; both take `--dump <tick>`.
+- Client (Vite 8 + PixiJS 8.21, WebGL): `pnpm dev` runs seed 0 live at 20 ticks/s (`match-loop.ts`: fixed step, ≤ 5 ticks per frame, previous/current + alpha, records its commands). The arena sits above a HUD: clock (top-right, `OT` in overtime), energy bar (interpolated) with number, hand of 4 (cost, name, dimmed if unaffordable), next card. Tap a card, then the arena → a side-0 command. `?tick=<n>` freezes the match at tick n. `pnpm shots` shoots `?tick=90`, byte-identical.
 **Known issues:**
 - No formatter configured yet (the code follows the existing style by convention).
 - Nothing earns stars yet (towers can't be damaged); the end-of-match scenarios set stars directly.
 - Deploy zones aren't enforced: any point inside the arena is legal until card types exist.
 - A legal play leaves no trace of where it was aimed; units will carry it.
+- The client shows no stars and nothing when the match ends (the loop just stops); side 1 never plays.
+- The client draws the arena once per resize, not per frame; that must change once towers can fall.
 - Shots need Playwright's pinned Chromium or `FACTOR_CHROMIUM=<path>`. In the cloud container use `FACTOR_CHROMIUM=/opt/pw-browsers/chromium_headless_shell-1194/chrome-linux/headless_shell`.
 - If the client throws before drawing, `pnpm shots` reports the page error only after its 15 s ready timeout.
 - Replays don't carry rules, layout or stats; a content change silently changes what an old replay plays (goldens will catch this).
+- Context7 isn't reachable from the cloud container; PixiJS APIs were checked against the installed 8.21 type definitions.
 **Golden replays:** none (the RNG sequence and the seed-1234 shuffle are pinned in tests)
 
 **Next cuts** (in order):
-1. The client runs the sim live at 20 ticks/s, interpolating between ticks, and shows the timer, the energy bar, the hand and the next card; tapping a card and then the arena becomes a command.
-2. The 4 Stage 1 cards as colored shapes: card types (troop/spell), own-half deploy zone for troops, units spawn, cross bridges and fight; towers shoot and fall, earning stars (tower damage/range join `TOWER_STATS`).
-3. A random-legal-move bot; `pnpm sim match` plays bot vs bot and records its commands into the replay.
+1. The 4 Stage 1 cards as colored shapes: card types (troop/spell), own-half deploy zone for troops, units spawn, cross bridges and fight; towers shoot and fall, earning stars (tower damage/range join `TOWER_STATS`). The client draws units interpolated and redraws towers per frame. Split it if it doesn't fit: troops that walk first, then fighting.
+2. A random-legal-move bot playing side 1 in the client and in `pnpm sim match`, which records its commands into the replay.
+3. Stars on the HUD and a win/lose/draw screen; the client auto-saves the replay of a finished match.
 4. `?replay=` plays a replay back in the client, and `pnpm shots` learns `?replay=&tick=`.
 
 ---
 
 ## Sessions
+
+### S9 · 2026-09-29 · The client plays the match live
+**Stage:** 1 — Block-in
+**Cut:** Run the sim live in the client at 20 ticks/s with a HUD (clock, energy, hand, next), and turn "tap a card, then the arena" into commands (Next cuts 1).
+**Done:**
+- Client: `match-loop.ts` (fixed-step loop, a 5-tick cap per frame, previous/current + `alpha`, plays stamped with the tick they're stepped on and recorded, `stepTo`); `screen-layout.ts` (arena above a phone-width HUD band, `toArena` for taps); `hud-view.ts` (pure HUD model: clock, interpolated energy fill, card faces, next); `controls.ts` (`tap`); `draw-hud.ts` (retained Pixi Graphics + Text). `main.ts` wires them together; `?tick=<n>` freezes the match there.
+- Tools: `pnpm shots` opens `?tick=90` (`SHOT_TICK`).
+**Verified:** `pnpm check` green (29 files, 220 tests; 19 new). Tests cover: frame-rate independence at 60/144 Hz, sub-tick frames and alpha, the stall cap, the loop matching direct stepping by hash, command stamping and recording, stopping at the result, the clock (regulation, rounding up, overtime), energy interpolation, affordability and selection, per-side HUDs, layout without overlaps on a phone and centered on desktop, screen → arena mapping at tile centers and edges, and tap/select/deselect/play. `pnpm shots` twice gave `cbb808843d3f` both times; I looked at it (2:56, energy 6.6, hand, next). A live headless run: select warden → yellow edge; tap the arena → energy 6 → 3, slinger takes the slot, flare is next; no page errors.
+**Decisions:** The client doesn't pre-validate plays; the sim decides, and rejected plays stay in `state.rejected`. A tap clears the selection even if the play gets rejected. Frame-time floats are fine in the client; only the sim is integer-only. The shot moved from tick 0 to 90 on purpose, so the HUD shows motion.
+**Left out / noticed:** Stars, end screen and bot moved into Next cuts. The static arena redraw is a Known issue. **Playtest (director):** on a phone via `pnpm dev --host`: are the cards big enough to hit, and does select-then-tap feel right?
+**Status:** complete
 
 ### S8 · 2026-09-29 · Energy, hand and deck cycling
 **Stage:** 1 — Block-in

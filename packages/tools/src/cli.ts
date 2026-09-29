@@ -22,7 +22,7 @@ Commands:
       With --dump, print the full state at <tick> as JSON instead.
 
   shots [--out <dir>]
-      Open the client in headless Chromium and save the arena as <dir>/arena.png (default dir: shots).
+      Open the client frozen at tick 90 in headless Chromium and save it as <dir>/arena.png (default dir: shots).
       Also runs as pnpm shots.`;
 
 const UINT32_MAX = 0xffffffff;

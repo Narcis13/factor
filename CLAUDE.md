@@ -103,8 +103,8 @@ Update this table when a command is added or changes.
 | `pnpm sim match --seed <n> [--dump <tick>] [--replay <file>]` | ✅ | headless match on the starter decks (no commands yet), invariants checked every tick; prints result + final hash and saves the replay (default `replays/seed-<n>.json`), or prints the state at `<tick>` as JSON |
 | `pnpm sim replay <file> [--dump <tick>]` | ✅ | validates a replay file and plays it back; same output as `match` |
 | `pnpm sim sweep --matches <n>` | planned | bot-vs-bot balance sweep |
-| `pnpm dev [--host]` | ✅ | client dev server (Vite); `--host` exposes it to a phone on the LAN |
-| `pnpm shots [--out <dir>]` | ✅ | headless Chromium saves the arena as `shots/arena.png` and prints its sha256. A fresh machine first needs `pnpm --filter @factor/tools exec playwright install --only-shell chromium`, or `FACTOR_CHROMIUM=<path>` to use another Chromium build |
+| `pnpm dev [--host]` | ✅ | client dev server (Vite); `--host` exposes it to a phone on the LAN. Plays seed 0 live as side 0; `?tick=<n>` freezes it at tick n |
+| `pnpm shots [--out <dir>]` | ✅ | headless Chromium saves the client frozen at tick 90 as `shots/arena.png` and prints its sha256. A fresh machine first needs `pnpm --filter @factor/tools exec playwright install --only-shell chromium`, or `FACTOR_CHROMIUM=<path>` to use another Chromium build |
 
 ## Conventions
 
