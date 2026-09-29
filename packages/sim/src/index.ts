@@ -1,6 +1,8 @@
+export type { ArenaLayout, AttackStats, Bridge, Lane, Rect, Terrain, Tower, TowerKind, TowerSite, TowerStats } from './arena.ts';
+export type { CardId, CardStats, EnergyRules, Player, SpellStats, TargetFilter, UnitStats } from './cards.ts';
 export { canonicalJson, fnv1a32, hashJson } from './hash.ts';
 export { checkInvariants } from './invariants.ts';
-export { nextUint32, seedRng, type Rng } from './rng.ts';
+export { nextBelow, nextUint32, seedRng, shuffle, type Rng } from './rng.ts';
 export {
   createMatch,
   hashState,
@@ -13,5 +15,7 @@ export {
   type Side,
   type SimState,
 } from './state.ts';
+export type { Blast } from './spells.ts';
 export { step } from './step.ts';
-export { MILLI_PER_TILE, TICKS_PER_SECOND } from './units.ts';
+export { deployZone, type Unit } from './troops.ts';
+export { BASIS_POINTS, MILLI_PER_TILE, TICKS_PER_SECOND } from './units.ts';

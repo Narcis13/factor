@@ -7,13 +7,16 @@ const CLIENT_ROOT = fileURLToPath(new URL('../../client/', import.meta.url));
 /** 9:16, the arena's own shape, so it fills the frame at 30 px per tile. */
 export const SHOT_VIEWPORT = { width: 540, height: 960 };
 
+/** The frozen tick the shot shows: 4.5 s in, so the clock has moved and the energy bar is part-filled. */
+export const SHOT_TICK = 90;
+
 export interface Shot {
   png: Buffer;
   /** The PixiJS renderer that drew the frame, e.g. `webgl`. */
   renderer: string;
 }
 
-/** Serves the client, opens it in headless Chromium, and captures the frame once the client says it's drawn. */
+/** Serves the client, opens it frozen at `SHOT_TICK` in headless Chromium, and captures the frame once the client says it's drawn. */
 export async function shootArena(): Promise<Shot> {
   const server = await createServer({
     configFile: false,
@@ -29,7 +32,9 @@ export async function shootArena(): Promise<Shot> {
     if (url === undefined) {
       throw new Error('The Vite server has no local URL');
     }
-    const browser = await chromium.launch();
+    // FACTOR_CHROMIUM points at a Chromium to use instead of the one Playwright pins (e.g. a preinstalled older build).
+    const executablePath = process.env.FACTOR_CHROMIUM;
+    const browser = await chromium.launch(executablePath === undefined ? {} : { executablePath });
     try {
       const page = await browser.newPage({ viewport: SHOT_VIEWPORT, deviceScaleFactor: 1 });
       const errors: string[] = [];
@@ -39,7 +44,7 @@ export async function shootArena(): Promise<Shot> {
           errors.push(message.text());
         }
       });
-      await page.goto(url);
+      await page.goto(`${url}?tick=${String(SHOT_TICK)}`);
       try {
         await page.waitForSelector('html[data-ready="true"]', { state: 'attached', timeout: 15_000 });
       } catch (error) {

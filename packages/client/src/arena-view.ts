@@ -1,5 +1,5 @@
-import { towerFootprint, type ArenaLayout, type Rect } from '@factor/content';
-import { MILLI_PER_TILE, type Side } from '@factor/sim';
+import { towerFootprint } from '@factor/content';
+import { deployZone, MILLI_PER_TILE, type Blast, type CardId, type Rect, type Side, type SimState, type Terrain } from '@factor/sim';
 
 /**
  * How the arena sits on the screen: a whole number of pixels per tile, centered, with side 0 at the
@@ -24,11 +24,45 @@ export interface ScreenRect {
 
 export type GroundKind = 'tile-light' | 'tile-dark' | 'river' | 'bridge';
 
-/** Something to draw. Towers carry their owner; the ground belongs to no one. */
-export type Shape = { kind: GroundKind; rect: ScreenRect } | { kind: 'keep' | 'outpost'; side: Side; rect: ScreenRect };
+/** Something to draw. Towers carry their owner and whether they've fallen; the ground belongs to no one. */
+export type Shape =
+  | { kind: GroundKind; rect: ScreenRect }
+  | { kind: 'keep' | 'outpost'; side: Side; rect: ScreenRect; fallen: boolean };
+
+/** How much hp something has left, as a bar on the screen: `fraction` of it filled in its side's color. */
+export interface HpBar {
+  side: Side;
+  rect: ScreenRect;
+  /** In [0, 1]. */
+  fraction: number;
+}
+
+/** A unit on the screen: a circle, in CSS pixels. */
+export interface UnitShape {
+  id: number;
+  side: Side;
+  card: CardId;
+  x: number;
+  y: number;
+  radius: number;
+  /** Still waiting out its deploy delay. */
+  deploying: boolean;
+  hp: number;
+  maxHp: number;
+}
+
+/** A landed spell on the screen: its area as a circle, fading out as `fade` falls from 1 toward 0. */
+export interface BlastShape {
+  side: Side;
+  card: CardId;
+  x: number;
+  y: number;
+  radius: number;
+  fade: number;
+}
 
 /** The largest whole tile size that fits the arena on a screen, at least 1 px. */
-export function fitView(arena: ArenaLayout, screenWidth: number, screenHeight: number): View {
+export function fitView(arena: Terrain, screenWidth: number, screenHeight: number): View {
   const columns = arena.width / MILLI_PER_TILE;
   const rows = arena.height / MILLI_PER_TILE;
   const tilePx = Math.max(1, Math.floor(Math.min(screenWidth / columns, screenHeight / rows)));
@@ -51,8 +85,22 @@ export function toScreen(view: View, rect: Rect): ScreenRect {
   };
 }
 
-/** Everything the arena draws, back to front: a checkerboard of tiles, the river, bridges, then towers. */
-export function arenaScene(arena: ArenaLayout, view: View): Shape[] {
+/** A point in the arena (milli-tiles, y up) on the screen (pixels, y down). */
+export function pointToScreen(view: View, x: number, y: number): { x: number; y: number } {
+  const scale = view.tilePx / MILLI_PER_TILE;
+  return { x: view.left + x * scale, y: view.top + (view.arenaHeight - y) * scale };
+}
+
+/**
+ * Everything a match state draws, back to front: a checkerboard of tiles, the river, bridges, then the
+ * towers standing in `state` (not the layout's sites, so the picture follows the sim).
+ */
+export function arenaScene(state: Pick<SimState, 'arena' | 'towers'>, view: View): Shape[] {
+  return [...groundScene(state.arena, view), ...towerScene(state, view)];
+}
+
+/** The ground: it never changes during a match, so it is drawn once per screen size. */
+export function groundScene(arena: Terrain, view: View): Shape[] {
   const shapes: Shape[] = [];
   for (let row = 0; row < arena.height / MILLI_PER_TILE; row++) {
     for (let col = 0; col < arena.width / MILLI_PER_TILE; col++) {
@@ -65,8 +113,86 @@ export function arenaScene(arena: ArenaLayout, view: View): Shape[] {
   for (const bridge of arena.bridges) {
     shapes.push({ kind: 'bridge', rect: toScreen(view, bridge) });
   }
-  for (const site of arena.towers) {
-    shapes.push({ kind: site.kind, side: site.side, rect: toScreen(view, towerFootprint(site)) });
+  return shapes;
+}
+
+export function towerScene(state: Pick<SimState, 'towers'>, view: View): Shape[] {
+  return state.towers.map((tower) => ({
+    kind: tower.kind,
+    side: tower.side,
+    rect: toScreen(view, towerFootprint(tower)),
+    fallen: tower.hp === 0,
+  }));
+}
+
+/**
+ * Hp bars, just above what they measure: every standing tower's (as wide as it is), and every damaged
+ * unit's (as wide as its circle). A full-hp unit shows none, so the field stays readable.
+ */
+export function hpBarScene(state: Pick<SimState, 'towers'>, units: readonly UnitShape[], view: View): HpBar[] {
+  const height = Math.max(3, Math.round(view.tilePx / 6));
+  const gap = Math.max(1, Math.round(height / 2));
+  const bars: HpBar[] = [];
+  for (const tower of state.towers) {
+    if (tower.hp > 0) {
+      const { x, y, width } = toScreen(view, towerFootprint(tower));
+      bars.push({ side: tower.side, rect: { x, y: y - gap - height, width, height }, fraction: tower.hp / tower.maxHp });
+    }
+  }
+  for (const unit of units) {
+    if (unit.hp < unit.maxHp) {
+      const rect = { x: unit.x - unit.radius, y: unit.y - unit.radius - gap - height, width: unit.radius * 2, height };
+      bars.push({ side: unit.side, rect, fraction: unit.hp / unit.maxHp });
+    }
+  }
+  return bars;
+}
+
+/**
+ * Units, `alpha` of the way from where they stood in `previous` to where they stand in `current`
+ * (VISION §5). A unit new in `current` shows where it is.
+ */
+export function unitScene(previous: SimState, current: SimState, alpha: number, view: View): UnitShape[] {
+  const before = new Map(previous.units.map((unit) => [unit.id, unit]));
+  const scale = view.tilePx / MILLI_PER_TILE;
+  return current.units.map((unit) => {
+    const from = before.get(unit.id) ?? unit;
+    const x = from.x + (unit.x - from.x) * alpha;
+    const y = from.y + (unit.y - from.y) * alpha;
+    const stats = current.cards[unit.card];
+    const radius = stats?.type === 'troop' ? stats.unit.radius * scale : scale * MILLI_PER_TILE / 2;
+    const { id, side, card, hp, maxHp } = unit;
+    return { id, side, card, ...pointToScreen(view, x, y), radius, deploying: unit.deployTicks > 0, hp, maxHp };
+  });
+}
+
+/**
+ * Recent spells as circles of their radius where they landed. Each fades linearly from the moment it
+ * lands (tick + alpha) and is gone `lifeTicks` later.
+ */
+export function blastScene(
+  blasts: readonly (Blast & { tick: number })[],
+  current: Pick<SimState, 'tick' | 'cards'>,
+  alpha: number,
+  lifeTicks: number,
+  view: View,
+): BlastShape[] {
+  const scale = view.tilePx / MILLI_PER_TILE;
+  const shapes: BlastShape[] = [];
+  for (const { side, card, x, y, tick } of blasts) {
+    const stats = current.cards[card];
+    const fade = 1 - (current.tick - tick + alpha) / lifeTicks;
+    if (stats?.type === 'spell' && fade > 0) {
+      shapes.push({ side, card, ...pointToScreen(view, x, y), radius: stats.spell.radius * scale, fade: Math.min(1, fade) });
+    }
   }
   return shapes;
+}
+
+/** Where `side` may not deploy a troop, to shade while one is selected: the rest of the arena. */
+export function noDeployRect(arena: Terrain, side: Side): Rect {
+  const zone = deployZone(arena, side);
+  return zone.y === 0
+    ? { x: 0, y: zone.height, width: arena.width, height: arena.height - zone.height }
+    : { x: 0, y: 0, width: arena.width, height: zone.y };
 }

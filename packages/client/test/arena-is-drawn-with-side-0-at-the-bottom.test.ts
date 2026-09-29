@@ -1,4 +1,5 @@
-import { ARENA } from '@factor/content';
+import { ARENA, matchSetup } from '@factor/content';
+import { createMatch, type SimState } from '@factor/sim';
 import { expect, test } from 'vitest';
 import { arenaScene, fitView, type ScreenRect, type Shape } from '../src/index.ts';
 
@@ -39,6 +40,8 @@ const SCREEN = `
 ..................
 `.trim();
 
+const MATCH = createMatch(matchSetup(0));
+
 function contains(rect: ScreenRect, x: number, y: number): boolean {
   return x >= rect.x && x < rect.x + rect.width && y >= rect.y && y < rect.y + rect.height;
 }
@@ -61,9 +64,9 @@ function mark(shape: Shape): string {
 }
 
 /** One character per on-screen tile, top row first: whatever is drawn last at the tile's center. */
-function rasterize(width: number, height: number): string {
-  const view = fitView(ARENA, width, height);
-  const shapes = arenaScene(ARENA, view);
+function rasterize(width: number, height: number, state: SimState = MATCH): string {
+  const view = fitView(state.arena, width, height);
+  const shapes = arenaScene(state, view);
   const rows: string[] = [];
   for (let row = 0; row < 32; row++) {
     let line = '';
@@ -97,7 +100,7 @@ test('the screen shows side 1 at the top and side 0 at the bottom, towers over t
 test('every shape stays inside the arena on screen', () => {
   const view = fitView(ARENA, 600, 1000);
   const arena = { x: view.left, y: view.top, width: 18 * view.tilePx, height: 32 * view.tilePx };
-  for (const { rect } of arenaScene(ARENA, view)) {
+  for (const { rect } of arenaScene(MATCH, view)) {
     expect(rect.x).toBeGreaterThanOrEqual(arena.x);
     expect(rect.y).toBeGreaterThanOrEqual(arena.y);
     expect(rect.x + rect.width).toBeLessThanOrEqual(arena.x + arena.width);
@@ -107,7 +110,7 @@ test('every shape stays inside the arena on screen', () => {
 
 test('the ground is a checkerboard of whole tiles', () => {
   const view = fitView(ARENA, 540, 960);
-  const tiles = arenaScene(ARENA, view).filter((shape) => shape.kind === 'tile-light' || shape.kind === 'tile-dark');
+  const tiles = arenaScene(MATCH, view).filter((shape) => shape.kind === 'tile-light' || shape.kind === 'tile-dark');
   expect(tiles).toHaveLength(18 * 32);
   for (const { kind, rect } of tiles) {
     expect(rect.width).toBe(30);
@@ -116,4 +119,12 @@ test('the ground is a checkerboard of whole tiles', () => {
     // Arena tile (0, 0) is dark, and it sits at the bottom-left of the screen: column 0, row 31.
     expect(kind).toBe(parity === 1 ? 'tile-dark' : 'tile-light');
   }
+});
+
+test('towers are drawn from the sim state, not from the layout', () => {
+  // Without side 1's left Outpost (id 4), only ground shows where it stood.
+  const state = { ...MATCH, towers: MATCH.towers.filter((tower) => tower.id !== 4) };
+  const expected = SCREEN.replaceAll('..ooo....', '.........');
+  expect(expected).not.toBe(SCREEN);
+  expect(rasterize(540, 960, state)).toBe(expected);
 });

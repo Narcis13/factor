@@ -1,13 +1,19 @@
 import { spawnSync } from 'node:child_process';
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { SimState } from '@factor/sim';
 import { expect, test } from 'vitest';
-import { formatClock, runMatch } from '../src/index.ts';
+import { emptyReplay, formatClock, playReplay } from '../src/index.ts';
 
 const cli = fileURLToPath(new URL('../src/cli.ts', import.meta.url));
 
+// Matches save replays relative to the working directory, so keep them out of the repo.
+const cwd = mkdtempSync(join(tmpdir(), 'factor-match-'));
+
 function sim(...args: string[]) {
-  return spawnSync(process.execPath, [cli, ...args], { encoding: 'utf8' });
+  return spawnSync(process.execPath, [cli, ...args], { encoding: 'utf8', cwd });
 }
 
 test('an empty match runs through overtime and prints a draw', () => {
@@ -31,7 +37,7 @@ test('--dump prints the state at that tick as JSON', () => {
   const state = JSON.parse(stdout) as SimState;
   expect(state.tick).toBe(600);
   expect(state.result).toBeNull();
-  expect(state).toEqual(runMatch(42, 600));
+  expect(state).toEqual(playReplay(emptyReplay(42), 600));
 });
 
 test('--dump past the end of the match fails', () => {

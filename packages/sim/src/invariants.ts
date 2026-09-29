@@ -8,7 +8,7 @@ const UINT32_MAX = 0xffffffff;
  */
 export function checkInvariants(state: SimState): string[] {
   const violations: string[] = [];
-  const { tick, rng, rules, stars, result } = state;
+  const { tick, rng, rules, arena, towers, units, nextId, cards, players, stars, result } = state;
   const endTick = rules.regulationTicks + rules.overtimeTicks;
 
   if (!isIntegerIn(tick, 0, endTick)) {
@@ -22,9 +22,85 @@ export function checkInvariants(state: SimState): string[] {
       violations.push(`rng.${word} ${String(rng[word])} is not a uint32`);
     }
   }
+  let previousId = -1;
+  for (const tower of towers) {
+    const { id, hp, maxHp, x, y, size } = tower;
+    const name = `tower ${String(id)}`;
+    if (!Number.isSafeInteger(id) || id <= previousId) {
+      violations.push(`${name} breaks unique ascending ids (after ${String(previousId)})`);
+    }
+    previousId = id;
+    if (!isIntegerIn(maxHp, 1, Number.MAX_SAFE_INTEGER) || !isIntegerIn(hp, 0, maxHp)) {
+      violations.push(`${name} has hp ${String(hp)} of ${String(maxHp)}`);
+    }
+    violations.push(...checkAttack(name, tower));
+    const half = Math.floor(size / 2);
+    const inside =
+      isIntegerIn(size, 1, arena.width) &&
+      isIntegerIn(x - half, 0, arena.width - size) &&
+      isIntegerIn(y - half, 0, arena.height - size);
+    if (!inside) {
+      violations.push(`${name} (${String(x)}, ${String(y)}) size ${String(size)} is not inside the arena`);
+    }
+  }
+  for (const unit of units) {
+    const { id, x, y, hp, maxHp, deployTicks, card } = unit;
+    const name = `unit ${String(id)}`;
+    if (!Number.isSafeInteger(id) || id <= previousId || id >= nextId) {
+      violations.push(`${name} breaks unique ascending ids (after ${String(previousId)}, next ${String(nextId)})`);
+    }
+    previousId = id;
+    if (!isIntegerIn(maxHp, 1, Number.MAX_SAFE_INTEGER) || !isIntegerIn(hp, 1, maxHp)) {
+      violations.push(`${name} has hp ${String(hp)} of ${String(maxHp)}`);
+    }
+    violations.push(...checkAttack(name, unit));
+    if (!isIntegerIn(deployTicks, 0, rules.deployDelayTicks)) {
+      violations.push(`${name} has ${String(deployTicks)} deploy ticks left`);
+    }
+    if (!isIntegerIn(x, 0, arena.width - 1) || !isIntegerIn(y, 0, arena.height - 1)) {
+      violations.push(`${name} (${String(x)}, ${String(y)}) is outside the arena`);
+    } else if (inRiver(arena, x, y) && !arena.bridges.some((bridge) => x >= bridge.x && x <= bridge.x + bridge.width)) {
+      violations.push(`${name} (${String(x)}, ${String(y)}) is in the river off any bridge`);
+    }
+    const stats = Object.hasOwn(cards, card) ? cards[card] : undefined;
+    if (stats?.type !== 'troop') {
+      violations.push(`${name} comes from ${card}, which is not a known troop`);
+    }
+  }
+  const { max, ticksPerEnergy } = rules.energy;
   for (const side of [0, 1] as const) {
-    if (!isIntegerIn(stars[side], 0, Number.MAX_SAFE_INTEGER)) {
+    const { energy, energyProgress, hand, queue } = players[side];
+    const name = `side ${String(side)}`;
+    if (!isIntegerIn(energy, 0, max)) {
+      violations.push(`${name} has ${String(energy)} energy, outside [0, ${String(max)}]`);
+    }
+    const progressMax = energy === max ? 0 : ticksPerEnergy - 1;
+    if (!isIntegerIn(energyProgress, 0, progressMax)) {
+      violations.push(`${name} has energy progress ${String(energyProgress)} at ${String(energy)} energy`);
+    }
+    if (hand.length !== rules.handSize || hand.length + queue.length !== rules.deckSize) {
+      const counts = `${String(hand.length)} + ${String(queue.length)}`;
+      violations.push(`${name} holds ${counts} cards, not ${String(rules.handSize)} + ${String(rules.deckSize - rules.handSize)}`);
+    }
+    for (const id of [...hand, ...queue]) {
+      if (!Object.hasOwn(cards, id)) {
+        violations.push(`${name} holds an unknown card: ${id}`);
+      }
+    }
+  }
+  for (const { side, card, x, y } of state.blasts) {
+    if (cards[card]?.type !== 'spell' || !isIntegerIn(x, 0, arena.width - 1) || !isIntegerIn(y, 0, arena.height - 1)) {
+      violations.push(`side ${String(side)}'s blast of ${card} at (${String(x)}, ${String(y)}) is not a known spell inside the arena`);
+    }
+  }
+  for (const side of [0, 1] as const) {
+    if (!isIntegerIn(stars[side], 0, 3)) {
       violations.push(`side ${String(side)} has ${String(stars[side])} stars`);
+    }
+  }
+  for (const keep of towers) {
+    if (keep.kind === 'keep' && keep.hp === 0 && result === null) {
+      violations.push(`side ${String(keep.side)}'s Keep has fallen but the match has no result`);
     }
   }
   if (result !== null) {
@@ -39,6 +115,16 @@ export function checkInvariants(state: SimState): string[] {
     }
   }
   return violations;
+}
+
+/** A target id, if any, is an id an entity has had; the cooldown is a whole number of ticks. */
+function checkAttack(name: string, { targetId, cooldown }: { targetId: number | null; cooldown: number }): string[] {
+  const bad = (targetId !== null && !isIntegerIn(targetId, 0, Number.MAX_SAFE_INTEGER)) || !isIntegerIn(cooldown, 0, Number.MAX_SAFE_INTEGER);
+  return bad ? [`${name} has target ${String(targetId)} and cooldown ${String(cooldown)}`] : [];
+}
+
+function inRiver({ river }: SimState['arena'], x: number, y: number): boolean {
+  return x >= river.x && x < river.x + river.width && y >= river.y && y < river.y + river.height;
 }
 
 function isIntegerIn(value: number, min: number, max: number): boolean {

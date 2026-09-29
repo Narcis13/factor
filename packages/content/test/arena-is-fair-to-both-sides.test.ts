@@ -1,6 +1,6 @@
-import { MILLI_PER_TILE } from '@factor/sim';
+import { MILLI_PER_TILE, type Lane, type TowerSite } from '@factor/sim';
 import { expect, test } from 'vitest';
-import { ARENA, type Lane, type TowerSite } from '../src/index.ts';
+import { ARENA } from '../src/index.ts';
 
 const MID_X = ARENA.width / 2;
 const MID_Y = ARENA.height / 2;
