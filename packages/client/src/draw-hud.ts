@@ -1,15 +1,8 @@
 import type { CardId } from '@factor/sim';
 import { Container, Graphics, Text } from 'pixi.js';
 import type { HudScene } from './hud-view.ts';
+import { cardColor } from './palette.ts';
 
-// Placeholder palette until art direction is decided (VISION §11).
-const CARD_COLOR: Record<CardId, number> = {
-  juggernaut: 0x8a5a2b,
-  warden: 0x4f7d8c,
-  slinger: 0x6b8e3a,
-  flare: 0xc2562b,
-};
-const UNKNOWN_CARD = 0x666666;
 const CARD_EDGE = 0x0d1014;
 const SELECTED_EDGE = 0xffd23f;
 const BAR_BACK = 0x2a1d33;
@@ -60,7 +53,7 @@ export class HudView {
 
     for (const [i, face] of scene.hand.entries()) {
       const { x, y, width, height } = face.rect;
-      g.roundRect(x, y, width, height, 6).fill({ color: CARD_COLOR[face.card] ?? UNKNOWN_CARD, alpha: face.affordable ? 1 : 0.4 });
+      g.roundRect(x, y, width, height, 6).fill({ color: cardColor(face.card), alpha: face.affordable ? 1 : 0.4 });
       g.roundRect(x, y, width, height, 6).stroke(face.selected ? { color: SELECTED_EDGE, width: 4 } : { color: CARD_EDGE, width: 2 });
       const labels = this.hand[i];
       if (labels !== undefined) {
@@ -75,7 +68,7 @@ export class HudView {
     this.next.name.visible = this.next.cost.visible = scene.next !== null;
     if (scene.next !== null) {
       const { x, y, width, height } = scene.next.rect;
-      g.roundRect(x, y, width, height, 4).fill({ color: CARD_COLOR[scene.next.card] ?? UNKNOWN_CARD, alpha: 0.7 });
+      g.roundRect(x, y, width, height, 4).fill({ color: cardColor(scene.next.card), alpha: 0.7 });
       g.roundRect(x, y, width, height, 4).stroke({ color: CARD_EDGE, width: 2 });
       this.next.cost.text = 'next';
       this.next.cost.style.fontSize = 13;

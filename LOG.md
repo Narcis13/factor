@@ -7,33 +7,32 @@ Sculpt log. The **Current state** block is rewritten at the end of every session
 ## Current state
 
 **Stage:** 1 — Block-in
-**Last session:** S9 · 2026-09-29
+**Last session:** S10 · 2026-09-29
 **Works:**
 - A pnpm monorepo with `sim`, `content`, `tools` and `client` packages, strict TS 6.0, no build step.
-- `pnpm check` is green: typecheck, lint, 220 tests (one of them drives headless Chromium).
+- `pnpm check` is green: typecheck, lint, 252 tests (one of them drives headless Chromium).
 - ESLint enforces the sim's hard rules (imports, Math/Date/timers, async, classes, `**`, float literals), in sim tests too.
-- Sim: `createMatch(setup)`, pure `step(state, commands)` at a fixed tick, sfc32 RNG in state, `hashState` (FNV-1a over canonical JSON). `MatchSetup` carries rules, the `ArenaLayout`, tower stats, a card catalog and both decks.
+- Sim: `createMatch(setup)`, pure `step(state, commands)` at a fixed tick, sfc32 RNG in state, `hashState`. `MatchSetup` carries rules, the `ArenaLayout`, tower stats, a card catalog and both decks.
 - Towers are entities (site, `id`, `hp`, `maxHp`); they don't act yet.
-- Players: energy 5 → 10, +1 per 56 ticks, 2× from 2:00 and in overtime (`energy` + `energyProgress`). Decks of 8 shuffled from the seed; 4 in `hand`, the rest in `queue`. A legal play spends and cycles; rejects: `wrong-tick`, `bad-slot`, `out-of-bounds`, `not-enough-energy`. Played cards deploy nothing yet.
+- Players: energy 5 → 10, +1 per 56 ticks, 2× from 2:00 and in overtime. Decks of 8 shuffled from the seed; hand of 4 + queue. A legal play spends and cycles; rejects: `wrong-tick`, `bad-slot`, `out-of-bounds` (also non-integer aims), `outside-deploy-zone`, `not-enough-energy`.
+- Cards are `troop` (with `UnitStats`: hp, speed, radius, range) or `spell`. A troop deploys only on its side's half (`deployZone`) and puts one `Unit` there (ids follow the towers', `nextId`). It stands for `deployDelayTicks` (20), then walks its lane (by x; the middle column is right) to its bridge, crosses, and heads for the nearest enemy tower, stopping with its edge `range` from the footprint. Integer geometry: `isqrt`, symmetric `divRound`. The sides mirror exactly. Spells do nothing yet.
 - Match timer and result: 3:00 regulation, then up to 2:00 overtime while stars are tied.
-- Content: `CARDS` (juggernaut 5, warden 3, slinger 4, flare 4: costs only), `STARTER_DECK`, `MATCH_RULES`, `ARENA`, `TOWER_STATS`, `matchSetup(seed, decks?)`, replay v0.
-- `pnpm sim match --seed <n>` / `pnpm sim replay <file>` play headless (no commands yet) and agree on the hash; both take `--dump <tick>`.
-- Client (Vite 8 + PixiJS 8.21, WebGL): `pnpm dev` runs seed 0 live at 20 ticks/s (`match-loop.ts`: fixed step, ≤ 5 ticks per frame, previous/current + alpha, records its commands). The arena sits above a HUD: clock (top-right, `OT` in overtime), energy bar (interpolated) with number, hand of 4 (cost, name, dimmed if unaffordable), next card. Tap a card, then the arena → a side-0 command. `?tick=<n>` freezes the match at tick n. `pnpm shots` shoots `?tick=90`, byte-identical.
+- Content: `CARDS` (juggernaut 5, warden 3, slinger 4 as troops; flare 4 as a spell), `STARTER_DECK`, `MATCH_RULES`, `ARENA`, `TOWER_STATS`, `matchSetup(seed, decks?)`, replay v0.
+- `pnpm sim match --seed <n>` / `pnpm sim replay <file>` play headless (no commands yet) and agree on the hash (seed 42: `551f99dc`).
+- Client: `pnpm dev` runs seed 0 live (fixed-step loop, interpolation), HUD (clock, energy, hand, next), and taps become side-0 commands. The ground is drawn per resize; towers and units (interpolated circles, faint while deploying) every frame; the illegal zone is shaded while a troop is selected. `?tick=<n>` freezes the match; `pnpm shots` shoots `?tick=90`, byte-identical.
 **Known issues:**
-- No formatter configured yet (the code follows the existing style by convention).
-- Nothing earns stars yet (towers can't be damaged); the end-of-match scenarios set stars directly.
-- Deploy zones aren't enforced: any point inside the arena is legal until card types exist.
-- A legal play leaves no trace of where it was aimed; units will carry it.
-- The client shows no stars and nothing when the match ends (the loop just stops); side 1 never plays.
-- The client draws the arena once per resize, not per frame; that must change once towers can fall.
+- No formatter configured yet.
+- Nothing fights: units stop at towers, towers don't shoot, nothing earns stars. The end-of-match scenarios set stars directly.
+- Units don't collide, and they can be deployed on a tower's footprint. Ranged units only look for towers once across the river, so they stop on the far bank even when in range sooner.
+- Units are small and low-contrast on the grass (readability; art direction pending).
+- The client shows no stars and nothing when the match ends; side 1 never plays.
 - Shots need Playwright's pinned Chromium or `FACTOR_CHROMIUM=<path>`. In the cloud container use `FACTOR_CHROMIUM=/opt/pw-browsers/chromium_headless_shell-1194/chrome-linux/headless_shell`.
-- If the client throws before drawing, `pnpm shots` reports the page error only after its 15 s ready timeout.
-- Replays don't carry rules, layout or stats; a content change silently changes what an old replay plays (goldens will catch this).
+- Replays don't carry rules, layout or stats; a content change silently changes what an old replay plays.
 - Context7 isn't reachable from the cloud container; PixiJS APIs were checked against the installed 8.21 type definitions.
 **Golden replays:** none (the RNG sequence and the seed-1234 shuffle are pinned in tests)
 
 **Next cuts** (in order):
-1. The 4 Stage 1 cards as colored shapes: card types (troop/spell), own-half deploy zone for troops, units spawn, cross bridges and fight; towers shoot and fall, earning stars (tower damage/range join `TOWER_STATS`). The client draws units interpolated and redraws towers per frame. Split it if it doesn't fit: troops that walk first, then fighting.
+1. Fighting: units acquire the nearest enemy (unit or tower) in sight and hit it (damage, hit interval, first-hit delay, ranged as instant hits for now); towers get damage/range and shoot; units and towers die; a fallen Outpost earns a star and a fallen Keep ends the match. `flare` deals area damage (less to towers). The client shows hp bars.
 2. A random-legal-move bot playing side 1 in the client and in `pnpm sim match`, which records its commands into the replay.
 3. Stars on the HUD and a win/lose/draw screen; the client auto-saves the replay of a finished match.
 4. `?replay=` plays a replay back in the client, and `pnpm shots` learns `?replay=&tick=`.
@@ -41,6 +40,18 @@ Sculpt log. The **Current state** block is rewritten at the end of every session
 ---
 
 ## Sessions
+
+### S10 · 2026-09-29 · Troops deploy and walk
+**Stage:** 1 — Block-in
+**Cut:** First slice of the Stage 1 cards: troop/spell types, the own-half deploy zone, units that wait out a 1 s deploy delay and walk their lane over the bridge to the nearest enemy tower, drawn interpolated in the client. Fighting is the next slice.
+**Done:**
+- Sim: `CardStats` is a `troop` (with `UnitStats`) / `spell` union; `MatchRules.deployDelayTicks`; the state gains `units` and `nextId`. `geometry.ts` (`isqrt`, `divRound`, `distanceToRect`, `moveToward`), `troops.ts` (`Unit`, `deployZone`, `actUnit`). New rejection `outside-deploy-zone`; non-integer aims are `out-of-bounds`. Unit invariants: ids, hp, deploy ticks, inside the arena, never in the river off a bridge, from a known troop.
+- Content: unit stats for juggernaut/warden/slinger, flare is a spell, `deployDelayTicks: 20`.
+- Client: `groundScene`/`towerScene`/`unitScene`/`noDeployRect`, `palette.ts`; the ground is drawn per resize and the field every frame.
+**Verified:** `pnpm check` green (32 files, 252 tests; 32 new). Scenario tests: the spawn (id, hp, delay), shared id order, the deploy zone on both sides at its edges, spells anywhere, fractional aims, still for 20 ticks then walking, a melee walk arriving at tick 210 exactly, an off-lane unit using only the bridge, the middle column going right, a ranged stop, both sides mirroring tick for tick over 500 ticks, and a 300+-troop scripted match with invariants every tick and a repeatable hash. 6 mutations were each caught. `pnpm sim match --seed 42` → `replay`: `551f99dc` both. `pnpm shots` is unchanged (`cbb808843d3f`). A live headless run with plays: units walk both lanes and cross; the shade shows; an enemy-half aim is refused; no page errors (looked at it).
+**Decisions:** One unit per troop until the swarm card needs `count`. A unit's stats stay on its card in `state.cards`. Movement: the entrance is the bridge's near bank, straight ahead where the unit's radius fits; after the far bank, straight at the nearest enemy tower's center (ties go to the lower id). Commands resolve before units act, so a new unit's delay counts down in the tick it appears. Seed 42's hash changed from `dacd0676` on purpose (the state grew).
+**Left out / noticed:** Fighting and spells (Next cuts 1); collision, tower-footprint deploys, the ranged bank stop, unit contrast (Known issues). **Playtest (director):** do unit speeds and the 1 s delay feel right, and are units readable at phone size?
+**Status:** complete
 
 ### S9 · 2026-09-29 · The client plays the match live
 **Stage:** 1 — Block-in

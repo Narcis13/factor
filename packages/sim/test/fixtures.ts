@@ -13,7 +13,7 @@ import {
 
 /**
  * Test fixture rules sized like a real match: 3:00 plus 2:00 of overtime at 20 ticks/s, decks of 8,
- * hands of 4, and energy from 5 up to 10 at one per 56 ticks, twice as fast from 2:00 on.
+ * hands of 4, energy from 5 up to 10 at one per 56 ticks (twice as fast from 2:00 on), and a 1 s deploy delay.
  */
 export const RULES: MatchRules = {
   regulationTicks: 3600,
@@ -21,21 +21,38 @@ export const RULES: MatchRules = {
   deckSize: 8,
   handSize: 4,
   energy: { start: 5, max: 10, ticksPerEnergy: 56, doubleFromTick: 2400 },
+  deployDelayTicks: 20,
 };
 
-/** Eight cards named by their cost, so a test can read what a play spends. */
+/**
+ * Eight spells named by their cost, so a test can read what a play spends and nothing lands on the field.
+ * Then two troops: `walker` (speed 50, radius 500, melee) and `archer` (speed 40, radius 400, range 3000).
+ */
 export const CARDS: Record<CardId, CardStats> = {
-  c1: { cost: 1 },
-  c2: { cost: 2 },
-  c3: { cost: 3 },
-  c4: { cost: 4 },
-  c5: { cost: 5 },
-  c6: { cost: 6 },
-  c7: { cost: 7 },
-  c8: { cost: 8 },
+  c1: { cost: 1, type: 'spell' },
+  c2: { cost: 2, type: 'spell' },
+  c3: { cost: 3, type: 'spell' },
+  c4: { cost: 4, type: 'spell' },
+  c5: { cost: 5, type: 'spell' },
+  c6: { cost: 6, type: 'spell' },
+  c7: { cost: 7, type: 'spell' },
+  c8: { cost: 8, type: 'spell' },
+};
+
+export const TROOPS: Record<CardId, CardStats> = {
+  walker: { cost: 1, type: 'troop', unit: { hp: 500, speed: 50, radius: 500, range: 0 } },
+  archer: { cost: 1, type: 'troop', unit: { hp: 200, speed: 40, radius: 400, range: 3000 } },
 };
 
 export const DECK: CardId[] = ['c1', 'c2', 'c3', 'c4', 'c5', 'c6', 'c7', 'c8'];
+
+/** Only `walker`s and `archer`s, alternating, so any hand slot holds a troop that costs 1. */
+export const TROOP_DECK: CardId[] = ['walker', 'archer', 'walker', 'archer', 'walker', 'archer', 'walker', 'archer'];
+
+/** A match where both sides play `TROOP_DECK`. */
+export function troopMatch(seed: number, rules: MatchRules = RULES): SimState {
+  return createMatch({ ...matchSetup(seed, rules), cards: TROOPS, decks: [TROOP_DECK, TROOP_DECK] });
+}
 
 /**
  * A small arena for sim tests, which can't import `content`: 10 × 20 tiles, a river across the middle,

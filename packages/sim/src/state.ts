@@ -2,6 +2,7 @@ import type { ArenaLayout, Terrain, Tower, TowerKind, TowerStats } from './arena
 import { dealPlayer, pickCards, type CardId, type CardStats, type EnergyRules, type Player } from './cards.ts';
 import { hashJson } from './hash.ts';
 import { seedRng, type Rng } from './rng.ts';
+import type { Unit } from './troops.ts';
 
 export type Side = 0 | 1;
 
@@ -16,9 +17,10 @@ export interface Command {
 
 /**
  * Why a command did nothing: `wrong-tick` (stamped for another tick), `bad-slot` (no such hand slot),
- * `out-of-bounds` (the point is outside the arena) or `not-enough-energy` (less energy than the card costs).
+ * `out-of-bounds` (the point is outside the arena), `outside-deploy-zone` (a troop aimed outside its
+ * side's half) or `not-enough-energy` (less energy than the card costs).
  */
-export type RejectReason = 'wrong-tick' | 'bad-slot' | 'out-of-bounds' | 'not-enough-energy';
+export type RejectReason = 'wrong-tick' | 'bad-slot' | 'out-of-bounds' | 'outside-deploy-zone' | 'not-enough-energy';
 
 export interface RejectedCommand {
   command: Command;
@@ -36,6 +38,8 @@ export interface MatchRules {
   /** Cards in each hand; the rest of the deck waits in the queue. Less than `deckSize`, so there is a next card. */
   handSize: number;
   energy: EnergyRules;
+  /** Ticks a troop's unit stands on the field before it acts. */
+  deployDelayTicks: number;
 }
 
 /** How the match ended. A `null` winner is a draw. */
@@ -52,6 +56,10 @@ export interface SimState {
   arena: Terrain;
   /** Ascending by id. */
   towers: Tower[];
+  /** Troops on the field, ascending by id. Their ids follow the towers'. */
+  units: Unit[];
+  /** The id the next unit gets. */
+  nextId: number;
   /** The stats of every card in either deck, by id. Never changes during a match. */
   cards: Record<CardId, CardStats>;
   /** Energy, hand and queue, indexed by `Side`. */
@@ -78,7 +86,7 @@ export interface MatchSetup {
 
 export function createMatch(setup: MatchSetup): SimState {
   const rules = copyRules(setup.rules);
-  const { regulationTicks, overtimeTicks, deckSize, handSize, energy } = rules;
+  const { regulationTicks, overtimeTicks, deckSize, handSize, energy, deployDelayTicks } = rules;
   requireInteger('regulationTicks', regulationTicks, 1);
   requireInteger('overtimeTicks', overtimeTicks, 0);
   requireInteger('handSize', handSize, 1);
@@ -87,6 +95,7 @@ export function createMatch(setup: MatchSetup): SimState {
   requireInteger('energy start', energy.start, 0, energy.max);
   requireInteger('ticksPerEnergy', energy.ticksPerEnergy, 1);
   requireInteger('doubleFromTick', energy.doubleFromTick, 0);
+  requireInteger('deployDelayTicks', deployDelayTicks, 0);
   for (const kind of ['keep', 'outpost'] as const) {
     requireInteger(`${kind} hp`, setup.towerStats[kind].hp, 1);
   }
@@ -97,8 +106,15 @@ export function createMatch(setup: MatchSetup): SimState {
     }
   }
   const cards = pickCards(setup.cards, [...setup.decks[0], ...setup.decks[1]]);
-  for (const [id, { cost }] of Object.entries(cards)) {
-    requireInteger(`${id} cost`, cost, 0, energy.max);
+  for (const [id, card] of Object.entries(cards)) {
+    requireInteger(`${id} cost`, card.cost, 0, energy.max);
+    if (card.type === 'troop') {
+      const { hp, speed, radius, range } = card.unit;
+      requireInteger(`${id} hp`, hp, 1);
+      requireInteger(`${id} speed`, speed, 1);
+      requireInteger(`${id} radius`, radius, 1);
+      requireInteger(`${id} range`, range, 0);
+    }
   }
   // Fields are copied one by one, so nothing from the setup is shared with the state or leaks into it.
   const towers = setup.arena.towers.map(({ kind, side, lane, x, y, size }, id): Tower => {
@@ -116,6 +132,8 @@ export function createMatch(setup: MatchSetup): SimState {
     rules,
     arena: copyTerrain(setup.arena),
     towers,
+    units: [],
+    nextId: towers.length,
     cards,
     players,
     stars: [0, 0],
@@ -138,9 +156,16 @@ export function copyTerrain({ width, height, river, bridges }: Terrain): Terrain
   };
 }
 
-export function copyRules({ regulationTicks, overtimeTicks, deckSize, handSize, energy }: MatchRules): MatchRules {
+export function copyRules({ regulationTicks, overtimeTicks, deckSize, handSize, energy, deployDelayTicks }: MatchRules): MatchRules {
   const { start, max, ticksPerEnergy, doubleFromTick } = energy;
-  return { regulationTicks, overtimeTicks, deckSize, handSize, energy: { start, max, ticksPerEnergy, doubleFromTick } };
+  return {
+    regulationTicks,
+    overtimeTicks,
+    deckSize,
+    handSize,
+    energy: { start, max, ticksPerEnergy, doubleFromTick },
+    deployDelayTicks,
+  };
 }
 
 export function copyCards(cards: Readonly<Record<CardId, CardStats>>): Record<CardId, CardStats> {

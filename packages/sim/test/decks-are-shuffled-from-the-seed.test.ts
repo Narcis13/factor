@@ -44,7 +44,7 @@ test('every card is equally likely to be dealt first', () => {
 
 test('the state holds the stats of the cards in the decks, and no others', () => {
   const decks: MatchSetup['decks'] = [DECK, DECK.map(() => 'c1')];
-  const extra = { ...CARDS, c9: { cost: 9 } };
+  const extra = { ...CARDS, c9: { cost: 9, type: 'spell' as const } };
   const state = createMatch({ ...matchSetup(1), cards: extra, decks });
   expect(state.cards).toEqual(CARDS);
   expect(state.cards.c1).not.toBe(CARDS.c1);
@@ -52,7 +52,7 @@ test('the state holds the stats of the cards in the decks, and no others', () =>
 
 test('decks and card stats are part of the hash', () => {
   const base = hashState(newMatch(1));
-  const cheaper = { ...CARDS, c8: { cost: 7 } };
+  const cheaper = { ...CARDS, c8: { cost: 7, type: 'spell' as const } };
   expect(hashState(createMatch({ ...matchSetup(1), cards: cheaper }))).not.toBe(base);
   const swapped: MatchSetup['decks'] = [DECK, [...DECK.slice(1), 'c1']];
   expect(hashState(createMatch({ ...matchSetup(1), decks: swapped }))).not.toBe(base);
@@ -67,9 +67,9 @@ test.each<{ label: string; change: Partial<MatchSetup>; message: RegExp }>([
     change: { decks: [DECK, [...DECK.slice(1), 'toString']] },
     message: /Unknown card: toString/,
   },
-  { label: 'a cost above max energy', change: { cards: { ...CARDS, c8: { cost: 11 } } }, message: /c8 cost/ },
-  { label: 'a negative cost', change: { cards: { ...CARDS, c1: { cost: -1 } } }, message: /c1 cost/ },
-  { label: 'a fractional cost', change: { cards: { ...CARDS, c1: { cost: 3 / 2 } } }, message: /c1 cost/ },
+  { label: 'a cost above max energy', change: { cards: { ...CARDS, c8: { cost: 11, type: 'spell' } } }, message: /c8 cost/ },
+  { label: 'a negative cost', change: { cards: { ...CARDS, c1: { cost: -1, type: 'spell' } } }, message: /c1 cost/ },
+  { label: 'a fractional cost', change: { cards: { ...CARDS, c1: { cost: 3 / 2, type: 'spell' } } }, message: /c1 cost/ },
 ])('$label is rejected', ({ change, message }) => {
   expect(() => createMatch({ ...matchSetup(1), ...change })).toThrow(message);
 });

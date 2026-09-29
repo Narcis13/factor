@@ -3,9 +3,9 @@
 import { matchSetup } from '@factor/content';
 import { createMatch } from '@factor/sim';
 import { Application, Graphics } from 'pixi.js';
-import { arenaScene } from './arena-view.ts';
+import { groundScene, noDeployRect, toScreen, towerScene, unitScene } from './arena-view.ts';
 import { tap, type Controls } from './controls.ts';
-import { BACKGROUND, drawArena } from './draw-arena.ts';
+import { BACKGROUND, drawArena, drawNoDeploy, drawUnits } from './draw-arena.ts';
 import { HudView } from './draw-hud.ts';
 import { hudScene } from './hud-view.ts';
 import { advance, alpha, createLoop, stepTo } from './match-loop.ts';
@@ -28,22 +28,33 @@ const start = createMatch(matchSetup(0));
 const loop = createLoop(frozenAt === null ? start : stepTo(start, frozenAt));
 const controls: Controls = { side: 0, selected: null };
 
-const arena = new Graphics();
+const ground = new Graphics();
+const field = new Graphics();
 const hud = new HudView();
-app.stage.addChild(arena, hud.root);
+app.stage.addChild(ground, field, hud.root);
 let layout: ScreenLayout = resize();
 
-/** Lays the screen out again and redraws the arena, which only changes with the screen size for now. */
+/** Lays the screen out again and redraws the ground, which only changes with the screen size. */
 function resize(): ScreenLayout {
   app.renderer.resize(window.innerWidth, window.innerHeight);
   const next = layoutScreen(loop.current.arena, loop.current.rules.handSize, window.innerWidth, window.innerHeight);
-  arena.clear();
-  drawArena(arena, arenaScene(loop.current, next.view));
+  ground.clear();
+  drawArena(ground, groundScene(loop.current.arena, next.view));
   return next;
 }
 
+/** Towers, the no-deploy shade while a troop is selected, and units, then the HUD: every frame. */
 function render(): void {
-  hud.draw(hudScene(loop.previous, loop.current, alpha(loop), layout.hud, controls.side, controls.selected));
+  const { previous, current } = loop;
+  const t = alpha(loop);
+  field.clear();
+  drawArena(field, towerScene(current, layout.view));
+  const selected = controls.selected === null ? undefined : current.players[controls.side].hand[controls.selected];
+  if (selected !== undefined && current.cards[selected]?.type === 'troop') {
+    drawNoDeploy(field, toScreen(layout.view, noDeployRect(current.arena, controls.side)));
+  }
+  drawUnits(field, unitScene(previous, current, t, layout.view));
+  hud.draw(hudScene(previous, current, t, layout.hud, controls.side, controls.selected));
   app.render();
 }
 

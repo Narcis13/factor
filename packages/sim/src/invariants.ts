@@ -8,7 +8,7 @@ const UINT32_MAX = 0xffffffff;
  */
 export function checkInvariants(state: SimState): string[] {
   const violations: string[] = [];
-  const { tick, rng, rules, arena, towers, cards, players, stars, result } = state;
+  const { tick, rng, rules, arena, towers, units, nextId, cards, players, stars, result } = state;
   const endTick = rules.regulationTicks + rules.overtimeTicks;
 
   if (!isIntegerIn(tick, 0, endTick)) {
@@ -40,6 +40,29 @@ export function checkInvariants(state: SimState): string[] {
       isIntegerIn(y - half, 0, arena.height - size);
     if (!inside) {
       violations.push(`${name} (${String(x)}, ${String(y)}) size ${String(size)} is not inside the arena`);
+    }
+  }
+  for (const unit of units) {
+    const { id, x, y, hp, maxHp, deployTicks, card } = unit;
+    const name = `unit ${String(id)}`;
+    if (!Number.isSafeInteger(id) || id <= previousId || id >= nextId) {
+      violations.push(`${name} breaks unique ascending ids (after ${String(previousId)}, next ${String(nextId)})`);
+    }
+    previousId = id;
+    if (!isIntegerIn(maxHp, 1, Number.MAX_SAFE_INTEGER) || !isIntegerIn(hp, 1, maxHp)) {
+      violations.push(`${name} has hp ${String(hp)} of ${String(maxHp)}`);
+    }
+    if (!isIntegerIn(deployTicks, 0, rules.deployDelayTicks)) {
+      violations.push(`${name} has ${String(deployTicks)} deploy ticks left`);
+    }
+    if (!isIntegerIn(x, 0, arena.width - 1) || !isIntegerIn(y, 0, arena.height - 1)) {
+      violations.push(`${name} (${String(x)}, ${String(y)}) is outside the arena`);
+    } else if (inRiver(arena, x, y) && !arena.bridges.some((bridge) => x >= bridge.x && x <= bridge.x + bridge.width)) {
+      violations.push(`${name} (${String(x)}, ${String(y)}) is in the river off any bridge`);
+    }
+    const stats = Object.hasOwn(cards, card) ? cards[card] : undefined;
+    if (stats?.type !== 'troop') {
+      violations.push(`${name} comes from ${card}, which is not a known troop`);
     }
   }
   const { max, ticksPerEnergy } = rules.energy;
@@ -80,6 +103,10 @@ export function checkInvariants(state: SimState): string[] {
     }
   }
   return violations;
+}
+
+function inRiver({ river }: SimState['arena'], x: number, y: number): boolean {
+  return x >= river.x && x < river.x + river.width && y >= river.y && y < river.y + river.height;
 }
 
 function isIntegerIn(value: number, min: number, max: number): boolean {

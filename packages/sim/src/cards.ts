@@ -3,11 +3,22 @@ import { shuffle, type Rng } from './rng.ts';
 /** A card's id, as `content` names it. */
 export type CardId = string;
 
-/** What the sim needs to know about a card. What it deploys comes with units. */
-export interface CardStats {
-  /** Energy spent to play it. */
-  cost: number;
+/** What a troop's unit is made of (VISION §4). The fighting stats come with fighting. */
+export interface UnitStats {
+  hp: number;
+  /** Milli-tiles moved per tick. */
+  speed: number;
+  /** The unit is a circle of this radius, in milli-tiles. */
+  radius: number;
+  /** How close its edge gets to its target's edge, in milli-tiles. */
+  range: number;
 }
+
+/**
+ * What the sim needs to know about a card. A troop deploys one unit on its side's half; a spell
+ * can target anywhere (its effect comes with fighting). Energy spent to play it is `cost`.
+ */
+export type CardStats = { cost: number; type: 'troop'; unit: UnitStats } | { cost: number; type: 'spell' };
 
 /** Energy (VISION §4). The numbers come from `content`. */
 export interface EnergyRules {
@@ -81,7 +92,15 @@ export function pickCards(catalog: Readonly<Record<CardId, CardStats>>, ids: rea
     if (stats === undefined) {
       throw new RangeError(`Unknown card: ${id}`);
     }
-    cards[id] = { cost: stats.cost };
+    cards[id] = copyCard(stats);
   }
   return cards;
+}
+
+function copyCard(stats: CardStats): CardStats {
+  if (stats.type === 'spell') {
+    return { cost: stats.cost, type: 'spell' };
+  }
+  const { hp, speed, radius, range } = stats.unit;
+  return { cost: stats.cost, type: 'troop', unit: { hp, speed, radius, range } };
 }

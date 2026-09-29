@@ -1,15 +1,15 @@
 import type { CardId, CardStats } from '@factor/sim';
 
 /**
- * The Stage 1 cards (VISION §8), so far only their costs. What they deploy comes with units:
- * `juggernaut` is the building-targeting tank, `warden` the melee unit, `slinger` the ranged unit
- * and `flare` the damage spell.
+ * The Stage 1 cards (VISION §8). `juggernaut` is the tank (it will target buildings), `warden` the
+ * melee unit, `slinger` the ranged unit and `flare` the damage spell. Speeds are milli-tiles per tick
+ * (50 = 1 tile/s); radius and range are milli-tiles. Damage and targeting come with fighting.
  */
 export const CARDS = {
-  juggernaut: { cost: 5 },
-  warden: { cost: 3 },
-  slinger: { cost: 4 },
-  flare: { cost: 4 },
+  juggernaut: { cost: 5, type: 'troop', unit: { hp: 3000, speed: 40, radius: 700, range: 300 } },
+  warden: { cost: 3, type: 'troop', unit: { hp: 1200, speed: 60, radius: 500, range: 300 } },
+  slinger: { cost: 4, type: 'troop', unit: { hp: 600, speed: 50, radius: 450, range: 5000 } },
+  flare: { cost: 4, type: 'spell' },
 } as const satisfies Record<CardId, CardStats>;
 
 export type ContentCardId = keyof typeof CARDS;

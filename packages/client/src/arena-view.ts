@@ -1,5 +1,5 @@
 import { towerFootprint } from '@factor/content';
-import { MILLI_PER_TILE, type Rect, type Side, type SimState, type Terrain } from '@factor/sim';
+import { deployZone, MILLI_PER_TILE, type CardId, type Rect, type Side, type SimState, type Terrain } from '@factor/sim';
 
 /**
  * How the arena sits on the screen: a whole number of pixels per tile, centered, with side 0 at the
@@ -27,6 +27,18 @@ export type GroundKind = 'tile-light' | 'tile-dark' | 'river' | 'bridge';
 /** Something to draw. Towers carry their owner; the ground belongs to no one. */
 export type Shape = { kind: GroundKind; rect: ScreenRect } | { kind: 'keep' | 'outpost'; side: Side; rect: ScreenRect };
 
+/** A unit on the screen: a circle, in CSS pixels. */
+export interface UnitShape {
+  id: number;
+  side: Side;
+  card: CardId;
+  x: number;
+  y: number;
+  radius: number;
+  /** Still waiting out its deploy delay. */
+  deploying: boolean;
+}
+
 /** The largest whole tile size that fits the arena on a screen, at least 1 px. */
 export function fitView(arena: Terrain, screenWidth: number, screenHeight: number): View {
   const columns = arena.width / MILLI_PER_TILE;
@@ -51,12 +63,22 @@ export function toScreen(view: View, rect: Rect): ScreenRect {
   };
 }
 
+/** A point in the arena (milli-tiles, y up) on the screen (pixels, y down). */
+export function pointToScreen(view: View, x: number, y: number): { x: number; y: number } {
+  const scale = view.tilePx / MILLI_PER_TILE;
+  return { x: view.left + x * scale, y: view.top + (view.arenaHeight - y) * scale };
+}
+
 /**
  * Everything a match state draws, back to front: a checkerboard of tiles, the river, bridges, then the
  * towers standing in `state` (not the layout's sites, so the picture follows the sim).
  */
 export function arenaScene(state: Pick<SimState, 'arena' | 'towers'>, view: View): Shape[] {
-  const { arena, towers } = state;
+  return [...groundScene(state.arena, view), ...towerScene(state, view)];
+}
+
+/** The ground: it never changes during a match, so it is drawn once per screen size. */
+export function groundScene(arena: Terrain, view: View): Shape[] {
   const shapes: Shape[] = [];
   for (let row = 0; row < arena.height / MILLI_PER_TILE; row++) {
     for (let col = 0; col < arena.width / MILLI_PER_TILE; col++) {
@@ -69,8 +91,34 @@ export function arenaScene(state: Pick<SimState, 'arena' | 'towers'>, view: View
   for (const bridge of arena.bridges) {
     shapes.push({ kind: 'bridge', rect: toScreen(view, bridge) });
   }
-  for (const tower of towers) {
-    shapes.push({ kind: tower.kind, side: tower.side, rect: toScreen(view, towerFootprint(tower)) });
-  }
   return shapes;
+}
+
+export function towerScene(state: Pick<SimState, 'towers'>, view: View): Shape[] {
+  return state.towers.map((tower) => ({ kind: tower.kind, side: tower.side, rect: toScreen(view, towerFootprint(tower)) }));
+}
+
+/**
+ * Units, `alpha` of the way from where they stood in `previous` to where they stand in `current`
+ * (VISION §5). A unit new in `current` shows where it is.
+ */
+export function unitScene(previous: SimState, current: SimState, alpha: number, view: View): UnitShape[] {
+  const before = new Map(previous.units.map((unit) => [unit.id, unit]));
+  const scale = view.tilePx / MILLI_PER_TILE;
+  return current.units.map((unit) => {
+    const from = before.get(unit.id) ?? unit;
+    const x = from.x + (unit.x - from.x) * alpha;
+    const y = from.y + (unit.y - from.y) * alpha;
+    const stats = current.cards[unit.card];
+    const radius = stats?.type === 'troop' ? stats.unit.radius * scale : scale * MILLI_PER_TILE / 2;
+    return { id: unit.id, side: unit.side, card: unit.card, ...pointToScreen(view, x, y), radius, deploying: unit.deployTicks > 0 };
+  });
+}
+
+/** Where `side` may not deploy a troop, to shade while one is selected: the rest of the arena. */
+export function noDeployRect(arena: Terrain, side: Side): Rect {
+  const zone = deployZone(arena, side);
+  return zone.y === 0
+    ? { x: 0, y: zone.height, width: arena.width, height: arena.height - zone.height }
+    : { x: 0, y: 0, width: arena.width, height: zone.y };
 }
