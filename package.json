@@ -1,0 +1,24 @@
+{
+  "name": "factor",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.0.8",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "check": "pnpm typecheck && pnpm lint && pnpm test",
+    "typecheck": "tsc --noEmit -p tsconfig.json && pnpm -r typecheck",
+    "lint": "eslint . --max-warnings=0",
+    "test": "vitest run",
+    "sim": "node packages/tools/src/cli.ts"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^24.19.0",
+    "eslint": "^10.11.0",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.70.1",
+    "vitest": "^5.0.2"
+  }
+}
