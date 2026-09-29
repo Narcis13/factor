@@ -1,5 +1,6 @@
-// Browser entry. Draws the arena once per resize; there is no match to animate yet.
-import { ARENA } from '@factor/content';
+// Browser entry. Draws a fresh match's state once per resize; nothing steps the match yet.
+import { matchSetup } from '@factor/content';
+import { createMatch } from '@factor/sim';
 import { Application, Graphics } from 'pixi.js';
 import { arenaScene, fitView } from './arena-view.ts';
 import { BACKGROUND, drawArena } from './draw-arena.ts';
@@ -16,13 +17,14 @@ await app.init({
 });
 document.body.appendChild(app.canvas);
 
+const match = createMatch(matchSetup(0));
 const arena = new Graphics();
 app.stage.addChild(arena);
 
 function layout(): void {
   app.renderer.resize(window.innerWidth, window.innerHeight);
   arena.clear();
-  drawArena(arena, arenaScene(ARENA, fitView(ARENA, window.innerWidth, window.innerHeight)));
+  drawArena(arena, arenaScene(match, fitView(match.arena, window.innerWidth, window.innerHeight)));
   app.render();
 }
 

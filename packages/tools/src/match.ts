@@ -1,4 +1,4 @@
-import { MATCH_RULES, parseReplay, REPLAY_VERSION, type Replay } from '@factor/content';
+import { matchSetup, parseReplay, REPLAY_VERSION, type Replay } from '@factor/content';
 import { checkInvariants, createMatch, hashState, step, TICKS_PER_SECOND, type SimState } from '@factor/sim';
 
 /** A match with no commands. There are no cards or bot yet, so every match is one of these. */
@@ -13,7 +13,7 @@ export function emptyReplay(seed: number): Replay {
  */
 export function playReplay(replay: Replay, stopTick?: number): SimState {
   const { commands } = parseReplay(replay);
-  let state = createMatch({ seed: replay.seed, rules: MATCH_RULES });
+  let state = createMatch(matchSetup(replay.seed));
   assertHealthy(state);
   let next = 0;
   while (state.result === null && state.tick !== stopTick) {

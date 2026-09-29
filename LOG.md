@@ -7,35 +7,47 @@ Sculpt log. The **Current state** block is rewritten at the end of every session
 ## Current state
 
 **Stage:** 1 — Block-in (just started; Stage 0 complete in S6)
-**Last session:** S6 · 2026-09-29
+**Last session:** S7 · 2026-09-29
 **Works:**
 - A pnpm monorepo with `sim`, `content`, `tools` and `client` packages, strict TS 6.0, no build step.
-- `pnpm check` is green: typecheck, lint, 126 tests (one of them drives headless Chromium).
+- `pnpm check` is green: typecheck, lint, 142 tests (one of them drives headless Chromium).
 - ESLint enforces the sim's hard rules (imports, Math/Date/timers, async, classes, `**`, float literals), in sim tests too.
-- Sim: `createMatch({ seed, rules })`, pure `step(state, commands)` at a fixed tick, sfc32 RNG in state, `hashState` (FNV-1a over canonical JSON). Commands are validated; with hands still empty, every one is rejected and recorded.
+- Sim: `createMatch({ seed, rules, arena, towerStats })`, pure `step(state, commands)` at a fixed tick, sfc32 RNG in state, `hashState` (FNV-1a over canonical JSON). Commands are validated; with hands still empty, every one is rejected and recorded.
+- Towers are sim entities: `MatchSetup` carries the `ArenaLayout` (types now in `sim`) and `towerStats`. The state holds the terrain (`arena`: size, river, bridges) and `towers` (site + `id`, `hp`, `maxHp`, ids in layout order). Invariants check tower hp, unique ascending ids, and towers inside the arena. Towers don't act yet.
 - Match timer and result: 3:00 regulation, then up to 2:00 overtime while stars are tied; any star lead wins after regulation, still tied at the end is a draw.
 - Replay v0 (`content`): `{ version: 0, seed, decks, commands }`, zod-validated on load and save (strict objects, integers, tick order). `playReplay` (tools) validates, feeds each command at its tick, checks invariants every tick, and fails if commands are left unplayed.
 - `pnpm sim match --seed <n>` saves `replays/seed-<n>.json` (gitignored); `pnpm sim replay <file>` plays it back to the same hash. Both take `--dump <tick>`.
-- `content` exports `ARENA` (D7) and `towerFootprint`. The sim doesn't read the arena yet.
-- Client (Vite 8 + PixiJS 8.21, WebGL): `pnpm dev` draws `ARENA` once per resize, side 0 at the bottom. `pnpm shots` saves a byte-identical `shots/arena.png`.
+- `content` exports `ARENA` (D7), `TOWER_STATS` (Keep 4000 hp, Outpost 2500), `MATCH_RULES`, and `matchSetup(seed)`, which tools and client use.
+- Client (Vite 8 + PixiJS 8.21, WebGL): `pnpm dev` draws a fresh match's state (terrain and towers) once per resize, side 0 at the bottom. `pnpm shots` saves a byte-identical `shots/arena.png`.
 **Known issues:**
 - No formatter configured yet (the code follows the existing style by convention).
-- Nothing earns stars yet (no towers); the end-of-match scenarios set stars directly.
+- Nothing earns stars yet (towers can't be damaged); the end-of-match scenarios set stars directly.
 - Shots need Playwright's pinned Chromium (`pnpm --filter @factor/tools exec playwright install --only-shell chromium`) or `FACTOR_CHROMIUM=<path>`. The cloud container has only build 1194: use `FACTOR_CHROMIUM=/opt/pw-browsers/chromium_headless_shell-1194/chrome-linux/headless_shell`.
 - If the client throws before drawing, `pnpm shots` reports the page error only after its 15 s ready timeout.
-- Replays don't carry `MATCH_RULES`; a content change silently changes what an old replay plays (goldens will catch this).
+- Replays don't carry rules, layout or tower stats; a content change silently changes what an old replay plays (goldens will catch this).
 **Golden replays:** none (the RNG sequence is pinned in `rng-sequence-is-fixed-per-seed.test.ts`)
 
 **Next cuts** (in order):
-1. Towers become sim entities: `ARENA`'s sites reach the sim through `MatchSetup` (D7), tower hp in `content`; the client draws towers from sim state.
-2. Energy, a hand of 4 plus next, and a deck shuffled from the seed (replay `decks` become real, via `MatchSetup`); a played card spends energy and cycles (still no units).
-3. The client runs the sim live at 20 ticks/s, interpolating between ticks, and shows the timer; `?replay=` plays a replay back, and `pnpm shots` learns `?replay=&tick=`.
-4. The 4 Stage 1 cards as colored shapes: units spawn, cross bridges, fight; towers shoot and fall, earning stars.
-5. A random-legal-move bot; `pnpm sim match` plays bot vs bot and records its commands into the replay.
+1. Energy, a hand of 4 plus next, and a deck shuffled from the seed (replay `decks` become real, via `MatchSetup`); a played card spends energy and cycles (still no units).
+2. The client runs the sim live at 20 ticks/s, interpolating between ticks, and shows the timer; `?replay=` plays a replay back, and `pnpm shots` learns `?replay=&tick=`.
+3. The 4 Stage 1 cards as colored shapes: units spawn, cross bridges, fight; towers shoot and fall, earning stars (tower damage/range join `TOWER_STATS`).
+4. A random-legal-move bot; `pnpm sim match` plays bot vs bot and records its commands into the replay.
 
 ---
 
 ## Sessions
+
+### S7 · 2026-09-29 · Towers become sim entities
+**Stage:** 1 — Block-in
+**Cut:** Pass the arena layout and tower hp into the sim through `MatchSetup` (D7), make towers entities in the state, and let the client draw them from that state, so later cuts have something to shoot at.
+**Done:**
+- Sim: `arena.ts` holds the layout types that moved from `content` (`Rect`, `Lane`, `Bridge`, `TowerSite`, `ArenaLayout`), plus `Terrain`, `TowerKind`, `TowerStats` and `Tower`. `createMatch` copies the terrain field by field and builds towers with ids in layout order, rejecting bad hp. `step` copies them. Tower invariants added.
+- Content: `TOWER_STATS` and `matchSetup(seed)`. Tools' `playReplay` uses it.
+- Client: `arenaScene(state, view)` draws the terrain and towers from sim state; `main.ts` draws `createMatch(matchSetup(0))`.
+**Verified:** `pnpm check` green (22 files, 142 tests). Scenario tests: towers stand at their sites with full hp by kind, stay untouched for a whole idle match, share nothing with the setup, get fresh copies each step, and change the hash; bad hp is rejected. 5 new invariant cases. A client test drops a tower from the state and it vanishes from the picture. `pnpm shots` is byte-identical to before this cut (looked at it). 4 mutations were each caught. `pnpm sim match --seed 42` → `replay` both hash `1076eaf6`.
+**Decisions:** The sim owns the layout types, because it consumes them now (as S4 planned); `content` only fills them. The state keeps the terrain but not the tower sites: towers carry their own site, so positions live in one place. Seed 42's final hash changed from `330933a4` on purpose (the state grew); there are no goldens yet.
+**Left out / noticed:** Keep dormancy, tower damage/range, and hp bars wait for towers that shoot (Next cuts 3).
+**Status:** complete
 
 ### S6 · 2026-09-29 · Replay format v0
 **Stage:** 0 — Armature

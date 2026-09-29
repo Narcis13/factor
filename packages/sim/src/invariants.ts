@@ -8,7 +8,7 @@ const UINT32_MAX = 0xffffffff;
  */
 export function checkInvariants(state: SimState): string[] {
   const violations: string[] = [];
-  const { tick, rng, rules, stars, result } = state;
+  const { tick, rng, rules, arena, towers, stars, result } = state;
   const endTick = rules.regulationTicks + rules.overtimeTicks;
 
   if (!isIntegerIn(tick, 0, endTick)) {
@@ -20,6 +20,26 @@ export function checkInvariants(state: SimState): string[] {
   for (const word of ['a', 'b', 'c', 'counter'] as const) {
     if (!isIntegerIn(rng[word], 0, UINT32_MAX)) {
       violations.push(`rng.${word} ${String(rng[word])} is not a uint32`);
+    }
+  }
+  let previousId = -1;
+  for (const tower of towers) {
+    const { id, hp, maxHp, x, y, size } = tower;
+    const name = `tower ${String(id)}`;
+    if (!Number.isSafeInteger(id) || id <= previousId) {
+      violations.push(`${name} breaks unique ascending ids (after ${String(previousId)})`);
+    }
+    previousId = id;
+    if (!isIntegerIn(maxHp, 1, Number.MAX_SAFE_INTEGER) || !isIntegerIn(hp, 0, maxHp)) {
+      violations.push(`${name} has hp ${String(hp)} of ${String(maxHp)}`);
+    }
+    const half = Math.floor(size / 2);
+    const inside =
+      isIntegerIn(size, 1, arena.width) &&
+      isIntegerIn(x - half, 0, arena.width - size) &&
+      isIntegerIn(y - half, 0, arena.height - size);
+    if (!inside) {
+      violations.push(`${name} (${String(x)}, ${String(y)}) size ${String(size)} is not inside the arena`);
     }
   }
   for (const side of [0, 1] as const) {

@@ -1,3 +1,4 @@
+import type { ArenaLayout, Terrain, Tower, TowerKind, TowerStats } from './arena.ts';
 import { hashJson } from './hash.ts';
 import { seedRng, type Rng } from './rng.ts';
 
@@ -38,6 +39,10 @@ export interface SimState {
   tick: number;
   rng: Rng;
   rules: MatchRules;
+  /** Never changes during a match; each state has its own copy. */
+  arena: Terrain;
+  /** Ascending by id. */
+  towers: Tower[];
   /** Stars earned, indexed by `Side`. */
   stars: [number, number];
   /** `null` while the match runs. Set by the step that ends it; stepping further throws. */
@@ -46,19 +51,32 @@ export interface SimState {
   rejected: RejectedCommand[];
 }
 
+/** Everything a match starts from. The numbers come from `content` (D7). */
 export interface MatchSetup {
   seed: number;
   rules: MatchRules;
+  arena: ArenaLayout;
+  towerStats: Record<TowerKind, TowerStats>;
 }
 
 export function createMatch(setup: MatchSetup): SimState {
   const { regulationTicks, overtimeTicks } = setup.rules;
-  requireTicks('regulationTicks', regulationTicks, 1);
-  requireTicks('overtimeTicks', overtimeTicks, 0);
+  requireInteger('regulationTicks', regulationTicks, 1);
+  requireInteger('overtimeTicks', overtimeTicks, 0);
+  for (const kind of ['keep', 'outpost'] as const) {
+    requireInteger(`${kind} hp`, setup.towerStats[kind].hp, 1);
+  }
+  // Fields are copied one by one, so nothing from the setup is shared with the state or leaks into it.
+  const towers = setup.arena.towers.map(({ kind, side, lane, x, y, size }, id): Tower => {
+    const { hp } = setup.towerStats[kind];
+    return { id, kind, side, lane, x, y, size, hp, maxHp: hp };
+  });
   return {
     tick: 0,
     rng: seedRng(setup.seed),
     rules: { regulationTicks, overtimeTicks },
+    arena: copyTerrain(setup.arena),
+    towers,
     stars: [0, 0],
     result: null,
     rejected: [],
@@ -70,8 +88,17 @@ export function hashState(state: SimState): string {
   return hashJson(state);
 }
 
-function requireTicks(name: string, ticks: number, min: number): void {
-  if (!Number.isSafeInteger(ticks) || ticks < min) {
-    throw new RangeError(`${name} must be an integer ≥ ${String(min)}, got ${String(ticks)}`);
+export function copyTerrain({ width, height, river, bridges }: Terrain): Terrain {
+  return {
+    width,
+    height,
+    river: { x: river.x, y: river.y, width: river.width, height: river.height },
+    bridges: bridges.map(({ lane, x, y, width: w, height: h }) => ({ lane, x, y, width: w, height: h })),
+  };
+}
+
+function requireInteger(name: string, value: number, min: number): void {
+  if (!Number.isSafeInteger(value) || value < min) {
+    throw new RangeError(`${name} must be an integer ≥ ${String(min)}, got ${String(value)}`);
   }
 }

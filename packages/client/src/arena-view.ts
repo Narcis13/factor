@@ -1,5 +1,5 @@
-import { towerFootprint, type ArenaLayout, type Rect } from '@factor/content';
-import { MILLI_PER_TILE, type Side } from '@factor/sim';
+import { towerFootprint } from '@factor/content';
+import { MILLI_PER_TILE, type Rect, type Side, type SimState, type Terrain } from '@factor/sim';
 
 /**
  * How the arena sits on the screen: a whole number of pixels per tile, centered, with side 0 at the
@@ -28,7 +28,7 @@ export type GroundKind = 'tile-light' | 'tile-dark' | 'river' | 'bridge';
 export type Shape = { kind: GroundKind; rect: ScreenRect } | { kind: 'keep' | 'outpost'; side: Side; rect: ScreenRect };
 
 /** The largest whole tile size that fits the arena on a screen, at least 1 px. */
-export function fitView(arena: ArenaLayout, screenWidth: number, screenHeight: number): View {
+export function fitView(arena: Terrain, screenWidth: number, screenHeight: number): View {
   const columns = arena.width / MILLI_PER_TILE;
   const rows = arena.height / MILLI_PER_TILE;
   const tilePx = Math.max(1, Math.floor(Math.min(screenWidth / columns, screenHeight / rows)));
@@ -51,8 +51,12 @@ export function toScreen(view: View, rect: Rect): ScreenRect {
   };
 }
 
-/** Everything the arena draws, back to front: a checkerboard of tiles, the river, bridges, then towers. */
-export function arenaScene(arena: ArenaLayout, view: View): Shape[] {
+/**
+ * Everything a match state draws, back to front: a checkerboard of tiles, the river, bridges, then the
+ * towers standing in `state` (not the layout's sites, so the picture follows the sim).
+ */
+export function arenaScene(state: Pick<SimState, 'arena' | 'towers'>, view: View): Shape[] {
+  const { arena, towers } = state;
   const shapes: Shape[] = [];
   for (let row = 0; row < arena.height / MILLI_PER_TILE; row++) {
     for (let col = 0; col < arena.width / MILLI_PER_TILE; col++) {
@@ -65,8 +69,8 @@ export function arenaScene(arena: ArenaLayout, view: View): Shape[] {
   for (const bridge of arena.bridges) {
     shapes.push({ kind: 'bridge', rect: toScreen(view, bridge) });
   }
-  for (const site of arena.towers) {
-    shapes.push({ kind: site.kind, side: site.side, rect: toScreen(view, towerFootprint(site)) });
+  for (const tower of towers) {
+    shapes.push({ kind: tower.kind, side: tower.side, rect: toScreen(view, towerFootprint(tower)) });
   }
   return shapes;
 }

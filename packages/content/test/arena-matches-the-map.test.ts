@@ -1,6 +1,6 @@
-import { MILLI_PER_TILE } from '@factor/sim';
+import { MILLI_PER_TILE, type Rect } from '@factor/sim';
 import { expect, test } from 'vitest';
-import { ARENA, towerFootprint, type Rect } from '../src/index.ts';
+import { ARENA, towerFootprint } from '../src/index.ts';
 
 // Side 1 (lowercase) at the top, side 0 (uppercase) at the bottom, as side 0's player sees it.
 // K/k: Keep. O/o: Outpost. ~: river. =: bridge.

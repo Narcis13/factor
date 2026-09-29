@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { checkInvariants, createMatch, step, type MatchRules, type SimState } from '../src/index.ts';
+import { checkInvariants, step, type MatchRules, type SimState } from '../src/index.ts';
 import { idle, newMatch, RULES } from './fixtures.ts';
 
 const SHORT: MatchRules = { regulationTicks: 100, overtimeTicks: 40 };
@@ -68,5 +68,5 @@ test.each([
   { regulationTicks: 100, overtimeTicks: -1 },
   { regulationTicks: 100, overtimeTicks: Number.NaN },
 ])('rules $regulationTicks + $overtimeTicks are rejected', (rules) => {
-  expect(() => createMatch({ seed: 1, rules })).toThrow(RangeError);
+  expect(() => newMatch(1, rules)).toThrow(RangeError);
 });

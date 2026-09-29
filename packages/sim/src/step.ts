@@ -1,5 +1,5 @@
 import { decideResult } from './result.ts';
-import type { Command, RejectReason, SimState } from './state.ts';
+import { copyTerrain, type Command, type RejectReason, type SimState } from './state.ts';
 
 /**
  * Advances the match by exactly one tick. `commands` are the commands for `state.tick`.
@@ -14,6 +14,8 @@ export function step(state: SimState, commands: readonly Command[]): SimState {
     tick: state.tick + 1,
     rng: { ...state.rng },
     rules: { ...state.rules },
+    arena: copyTerrain(state.arena),
+    towers: state.towers.map((tower) => ({ ...tower })),
     stars: [state.stars[0], state.stars[1]],
     result: null,
     rejected: [],
