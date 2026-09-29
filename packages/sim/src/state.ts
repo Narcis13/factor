@@ -1,4 +1,5 @@
 import type { ArenaLayout, Terrain, Tower, TowerKind, TowerStats } from './arena.ts';
+import { dealPlayer, pickCards, type CardId, type CardStats, type EnergyRules, type Player } from './cards.ts';
 import { hashJson } from './hash.ts';
 import { seedRng, type Rng } from './rng.ts';
 
@@ -13,20 +14,28 @@ export interface Command {
   y: number;
 }
 
-/** `empty-slot`: no card in that hand slot. Hands stay empty until Stage 1, so every command gets this. */
-export type RejectReason = 'wrong-tick' | 'empty-slot';
+/**
+ * Why a command did nothing: `wrong-tick` (stamped for another tick), `bad-slot` (no such hand slot),
+ * `out-of-bounds` (the point is outside the arena) or `not-enough-energy` (less energy than the card costs).
+ */
+export type RejectReason = 'wrong-tick' | 'bad-slot' | 'out-of-bounds' | 'not-enough-energy';
 
 export interface RejectedCommand {
   command: Command;
   reason: RejectReason;
 }
 
-/** Match timing in ticks (VISION §4). The numbers come from `content`, which the sim can't import. */
+/** Match timing in ticks, deck and hand sizes, and energy (VISION §4). The numbers come from `content`, which the sim can't import. */
 export interface MatchRules {
   /** When regulation runs out, the side with more stars wins. */
   regulationTicks: number;
   /** Runs while stars are tied after regulation. The first star wins; still tied at its end is a draw. */
   overtimeTicks: number;
+  /** Cards in each deck. */
+  deckSize: number;
+  /** Cards in each hand; the rest of the deck waits in the queue. Less than `deckSize`, so there is a next card. */
+  handSize: number;
+  energy: EnergyRules;
 }
 
 /** How the match ended. A `null` winner is a draw. */
@@ -43,6 +52,10 @@ export interface SimState {
   arena: Terrain;
   /** Ascending by id. */
   towers: Tower[];
+  /** The stats of every card in either deck, by id. Never changes during a match. */
+  cards: Record<CardId, CardStats>;
+  /** Energy, hand and queue, indexed by `Side`. */
+  players: [Player, Player];
   /** Stars earned, indexed by `Side`. */
   stars: [number, number];
   /** `null` while the match runs. Set by the step that ends it; stepping further throws. */
@@ -57,26 +70,54 @@ export interface MatchSetup {
   rules: MatchRules;
   arena: ArenaLayout;
   towerStats: Record<TowerKind, TowerStats>;
+  /** Card stats by id: at least every card in the decks. */
+  cards: Record<CardId, CardStats>;
+  /** Indexed by `Side`, in deck-list order. Each is shuffled from the seed, side 0's first. */
+  decks: [CardId[], CardId[]];
 }
 
 export function createMatch(setup: MatchSetup): SimState {
-  const { regulationTicks, overtimeTicks } = setup.rules;
+  const rules = copyRules(setup.rules);
+  const { regulationTicks, overtimeTicks, deckSize, handSize, energy } = rules;
   requireInteger('regulationTicks', regulationTicks, 1);
   requireInteger('overtimeTicks', overtimeTicks, 0);
+  requireInteger('handSize', handSize, 1);
+  requireInteger('deckSize', deckSize, handSize + 1);
+  requireInteger('energy max', energy.max, 1);
+  requireInteger('energy start', energy.start, 0, energy.max);
+  requireInteger('ticksPerEnergy', energy.ticksPerEnergy, 1);
+  requireInteger('doubleFromTick', energy.doubleFromTick, 0);
   for (const kind of ['keep', 'outpost'] as const) {
     requireInteger(`${kind} hp`, setup.towerStats[kind].hp, 1);
+  }
+  for (const side of [0, 1] as const) {
+    const size = setup.decks[side].length;
+    if (size !== deckSize) {
+      throw new RangeError(`Side ${String(side)}'s deck has ${String(size)} cards, not ${String(deckSize)}`);
+    }
+  }
+  const cards = pickCards(setup.cards, [...setup.decks[0], ...setup.decks[1]]);
+  for (const [id, { cost }] of Object.entries(cards)) {
+    requireInteger(`${id} cost`, cost, 0, energy.max);
   }
   // Fields are copied one by one, so nothing from the setup is shared with the state or leaks into it.
   const towers = setup.arena.towers.map(({ kind, side, lane, x, y, size }, id): Tower => {
     const { hp } = setup.towerStats[kind];
     return { id, kind, side, lane, x, y, size, hp, maxHp: hp };
   });
+  const rng = seedRng(setup.seed);
+  const players: [Player, Player] = [
+    dealPlayer(rng, setup.decks[0], handSize, energy.start),
+    dealPlayer(rng, setup.decks[1], handSize, energy.start),
+  ];
   return {
     tick: 0,
-    rng: seedRng(setup.seed),
-    rules: { regulationTicks, overtimeTicks },
+    rng,
+    rules,
     arena: copyTerrain(setup.arena),
     towers,
+    cards,
+    players,
     stars: [0, 0],
     result: null,
     rejected: [],
@@ -97,8 +138,18 @@ export function copyTerrain({ width, height, river, bridges }: Terrain): Terrain
   };
 }
 
-function requireInteger(name: string, value: number, min: number): void {
-  if (!Number.isSafeInteger(value) || value < min) {
-    throw new RangeError(`${name} must be an integer ≥ ${String(min)}, got ${String(value)}`);
+export function copyRules({ regulationTicks, overtimeTicks, deckSize, handSize, energy }: MatchRules): MatchRules {
+  const { start, max, ticksPerEnergy, doubleFromTick } = energy;
+  return { regulationTicks, overtimeTicks, deckSize, handSize, energy: { start, max, ticksPerEnergy, doubleFromTick } };
+}
+
+export function copyCards(cards: Readonly<Record<CardId, CardStats>>): Record<CardId, CardStats> {
+  return pickCards(cards, Object.keys(cards));
+}
+
+function requireInteger(name: string, value: number, min: number, max = Number.MAX_SAFE_INTEGER): void {
+  if (!Number.isSafeInteger(value) || value < min || value > max) {
+    const range = max === Number.MAX_SAFE_INTEGER ? `≥ ${String(min)}` : `in [${String(min)}, ${String(max)}]`;
+    throw new RangeError(`${name} must be an integer ${range}, got ${String(value)}`);
   }
 }

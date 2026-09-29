@@ -1,8 +1,8 @@
 import { expect, test } from 'vitest';
-import { loadReplay, parseReplay, REPLAY_VERSION } from '../src/index.ts';
+import { loadReplay, parseReplay, REPLAY_VERSION, STARTER_DECK, STARTER_DECKS } from '../src/index.ts';
 
 const COMMAND = { tick: 10, side: 0, handSlot: 1, x: 9000, y: 4000 };
-const VALID = { version: REPLAY_VERSION, seed: 42, decks: [[], []], commands: [COMMAND] };
+const VALID = { version: REPLAY_VERSION, seed: 42, decks: STARTER_DECKS, commands: [COMMAND] };
 
 test('a valid replay parses', () => {
   expect(parseReplay(VALID)).toEqual(VALID);
@@ -10,12 +10,15 @@ test('a valid replay parses', () => {
 
 test.each([
   ['another version', { ...VALID, version: 1 }, 'version'],
-  ['a missing field', { version: 0, seed: 42, decks: [[], []] }, 'commands'],
+  ['a missing field', { version: 0, seed: 42, decks: STARTER_DECKS }, 'commands'],
   ['an unknown top-level field', { ...VALID, extra: true }, 'Unrecognized key: "extra"'],
   ['a seed above uint32', { ...VALID, seed: 0x1_0000_0000 }, 'seed'],
   ['a fractional seed', { ...VALID, seed: 1.5 }, 'seed'],
-  ['three decks', { ...VALID, decks: [[], [], []] }, 'decks'],
-  ['a card id that is not a string', { ...VALID, decks: [[7], []] }, 'decks[0][0]'],
+  ['three decks', { ...VALID, decks: [STARTER_DECK, STARTER_DECK, STARTER_DECK] }, 'decks'],
+  ['a deck of 7', { ...VALID, decks: [STARTER_DECK, STARTER_DECK.slice(1)] }, 'decks[1]'],
+  ['a deck of 9', { ...VALID, decks: [[...STARTER_DECK, 'flare'], STARTER_DECK] }, 'decks[0]'],
+  ['an unknown card', { ...VALID, decks: [STARTER_DECK, [...STARTER_DECK.slice(1), 'dragon']] }, 'decks[1][7]'],
+  ['a card id that is not a string', { ...VALID, decks: [[7, ...STARTER_DECK.slice(1)], STARTER_DECK] }, 'decks[0][0]'],
   ['a fractional position', { ...VALID, commands: [{ ...COMMAND, x: 9000.5 }] }, 'commands[0].x'],
   ['a numeric string', { ...VALID, commands: [{ ...COMMAND, y: '4000' }] }, 'commands[0].y'],
   ['side 2', { ...VALID, commands: [{ ...COMMAND, side: 2 }] }, 'commands[0].side'],

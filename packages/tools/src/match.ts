@@ -1,9 +1,9 @@
-import { matchSetup, parseReplay, REPLAY_VERSION, type Replay } from '@factor/content';
+import { matchSetup, parseReplay, REPLAY_VERSION, STARTER_DECK, type Replay } from '@factor/content';
 import { checkInvariants, createMatch, hashState, step, TICKS_PER_SECOND, type SimState } from '@factor/sim';
 
-/** A match with no commands. There are no cards or bot yet, so every match is one of these. */
+/** A match on the starter decks with no commands. There is no bot yet, so every CLI match is one of these. */
 export function emptyReplay(seed: number): Replay {
-  return { version: REPLAY_VERSION, seed, decks: [[], []], commands: [] };
+  return { version: REPLAY_VERSION, seed, decks: [[...STARTER_DECK], [...STARTER_DECK]], commands: [] };
 }
 
 /**
@@ -12,8 +12,8 @@ export function emptyReplay(seed: number): Replay {
  * Throws if the match ends with commands still unplayed: the replay can't be from this match.
  */
 export function playReplay(replay: Replay, stopTick?: number): SimState {
-  const { commands } = parseReplay(replay);
-  let state = createMatch(matchSetup(replay.seed));
+  const { seed, decks, commands } = parseReplay(replay);
+  let state = createMatch(matchSetup(seed, decks));
   assertHealthy(state);
   let next = 0;
   while (state.result === null && state.tick !== stopTick) {

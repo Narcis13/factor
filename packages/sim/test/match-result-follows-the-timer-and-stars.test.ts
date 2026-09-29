@@ -2,7 +2,7 @@ import { expect, test } from 'vitest';
 import { checkInvariants, step, type MatchRules, type SimState } from '../src/index.ts';
 import { idle, newMatch, RULES } from './fixtures.ts';
 
-const SHORT: MatchRules = { regulationTicks: 100, overtimeTicks: 40 };
+const SHORT: MatchRules = { ...RULES, regulationTicks: 100, overtimeTicks: 40 };
 
 /** Stars can't be earned until towers exist, so these scenarios set them directly. */
 function withStars(state: SimState, blue: number, red: number): SimState {
@@ -53,7 +53,7 @@ test('stars still tied when overtime runs out is a draw', () => {
 });
 
 test('with no overtime, tied stars when regulation runs out is a draw', () => {
-  const state = idle(newMatch(1, { regulationTicks: 100, overtimeTicks: 0 }), 100);
+  const state = idle(newMatch(1, { ...RULES, regulationTicks: 100, overtimeTicks: 0 }), 100);
   expect(state.result).toEqual({ winner: null });
 });
 
@@ -67,6 +67,6 @@ test.each([
   { regulationTicks: 3 / 2, overtimeTicks: 40 },
   { regulationTicks: 100, overtimeTicks: -1 },
   { regulationTicks: 100, overtimeTicks: Number.NaN },
-])('rules $regulationTicks + $overtimeTicks are rejected', (rules) => {
-  expect(() => newMatch(1, rules)).toThrow(RangeError);
+])('rules $regulationTicks + $overtimeTicks are rejected', (timer) => {
+  expect(() => newMatch(1, { ...RULES, ...timer })).toThrow(RangeError);
 });

@@ -1,5 +1,7 @@
 import type { Command } from '@factor/sim';
 import { z } from 'zod';
+import { CARD_IDS } from './cards.ts';
+import { MATCH_RULES } from './match.ts';
 
 /** Bumped whenever the replay format changes. Loading any other version fails. */
 export const REPLAY_VERSION = 0;
@@ -13,8 +15,8 @@ const CommandSchema: z.ZodType<Command> = z.strictObject({
   y: z.int(),
 });
 
-/** Card ids. Decks stay empty until cards exist (Stage 1). */
-const DeckSchema = z.array(z.string());
+/** A full deck of card ids from the catalog. */
+const DeckSchema = z.array(z.enum(CARD_IDS)).length(MATCH_RULES.deckSize);
 
 /**
  * `{ version, seed, decks, commands }` (VISION §5). The sim trusts `Command` field types, so anything

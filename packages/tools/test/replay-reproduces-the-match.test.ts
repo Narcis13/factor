@@ -1,4 +1,4 @@
-import { loadReplay, REPLAY_VERSION, saveReplay, type Replay } from '@factor/content';
+import { CARDS, loadReplay, REPLAY_VERSION, saveReplay, STARTER_DECKS, type Replay } from '@factor/content';
 import { hashState } from '@factor/sim';
 import { expect, test } from 'vitest';
 import { emptyReplay, playReplay } from '../src/index.ts';
@@ -6,7 +6,7 @@ import { emptyReplay, playReplay } from '../src/index.ts';
 const REPLAY: Replay = {
   version: REPLAY_VERSION,
   seed: 1234,
-  decks: [[], []],
+  decks: STARTER_DECKS,
   commands: [
     { tick: 0, side: 0, handSlot: 0, x: 9000, y: 4000 },
     { tick: 50, side: 1, handSlot: 2, x: 3000, y: 28_000 },
@@ -27,19 +27,37 @@ test('a saved and reloaded replay gives the same hash at every checkpoint', () =
   expect(hashesAt(reloaded)).toEqual(hashesAt(REPLAY));
 });
 
+/** The card in `slot` of `side`'s hand after `tick` ticks, and what it costs. */
+function cardAt(tick: number, side: 0 | 1, slot: number): { id: string; cost: number } {
+  const id = playReplay(REPLAY, tick).players[side].hand[slot] ?? '';
+  return { id, cost: CARDS[id as keyof typeof CARDS].cost };
+}
+
 test('each command is fed at its own tick, side 0 first, in order within a side', () => {
-  expect(playReplay(REPLAY, 1).rejected.map((r) => r.command)).toEqual([REPLAY.commands[0]]);
-  expect(playReplay(REPLAY, 50).rejected).toEqual([]);
-  const at51 = playReplay(REPLAY, 51).rejected;
-  expect(at51.map((r) => r.command.handSlot)).toEqual([1, 3, 2]);
-  expect(at51.every((r) => r.reason === 'empty-slot')).toBe(true);
+  // Tick 0: side 0 plays slot 0. Every card costs at most the 5 energy a side starts with.
+  const opener = cardAt(0, 0, 0);
+  const at1 = playReplay(REPLAY, 1);
+  expect(at1.rejected).toEqual([]);
+  expect(at1.players[0].energy).toBe(5 - opener.cost);
+  expect(at1.players[0].queue.at(-1)).toBe(opener.id);
+  // Tick 50: side 1 plays; side 0 is still short of energy, so both its commands are rejected, in order.
+  const reply = cardAt(50, 1, 2);
+  const at51 = playReplay(REPLAY, 51);
+  expect(at51.rejected.map((r) => [r.command.side, r.command.handSlot, r.reason])).toEqual([
+    [0, 1, 'not-enough-energy'],
+    [0, 3, 'not-enough-energy'],
+  ]);
+  expect(at51.players[1].queue.at(-1)).toBe(reply.id);
 });
 
 test('playing to the end reaches the result, with the last-tick command applied', () => {
+  const last = cardAt(5999, 1, 0);
   const state = playReplay(REPLAY);
   expect(state.tick).toBe(6000);
   expect(state.result).toEqual({ winner: null });
-  expect(state.rejected.map((r) => r.command)).toEqual([REPLAY.commands[4]]);
+  expect(state.rejected).toEqual([]);
+  expect(state.players[1].energy).toBe(10 - last.cost);
+  expect(state.players[1].queue.at(-1)).toBe(last.id);
 });
 
 test('moving one command to another tick changes the hash from that tick on', () => {

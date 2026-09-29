@@ -32,3 +32,32 @@ export function nextUint32(rng: Rng): number {
   rng.c = (((rng.c << 21) | (rng.c >>> 11)) + result) >>> 0;
   return result;
 }
+
+const RANGE = 0x100000000;
+
+/** A uniform integer in [0, bound), without modulo bias: draws that would favor low values are redrawn. */
+export function nextBelow(rng: Rng, bound: number): number {
+  if (!Number.isSafeInteger(bound) || bound < 1 || bound > RANGE) {
+    throw new RangeError(`Bound must be an integer in [1, 2^32], got ${String(bound)}`);
+  }
+  const limit = RANGE - (RANGE % bound);
+  for (;;) {
+    const value = nextUint32(rng);
+    if (value < limit) {
+      return value % bound;
+    }
+  }
+}
+
+/** Shuffles `items` in place (Fisher–Yates), drawing from `rng`. */
+export function shuffle(rng: Rng, items: string[]): void {
+  for (let i = items.length - 1; i > 0; i--) {
+    const j = nextBelow(rng, i + 1);
+    const [a, b] = [items[i], items[j]];
+    if (a === undefined || b === undefined) {
+      throw new RangeError('shuffle index out of range');
+    }
+    items[i] = b;
+    items[j] = a;
+  }
+}

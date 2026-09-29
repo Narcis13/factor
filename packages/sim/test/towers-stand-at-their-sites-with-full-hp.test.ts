@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
 import { createMatch, hashState, step, type TowerSite } from '../src/index.ts';
-import { ARENA, idle, newMatch, RULES, TOWER_STATS } from './fixtures.ts';
+import { ARENA, idle, matchSetup, newMatch, RULES, TOWER_STATS } from './fixtures.ts';
 
 test('a new match has one tower per site, ids in layout order, at full hp for its kind', () => {
   const { towers } = newMatch(1);
@@ -29,7 +29,7 @@ test('with nothing to hit them, towers keep full hp to the end of the match', ()
 test('the state shares nothing with the setup, and nothing extra leaks in', () => {
   const site: TowerSite & { note?: string } = { ...ARENA.towers[0], note: 'not sim data' } as TowerSite;
   const arena = { ...ARENA, towers: [site] };
-  const state = createMatch({ seed: 1, rules: RULES, arena, towerStats: TOWER_STATS });
+  const state = createMatch({ ...matchSetup(1), arena });
   expect(state.towers[0]).not.toHaveProperty('note');
   expect(state.arena).not.toHaveProperty('towers');
   expect(state.arena.river).not.toBe(ARENA.river);
@@ -45,17 +45,10 @@ test('each step has its own towers and terrain', () => {
 
 test('tower stats and layout are part of the hash', () => {
   const base = newMatch(1);
-  const tougher = createMatch({
-    seed: 1,
-    rules: RULES,
-    arena: ARENA,
-    towerStats: { ...TOWER_STATS, keep: { hp: 301 } },
-  });
+  const tougher = createMatch({ ...matchSetup(1), towerStats: { ...TOWER_STATS, keep: { hp: 301 } } });
   const moved = createMatch({
-    seed: 1,
-    rules: RULES,
+    ...matchSetup(1),
     arena: { ...ARENA, towers: ARENA.towers.map((site, i) => (i === 0 ? { ...site, x: site.x + 1 } : site)) },
-    towerStats: TOWER_STATS,
   });
   expect(hashState(tougher)).not.toBe(hashState(base));
   expect(hashState(moved)).not.toBe(hashState(base));
@@ -63,5 +56,5 @@ test('tower stats and layout are part of the hash', () => {
 
 test.each([0, -1, 3 / 2, Number.NaN])('tower hp %s is rejected', (hp) => {
   const towerStats = { ...TOWER_STATS, outpost: { hp } };
-  expect(() => createMatch({ seed: 1, rules: RULES, arena: ARENA, towerStats })).toThrow(RangeError);
+  expect(() => createMatch({ ...matchSetup(1), towerStats })).toThrow(RangeError);
 });

@@ -6,36 +6,49 @@ Sculpt log. The **Current state** block is rewritten at the end of every session
 
 ## Current state
 
-**Stage:** 1 — Block-in (just started; Stage 0 complete in S6)
-**Last session:** S7 · 2026-09-29
+**Stage:** 1 — Block-in
+**Last session:** S8 · 2026-09-29
 **Works:**
 - A pnpm monorepo with `sim`, `content`, `tools` and `client` packages, strict TS 6.0, no build step.
-- `pnpm check` is green: typecheck, lint, 142 tests (one of them drives headless Chromium).
+- `pnpm check` is green: typecheck, lint, 201 tests (one of them drives headless Chromium).
 - ESLint enforces the sim's hard rules (imports, Math/Date/timers, async, classes, `**`, float literals), in sim tests too.
-- Sim: `createMatch({ seed, rules, arena, towerStats })`, pure `step(state, commands)` at a fixed tick, sfc32 RNG in state, `hashState` (FNV-1a over canonical JSON). Commands are validated; with hands still empty, every one is rejected and recorded.
-- Towers are sim entities: `MatchSetup` carries the `ArenaLayout` (types now in `sim`) and `towerStats`. The state holds the terrain (`arena`: size, river, bridges) and `towers` (site + `id`, `hp`, `maxHp`, ids in layout order). Invariants check tower hp, unique ascending ids, and towers inside the arena. Towers don't act yet.
+- Sim: `createMatch(setup)`, pure `step(state, commands)` at a fixed tick, sfc32 RNG in state, `hashState` (FNV-1a over canonical JSON). `MatchSetup` carries rules, the `ArenaLayout`, tower stats, a card catalog and both decks.
+- Towers are entities (site, `id`, `hp`, `maxHp`); they don't act yet.
+- Players (`state.players[side]`): energy 5 → 10, +1 per 56 ticks, 2× from 2:00 and in overtime, kept as whole `energy` plus `energyProgress`. Decks of 8 are shuffled from the seed (side 0 first); 4 in `hand`, the rest in `queue` (next first). A legal play spends the card's cost and cycles it; rejects: `wrong-tick`, `bad-slot`, `out-of-bounds`, `not-enough-energy`. `state.cards` holds the stats of the cards in play. Played cards deploy nothing yet.
 - Match timer and result: 3:00 regulation, then up to 2:00 overtime while stars are tied; any star lead wins after regulation, still tied at the end is a draw.
-- Replay v0 (`content`): `{ version: 0, seed, decks, commands }`, zod-validated on load and save (strict objects, integers, tick order). `playReplay` (tools) validates, feeds each command at its tick, checks invariants every tick, and fails if commands are left unplayed.
-- `pnpm sim match --seed <n>` saves `replays/seed-<n>.json` (gitignored); `pnpm sim replay <file>` plays it back to the same hash. Both take `--dump <tick>`.
-- `content` exports `ARENA` (D7), `TOWER_STATS` (Keep 4000 hp, Outpost 2500), `MATCH_RULES`, and `matchSetup(seed)`, which tools and client use.
-- Client (Vite 8 + PixiJS 8.21, WebGL): `pnpm dev` draws a fresh match's state (terrain and towers) once per resize, side 0 at the bottom. `pnpm shots` saves a byte-identical `shots/arena.png`.
+- Content: `CARDS` (juggernaut 5, warden 3, slinger 4, flare 4: costs only), `STARTER_DECK` (each twice), `MATCH_RULES`, `ARENA`, `TOWER_STATS`, `matchSetup(seed, decks?)`. Replay v0 validates decks as 8 known card ids.
+- `pnpm sim match --seed <n>` plays the starter decks with no commands and saves `replays/seed-<n>.json`; `pnpm sim replay <file>` plays it back to the same hash. Both take `--dump <tick>`.
+- Client (Vite 8 + PixiJS 8.21, WebGL): `pnpm dev` draws a fresh match's terrain and towers once per resize. `pnpm shots` saves a byte-identical `shots/arena.png`.
 **Known issues:**
 - No formatter configured yet (the code follows the existing style by convention).
 - Nothing earns stars yet (towers can't be damaged); the end-of-match scenarios set stars directly.
-- Shots need Playwright's pinned Chromium (`pnpm --filter @factor/tools exec playwright install --only-shell chromium`) or `FACTOR_CHROMIUM=<path>`. The cloud container has only build 1194: use `FACTOR_CHROMIUM=/opt/pw-browsers/chromium_headless_shell-1194/chrome-linux/headless_shell`.
+- Deploy zones aren't enforced: any point inside the arena is legal until card types exist.
+- A legal play leaves no trace of where it was aimed; units will carry it.
+- Shots need Playwright's pinned Chromium or `FACTOR_CHROMIUM=<path>`. In the cloud container use `FACTOR_CHROMIUM=/opt/pw-browsers/chromium_headless_shell-1194/chrome-linux/headless_shell`.
 - If the client throws before drawing, `pnpm shots` reports the page error only after its 15 s ready timeout.
-- Replays don't carry rules, layout or tower stats; a content change silently changes what an old replay plays (goldens will catch this).
-**Golden replays:** none (the RNG sequence is pinned in `rng-sequence-is-fixed-per-seed.test.ts`)
+- Replays don't carry rules, layout or stats; a content change silently changes what an old replay plays (goldens will catch this).
+**Golden replays:** none (the RNG sequence and the seed-1234 shuffle are pinned in tests)
 
 **Next cuts** (in order):
-1. Energy, a hand of 4 plus next, and a deck shuffled from the seed (replay `decks` become real, via `MatchSetup`); a played card spends energy and cycles (still no units).
-2. The client runs the sim live at 20 ticks/s, interpolating between ticks, and shows the timer; `?replay=` plays a replay back, and `pnpm shots` learns `?replay=&tick=`.
-3. The 4 Stage 1 cards as colored shapes: units spawn, cross bridges, fight; towers shoot and fall, earning stars (tower damage/range join `TOWER_STATS`).
-4. A random-legal-move bot; `pnpm sim match` plays bot vs bot and records its commands into the replay.
+1. The client runs the sim live at 20 ticks/s, interpolating between ticks, and shows the timer, the energy bar, the hand and the next card; tapping a card and then the arena becomes a command.
+2. The 4 Stage 1 cards as colored shapes: card types (troop/spell), own-half deploy zone for troops, units spawn, cross bridges and fight; towers shoot and fall, earning stars (tower damage/range join `TOWER_STATS`).
+3. A random-legal-move bot; `pnpm sim match` plays bot vs bot and records its commands into the replay.
+4. `?replay=` plays a replay back in the client, and `pnpm shots` learns `?replay=&tick=`.
 
 ---
 
 ## Sessions
+
+### S8 · 2026-09-29 · Energy, hand and deck cycling
+**Stage:** 1 — Block-in
+**Cut:** Give each side energy, a deck shuffled from the seed, and a hand of 4 plus next, so a played card spends energy and cycles (Next cuts 1). Units wait for cut 3.
+**Done:**
+- Sim: `cards.ts` (`CardStats`, `EnergyRules`, `Player`, deal/play/regenerate), `nextBelow` (rejection sampling) and `shuffle` (Fisher–Yates) in `rng.ts`. `MatchRules` gains `deckSize`, `handSize` and `energy`; `MatchSetup` gains `cards` and `decks`; the state gains `cards` and `players`. `step` resolves plays, then regenerates. New invariants: energy range, progress, hand/queue sizes, known cards.
+- Content: `cards.ts` (`CARDS`, `CARD_IDS`, `STARTER_DECK`), energy and deck rules in `MATCH_RULES`, `matchSetup(seed, decks = STARTER_DECKS)`, and replay decks validated as 8 known ids. Tools play a replay's own decks.
+**Verified:** `pnpm check` green (26 files, 201 tests). Scenario tests: 56-tick regen, the cap at 10 with no build-up, 28 ticks from 2:00 and in overtime, overshoot carried unless the bar fills, a play spending and cycling, exact-cost plays, same-tick plays seeing each other, per-side isolation, slot-0 cycling in a lap of 5, each rejection reason, a per-seed pinned shuffle, uniform first cards over 8000 seeds, and bad setups rejected. Determinism test now covers legal plays. 7 mutations were each caught (one only after adding the overshoot test). `pnpm sim match --seed 42` → `replay` both hash `dacd0676`. `pnpm shots` is byte-identical to HEAD before the cut.
+**Decisions:** Energy is whole `energy` plus `energyProgress` in normal-rate ticks, which is exact where milli-energy would round 1000/56. Deck and hand sizes and energy numbers are rules from `content`. The state carries only the stats of cards in the decks. Commands resolve in order against the state they build on; regeneration comes after them. Stage 1 card names are original placeholders; with 4 cards, the starter deck holds each twice. Replays stay version 0 (the shape didn't change; no saved replays are kept). Seed 42's hash changed from `1076eaf6` on purpose.
+**Left out / noticed:** Deploy zones and aim positions wait for card types and units (Known issues). The client shows none of this yet (Next cuts 1). Moved `?replay=` in the client behind the bot, since a replay has nothing to show until units exist.
+**Status:** complete
 
 ### S7 · 2026-09-29 · Towers become sim entities
 **Stage:** 1 — Block-in

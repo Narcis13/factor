@@ -8,7 +8,7 @@ const UINT32_MAX = 0xffffffff;
  */
 export function checkInvariants(state: SimState): string[] {
   const violations: string[] = [];
-  const { tick, rng, rules, arena, towers, stars, result } = state;
+  const { tick, rng, rules, arena, towers, cards, players, stars, result } = state;
   const endTick = rules.regulationTicks + rules.overtimeTicks;
 
   if (!isIntegerIn(tick, 0, endTick)) {
@@ -40,6 +40,27 @@ export function checkInvariants(state: SimState): string[] {
       isIntegerIn(y - half, 0, arena.height - size);
     if (!inside) {
       violations.push(`${name} (${String(x)}, ${String(y)}) size ${String(size)} is not inside the arena`);
+    }
+  }
+  const { max, ticksPerEnergy } = rules.energy;
+  for (const side of [0, 1] as const) {
+    const { energy, energyProgress, hand, queue } = players[side];
+    const name = `side ${String(side)}`;
+    if (!isIntegerIn(energy, 0, max)) {
+      violations.push(`${name} has ${String(energy)} energy, outside [0, ${String(max)}]`);
+    }
+    const progressMax = energy === max ? 0 : ticksPerEnergy - 1;
+    if (!isIntegerIn(energyProgress, 0, progressMax)) {
+      violations.push(`${name} has energy progress ${String(energyProgress)} at ${String(energy)} energy`);
+    }
+    if (hand.length !== rules.handSize || hand.length + queue.length !== rules.deckSize) {
+      const counts = `${String(hand.length)} + ${String(queue.length)}`;
+      violations.push(`${name} holds ${counts} cards, not ${String(rules.handSize)} + ${String(rules.deckSize - rules.handSize)}`);
+    }
+    for (const id of [...hand, ...queue]) {
+      if (!Object.hasOwn(cards, id)) {
+        violations.push(`${name} holds an unknown card: ${id}`);
+      }
     }
   }
   for (const side of [0, 1] as const) {

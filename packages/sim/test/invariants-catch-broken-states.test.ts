@@ -1,12 +1,18 @@
 import { expect, test } from 'vitest';
-import { checkInvariants, type SimState, type Tower } from '../src/index.ts';
-import { idle, newMatch } from './fixtures.ts';
+import { checkInvariants, type Player, type SimState, type Tower } from '../src/index.ts';
+import { idle, newMatch, RULES } from './fixtures.ts';
 
 // 100 ticks of regulation and 40 of overtime, so the timer runs out at tick 140.
-const healthy = newMatch(3, { regulationTicks: 100, overtimeTicks: 40 });
+const healthy = newMatch(3, { ...RULES, regulationTicks: 100, overtimeTicks: 40 });
 
 function withTower(index: number, change: Partial<Tower>): Tower[] {
   return healthy.towers.map((tower, i) => (i === index ? { ...tower, ...change } : tower));
+}
+
+function withPlayer(side: 0 | 1, change: Partial<Player>): SimState['players'] {
+  const players: SimState['players'] = [healthy.players[0], healthy.players[1]];
+  players[side] = { ...players[side], ...change };
+  return players;
 }
 
 test('a fresh match and a finished match are healthy', () => {
@@ -62,6 +68,36 @@ test.each<{ label: string; broken: SimState; message: RegExp }>([
     label: 'a tower past the far edge',
     broken: { ...healthy, towers: withTower(3, { y: 19_001 }) },
     message: /tower 3 .* is not inside the arena/,
+  },
+  {
+    label: 'energy above max',
+    broken: { ...healthy, players: withPlayer(0, { energy: 11 }) },
+    message: /side 0 has 11 energy, outside \[0, 10\]/,
+  },
+  {
+    label: 'negative energy',
+    broken: { ...healthy, players: withPlayer(1, { energy: -1 }) },
+    message: /side 1 has -1 energy/,
+  },
+  {
+    label: 'progress that should have become energy',
+    broken: { ...healthy, players: withPlayer(0, { energyProgress: 56 }) },
+    message: /side 0 has energy progress 56 at 5 energy/,
+  },
+  {
+    label: 'progress building up at max energy',
+    broken: { ...healthy, players: withPlayer(0, { energy: 10, energyProgress: 1 }) },
+    message: /side 0 has energy progress 1 at 10 energy/,
+  },
+  {
+    label: 'a card missing from the hand',
+    broken: { ...healthy, players: withPlayer(1, { hand: healthy.players[1].hand.slice(1) }) },
+    message: /side 1 holds 3 \+ 4 cards, not 4 \+ 4/,
+  },
+  {
+    label: 'a card that is not in the match',
+    broken: { ...healthy, players: withPlayer(0, { queue: [...healthy.players[0].queue.slice(1), 'c9'] }) },
+    message: /side 0 holds an unknown card: c9/,
   },
 ])('$label is a violation', ({ broken, message }) => {
   const violations = checkInvariants(broken);
