@@ -18,3 +18,5 @@ export {
   type UnitShape,
   type View,
 } from './arena-view.ts';
+export { REPLAY_STORAGE_KEY } from './match-replay.ts';
+export { layoutScreen, toArena, type ScreenLayout, type ScreenPoint } from './screen-layout.ts';

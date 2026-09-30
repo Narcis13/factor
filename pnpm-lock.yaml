@@ -71,6 +71,9 @@ importers:
       '@factor/bot':
         specifier: workspace:*
         version: link:../bot
+      '@factor/client':
+        specifier: workspace:*
+        version: link:../client
       '@factor/content':
         specifier: workspace:*
         version: link:../content

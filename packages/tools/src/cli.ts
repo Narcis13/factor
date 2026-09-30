@@ -28,7 +28,15 @@ Commands:
       options: arena.png (live against the bot at tick 90) and end.png (the end of bot-vs-bot seed 0,
       played back with ?replay=). --tick <n> shoots the live match at tick n as arena-<n>.png.
       --replay <file> plays that replay back to --tick (default: its end) as <file name>-<n|end>.png.
-      Also runs as pnpm shots.`;
+      Also runs as pnpm shots.
+
+  playtest [--out <dir>]
+      Play one live match in the client in headless Chromium, in real time (3-5 minutes): every 4 s,
+      side 0 taps a card, then a spot 5 tiles short of the river in line with a bridge, against the
+      bot. When the client saves the match's replay, play it back headless with invariants checked
+      every tick, watch it in the client with ?replay=last, and check that both end screens are the
+      same pixels. Saves playtest-live.png and playtest-replay.png in <dir> (default: shots), and the
+      replay as replays/playtest.json. Exits non-zero on a page error or a mismatch. Also runs as pnpm playtest.`;
 
 const UINT32_MAX = 0xffffffff;
 
@@ -117,6 +125,37 @@ async function shots(args: string[]): Promise<void> {
   }
 }
 
+async function playtestCommand(args: string[]): Promise<void> {
+  const { values } = parseArgs({ args, options: { out: { type: 'string', default: 'shots' } } });
+  // Loaded here so the other commands don't pay for starting Vite and Playwright.
+  const { playtest } = await import('./playtest.ts');
+  const report = await playtest();
+  await mkdir(values.out, { recursive: true });
+  const liveFile = join(values.out, 'playtest-live.png');
+  const watchedFile = join(values.out, 'playtest-replay.png');
+  const replayFile = join('replays', 'playtest.json');
+  await writeFile(liveFile, report.live);
+  await writeFile(watchedFile, report.watched);
+  await mkdir(dirname(replayFile), { recursive: true });
+  await writeFile(replayFile, saveReplay(report.replay));
+  const reasons = Object.entries(report.rejected).map(([reason, count]) => `${String(count)} ${reason}`);
+  const same = report.live.equals(report.watched);
+  console.log(
+    [
+      describeResult(report.replay.seed, report.final),
+      `side 0  ${String(report.taps)} plays tapped, ${String(report.accepted)} taken${reasons.length > 0 ? `, rejected: ${reasons.join(', ')}` : ''}`,
+      `side 1  ${String(report.botPlays)} bot plays`,
+      `replay=last  ${same ? 'the same end screen as live' : 'a DIFFERENT end screen from live'}`,
+      `errors  ${report.errors.length > 0 ? report.errors.join('\n        ') : 'none'}`,
+      `took    ${report.seconds.toFixed(0)} s`,
+      `saved   ${liveFile}, ${watchedFile}, ${replayFile}`,
+    ].join('\n'),
+  );
+  if (!same || report.errors.length > 0) {
+    process.exitCode = 1;
+  }
+}
+
 function parseInteger(flag: string, text: string, max: number): number {
   const value = Number(text);
   if (!/^\d+$/.test(text) || value > max) {
@@ -136,6 +175,8 @@ try {
     replay(args);
   } else if (command === 'shots') {
     await shots(args);
+  } else if (command === 'playtest') {
+    await playtestCommand(args);
   } else {
     throw new UsageError(`Unknown command: ${command}`);
   }

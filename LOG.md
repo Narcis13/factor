@@ -6,41 +6,53 @@ Sculpt log. The **Current state** block is rewritten at the end of every session
 
 ## Current state
 
-**Stage:** 1 — Block-in
-**Last session:** S15 · 2026-09-30
+**Stage:** 2 — Form (Stage 1 — Block-in closed in S16)
+**Last session:** S16 · 2026-09-30
 **Works:**
 - A pnpm monorepo with `sim`, `content`, `bot`, `tools` and `client` packages, strict TS 6.0, no build step.
-- `pnpm check` is green: typecheck, lint, 320 tests (one of them drives headless Chromium).
+- `pnpm check` is green: typecheck, lint, 322 tests (one of them drives headless Chromium).
 - ESLint enforces the sim's hard rules (imports, Math/Date/timers, async, classes, `**`, float literals) in the sim and its tests, and in the bot (which may import only `sim` and `content`).
 - Sim: `createMatch(setup)`, pure `step(state, commands)` at a fixed tick, sfc32 RNG in state, `hashState`. `MatchSetup` carries rules, the `ArenaLayout`, tower stats, a card catalog and both decks.
 - Players: energy 5 → 10, +1 per 56 ticks, 2× from 2:00 and in overtime. Decks of 8 shuffled from the seed; hand of 4 + queue; plays spend and cycle, with 5 rejection reasons.
-- Troops deploy one `Unit` on their own half, wait 20 ticks, then act: lock-on, acquisition in sight (`ground | buildings`), lane and bridge walking, timed hits. Towers lock on to the nearest enemy unit in range. Hits land together; an Outpost gives 1 star, the Keep brings its destroyer to `MAX_STARS` (3) and ends the match.
+- Troops deploy one `Unit` on their own half, wait 20 ticks, then act: lock-on, acquisition in sight (`ground | buildings`), lane and bridge walking, timed hits. Towers lock on to the nearest enemy unit in range. An Outpost gives 1 star; the Keep ends the match (`MAX_STARS`).
 - Spells land instantly anywhere: enemy units and towers in the circle take `damage`, towers only `towerDamageBp` of it.
 - Match timer and result: 3:00 regulation, then up to 2:00 overtime while stars are tied.
 - Bot: `createRandomBot`/`botTurn` (pure, own seeded rng), pacing in `BOT_TUNING`. `playBotMatch(seed)`.
 - Content: `CARDS` (juggernaut, warden, slinger, flare), `TOWER_STATS`, `MATCH_RULES`, `ARENA`, `BOT_TUNING`, `matchSetup(seed, decks?)`, replay v0.
-- `pnpm sim match --seed <n>` plays bot vs bot and saves the replay; `pnpm sim replay` agrees (seed 42: side 1 wins 0-1 at 3:00, `5d516ada`).
-- Client: `pnpm dev` runs seed 0 live, human side 0 vs the bot on side 1. Stars show at the right edge on each bank of the river. At the end: a Victory/Defeat/Draw panel with both sides' stars, the replay kept in localStorage (`factor.lastReplay`), *Play again* (a new live match) and *Save replay* (JSON download). `?replay=last` or `?replay=<url>` plays a replay back from side 0's seat (hand shown, not playable); a missing or invalid one says why on the page. `?tick=` freezes either. `pnpm shots`: `arena.png` `586a9e3247b1`, `end.png` (seed 0 bot vs bot via `?replay=`) `bb2a0544d547`; `--replay <file> --tick <n>` shoots any replay.
+- `pnpm sim match`/`replay` (seed 42: side 1 wins 0-1 at 3:00, `5d516ada`). `pnpm shots`: `arena.png` `586a9e3247b1`, `end.png` `bb2a0544d547`. `pnpm playtest`: a full live match in headless Chromium, tapped by a script against the bot, then checked against its replay.
+- Client: `pnpm dev` runs seed 0 live, human side 0 vs the bot. HUD stars, end panel, replay in localStorage, *Play again*, *Save replay*; `?replay=last|<url>` and `?tick=`.
 **Known issues:**
-- No formatter configured yet.
-- Units don't collide, and they can be deployed on a tower's footprint. No Keep dormancy (Stage 2).
-- Hp bars are thin (4 px at phone size). Units are small and low-contrast on the grass. The flare marker's fill and the hollow HUD stars are faint.
+- No formatter configured yet. Units don't collide, and they can be deployed on a tower's footprint. No Keep dormancy.
+- Hp bars are thin, units are small and low-contrast, and the flare marker and hollow HUD stars are faint.
 - *Play again* replays seed 0, so the bot and the shuffle are the same every match.
-- Shots need Playwright's pinned Chromium or `FACTOR_CHROMIUM=<path>`. In the cloud container use `FACTOR_CHROMIUM=/opt/pw-browsers/chromium_headless_shell-1194/chrome-linux/headless_shell`.
+- Browser tools need `FACTOR_CHROMIUM=/opt/pw-browsers/chromium_headless_shell-1194/chrome-linux/headless_shell` in the cloud container. It runs Node 22 (`engines` asks for ≥ 24; pnpm warns, everything works).
 - Replays don't carry rules, layout or stats; a content change silently changes what an old replay plays.
 - Context7 isn't reachable from the cloud container; library APIs were checked against the installed type definitions.
 - `stepTo` in the client is now used only by tests.
 **Golden replays:** none (the RNG sequence and the seed-1234 shuffle are pinned in tests)
 
 **Next cuts** (in order):
-1. Stage 1 exit review: every criterion now has code behind it. Play a full match against the bot headless and in the browser (live and `?replay=last`), then close the stage.
-2. `pnpm sim sweep --matches <n>` (the 2,000-seed check from S13 as a real command), ahead of Stage 2's 1,000-match criterion.
-3. A fresh seed per match in the client (`?seed=`, and *Play again* picks a new one).
-4. `&debug=1` overlays for shots (ranges, targets, paths; VISION §6).
+1. `pnpm sim sweep --matches <n>` (the 2,000-seed check from S13 as a real command): Stage 2 needs a 1,000-match sweep.
+2. Golden replays: stored hashes at checkpoint ticks for a few bot-vs-bot seeds, checked in `pnpm check`.
+3. Keep dormancy (§4): the Keep wakes when it takes damage or one of its Outposts falls. Scenario tests.
+4. Collision and pushing by mass, and no deploys on a tower's footprint.
+5. A fresh seed per match in the client (`?seed=`, and *Play again* picks a new one).
 
 ---
 
 ## Sessions
+
+### S16 · 2026-09-30 · Stage 1 exit review: a full match in the browser
+**Stage:** 1 — Block-in → 2 — Form
+**Cut:** Check every Stage 1 exit criterion end to end, make "a human plays a full match in the browser" repeatable as `pnpm playtest`, then close the stage (Next cuts 1).
+**Done:**
+- Tools: `playtest.ts` (`playtest()`, `playtestTaps`): real-time headless Chromium, a scripted side 0 taps a card and a spot every 4 s until the client saves its replay. It then plays that replay back with invariants on, watches `?replay=last` to its end, and compares the pixels. `pnpm playtest [--out]`. `browser.ts` (`withClient`, `pageErrors`, `waitForReady`) extracted from `shots.ts` (second use). `playReplay` takes an optional `onStep`.
+- Client: exports `layoutScreen`, `toArena`, `REPLAY_STORAGE_KEY`; tools now depends on `@factor/client`.
+- Stage 1 criteria, one by one: live play to the end (playtest ×2); energy, hand + next, cycling, timer, stars and the result screen (looked at both end shots); the 4 archetype cards (`cards.ts`); towers fall (an Outpost each run); the bot; `?replay=` playback; headless bot vs bot (`sim match`/`replay`, seed 42).
+**Verified:** `pnpm check` green (45 files, 322 tests; 2 new: the taps hit the hand slots in turn and side 0's deploy zone in line with alternating bridges, and never hit the end buttons). That second test failed on my first spot (1.5 tiles short of the river), which sat on *Play again*/*Save replay* at 24 px/tile. `pnpm playtest` twice (~190 s each): side 0 won 1-0 at 3:00 both times (`f761b337`, `035ebc8d`), 22–23 plays taken, the rest refused for energy, no page errors, and the live and `?replay=last` end screens pixel-identical. Seed 42 still `5d516ada`; shots unchanged (`586a9e3247b1`, `bb2a0544d547`).
+**Decisions:** `playtest` runs in real time: under Playwright's fake clock a match took ~11 min, because software WebGL draws a frame in ~54 ms at 540×960. At 3 min it's a tool, not part of `pnpm check`, and its match varies with tap timing. Stage 1 is complete.
+**Left out / noticed:** The scripted player spends ~half its taps without the energy. The sweep command, goldens and Stage 2 rules (Next cuts). **Playtest (director):** Stage 1 closes on the agent's checks. Please play one full match on a phone and say whether the loop is fun enough to refine.
+**Status:** complete
 
 ### S15 · 2026-09-30 · Replays play back in the client
 **Stage:** 1 — Block-in

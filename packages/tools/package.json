@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@factor/bot": "workspace:*",
+    "@factor/client": "workspace:*",
     "@factor/content": "workspace:*",
     "@factor/sim": "workspace:*",
     "playwright": "^1.63.0",

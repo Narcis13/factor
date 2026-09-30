@@ -15,10 +15,10 @@ export function botReplay(seed: number): Replay {
 
 /**
  * Validates and plays a replay, feeding each command at its tick and checking invariants after every tick.
- * Stops when the match ends, or at `stopTick` if that comes first.
+ * Stops when the match ends, or at `stopTick` if that comes first. `onStep` sees every state it steps to.
  * Throws if the match ends with commands still unplayed: the replay can't be from this match.
  */
-export function playReplay(replay: Replay, stopTick?: number): SimState {
+export function playReplay(replay: Replay, stopTick?: number, onStep?: (state: SimState) => void): SimState {
   const { seed, decks, commands } = parseReplay(replay);
   let state = createMatch(matchSetup(seed, decks));
   assertHealthy(state);
@@ -30,6 +30,7 @@ export function playReplay(replay: Replay, stopTick?: number): SimState {
     }
     state = step(state, commands.slice(first, next));
     assertHealthy(state);
+    onStep?.(state);
   }
   if (state.result !== null && next < commands.length) {
     const left = commands.length - next;
