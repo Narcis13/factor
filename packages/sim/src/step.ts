@@ -1,7 +1,7 @@
 import { copyPlayer, playCard, regenerate } from './cards.ts';
 import { decideResult } from './result.ts';
 import { blastHits } from './spells.ts';
-import { copyCards, copyRules, copyTerrain, copyTowerStats, MAX_STARS, type Command, type RejectReason, type SimState } from './state.ts';
+import { copyCards, copyRules, copyTerrain, copyTowerStats, MAX_STARS, type Command, type RejectReason, type Side, type SimState } from './state.ts';
 import { actTower, actUnit, deployZone, inRect, unitStats, type Hit } from './troops.ts';
 
 /**
@@ -68,7 +68,8 @@ export function step(state: SimState, commands: readonly Command[]): SimState {
  * Towers, then units, act in id order; a new unit starts its deploy delay this very tick. Their hits
  * join the spells' `hits` and land together afterwards, so a unit that dies this tick still lands its own hit. Then the dead leave
  * the field and fallen towers score (VISION §4, Winning): an Outpost earns its destroyer 1 star, the
- * Keep brings them to 3.
+ * Keep brings them to 3. Last, a dormant Keep that has taken damage or lost an Outpost wakes; it acts
+ * from the next tick on.
  */
 function fight(state: SimState, hits: Hit[]): void {
   for (const tower of state.towers) {
@@ -91,6 +92,15 @@ function fight(state: SimState, hits: Hit[]): void {
       state.stars[scorer] = tower.kind === 'keep' ? MAX_STARS : Math.min(MAX_STARS, state.stars[scorer] + 1);
     }
   }
+  for (const keep of state.towers) {
+    if (keep.dormant && (keep.hp < keep.maxHp || outpostFallen(state, keep.side))) {
+      keep.dormant = false;
+    }
+  }
+}
+
+function outpostFallen(state: SimState, side: Side): boolean {
+  return state.towers.some((tower) => tower.side === side && tower.kind === 'outpost' && tower.hp === 0);
 }
 
 /** `null` if `command` can be played on `state`, which is the state being built for the tick after `tick`. */

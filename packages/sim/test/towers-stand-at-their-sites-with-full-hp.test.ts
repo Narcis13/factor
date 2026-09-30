@@ -8,7 +8,7 @@ test('a new match has one tower per site, ids in layout order, at full hp for it
   towers.forEach((tower, i) => {
     const site = ARENA.towers[i];
     const { hp } = TOWER_STATS[tower.kind];
-    expect(tower).toEqual({ ...site, id: i, hp, maxHp: hp, targetId: null, cooldown: 0 });
+    expect(tower).toEqual({ ...site, id: i, hp, maxHp: hp, targetId: null, cooldown: 0, dormant: tower.kind === 'keep' });
   });
   expect(towers.filter((tower) => tower.kind === 'keep').map((tower) => tower.hp)).toEqual([300, 300]);
   expect(towers.filter((tower) => tower.kind === 'outpost').map((tower) => tower.hp)).toEqual([200, 200, 200, 200]);

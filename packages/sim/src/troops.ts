@@ -238,7 +238,7 @@ function nearestEnemyTower(unit: Unit, towers: readonly Tower[]): Tower | null {
  * nearest enemy unit in range (the lower id on a tie).
  */
 export function actTower(tower: Tower, stats: TowerStats, field: Field, hits: Hit[]): void {
-  if (tower.hp <= 0) {
+  if (tower.hp <= 0 || tower.dormant) {
     return;
   }
   const rect = footprint(tower);

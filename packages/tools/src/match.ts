@@ -9,12 +9,19 @@ export function emptyReplay(seed: number): Replay {
 
 /** The replay of a random bot playing each side on the starter decks: what every CLI match is. */
 export function botReplay(seed: number): Replay {
+  return playBotReplay(seed).replay;
+}
+
+/** Plays a bot-vs-bot match live, as `botReplay` does, and returns its replay with the state it ended in. */
+export function playBotReplay(seed: number): { replay: Replay; state: SimState } {
   const decks: Replay['decks'] = [[...STARTER_DECK], [...STARTER_DECK]];
-  return { version: REPLAY_VERSION, seed, decks, commands: playBotMatch(seed, decks).commands };
+  const { state, commands } = playBotMatch(seed, decks);
+  return { replay: { version: REPLAY_VERSION, seed, decks, commands }, state };
 }
 
 /**
- * Validates and plays a replay, feeding each command at its tick and checking invariants after every tick.
+ * Validates and plays a replay, feeding each command at its tick and checking invariants after every tick
+ * (a broken one throws an `InvariantError`).
  * Stops when the match ends, or at `stopTick` if that comes first. `onStep` sees every state it steps to.
  * Throws if the match ends with commands still unplayed: the replay can't be from this match.
  */
@@ -60,9 +67,12 @@ export function formatClock(ticks: number): string {
   return `${String(Math.floor(seconds / 60))}:${String(seconds % 60).padStart(2, '0')}`;
 }
 
+/** A state that broke the sim's invariants, as opposed to a replay that doesn't fit its match. */
+export class InvariantError extends Error {}
+
 function assertHealthy(state: SimState): void {
   const violations = checkInvariants(state);
   if (violations.length > 0) {
-    throw new Error(`Invariants broken at tick ${String(state.tick)}:\n  ${violations.join('\n  ')}`);
+    throw new InvariantError(`Invariants broken at tick ${String(state.tick)}:\n  ${violations.join('\n  ')}`);
   }
 }

@@ -7,40 +7,73 @@ Sculpt log. The **Current state** block is rewritten at the end of every session
 ## Current state
 
 **Stage:** 2 — Form (Stage 1 — Block-in closed in S16)
-**Last session:** S16 · 2026-09-30
+**Last session:** S19 · 2026-09-30
 **Works:**
 - A pnpm monorepo with `sim`, `content`, `bot`, `tools` and `client` packages, strict TS 6.0, no build step.
-- `pnpm check` is green: typecheck, lint, 322 tests (one of them drives headless Chromium).
+- `pnpm check` is green: typecheck, lint, 360 tests (one of them drives headless Chromium), the golden replays included.
 - ESLint enforces the sim's hard rules (imports, Math/Date/timers, async, classes, `**`, float literals) in the sim and its tests, and in the bot (which may import only `sim` and `content`).
 - Sim: `createMatch(setup)`, pure `step(state, commands)` at a fixed tick, sfc32 RNG in state, `hashState`. `MatchSetup` carries rules, the `ArenaLayout`, tower stats, a card catalog and both decks.
 - Players: energy 5 → 10, +1 per 56 ticks, 2× from 2:00 and in overtime. Decks of 8 shuffled from the seed; hand of 4 + queue; plays spend and cycle, with 5 rejection reasons.
-- Troops deploy one `Unit` on their own half, wait 20 ticks, then act: lock-on, acquisition in sight (`ground | buildings`), lane and bridge walking, timed hits. Towers lock on to the nearest enemy unit in range. An Outpost gives 1 star; the Keep ends the match (`MAX_STARS`).
+- Troops deploy one `Unit` on their own half, wait 20 ticks, then act: lock-on, acquisition in sight (`ground | buildings`), lane and bridge walking, timed hits. Towers lock on to the nearest enemy unit in range. Keeps start dormant and wake for good once hurt or once one of their Outposts falls. An Outpost gives 1 star; the Keep ends the match (`MAX_STARS`).
 - Spells land instantly anywhere: enemy units and towers in the circle take `damage`, towers only `towerDamageBp` of it.
 - Match timer and result: 3:00 regulation, then up to 2:00 overtime while stars are tied.
 - Bot: `createRandomBot`/`botTurn` (pure, own seeded rng), pacing in `BOT_TUNING`. `playBotMatch(seed)`.
 - Content: `CARDS` (juggernaut, warden, slinger, flare), `TOWER_STATS`, `MATCH_RULES`, `ARENA`, `BOT_TUNING`, `matchSetup(seed, decks?)`, replay v0.
-- `pnpm sim match`/`replay` (seed 42: side 1 wins 0-1 at 3:00, `5d516ada`). `pnpm shots`: `arena.png` `586a9e3247b1`, `end.png` `bb2a0544d547`. `pnpm playtest`: a full live match in headless Chromium, tapped by a script against the bot, then checked against its replay.
+- `pnpm sim match`/`replay` (seed 42: side 1 wins 0-1 at 3:00, `14d647f7`). `pnpm sim sweep --matches 1000`: 0 violations, 0 mismatches, ~45 s. `pnpm sim goldens [--update]`. `pnpm shots`: `arena.png` `586a9e3247b1`, `end.png` `e680085d8eeb`. `pnpm playtest`: a full live match in headless Chromium, checked against its replay.
 - Client: `pnpm dev` runs seed 0 live, human side 0 vs the bot. HUD stars, end panel, replay in localStorage, *Play again*, *Save replay*; `?replay=last|<url>` and `?tick=`.
 **Known issues:**
-- No formatter configured yet. Units don't collide, and they can be deployed on a tower's footprint. No Keep dormancy.
+- No formatter configured yet. Units don't collide, and they can be deployed on a tower's footprint. Nothing on screen shows that a Keep is dormant.
 - Hp bars are thin, units are small and low-contrast, and the flare marker and hollow HUD stars are faint.
 - *Play again* replays seed 0, so the bot and the shuffle are the same every match.
-- Browser tools need `FACTOR_CHROMIUM=/opt/pw-browsers/chromium_headless_shell-1194/chrome-linux/headless_shell` in the cloud container. It runs Node 22 (`engines` asks for ≥ 24; pnpm warns, everything works).
+- Browser tools need `FACTOR_CHROMIUM=/opt/pw-browsers/chromium_headless_shell-1194/chrome-linux/headless_shell` in the cloud container (without it the shots test fails). It runs Node 22 (`engines` asks for ≥ 24; pnpm warns, everything works).
 - Replays don't carry rules, layout or stats; a content change silently changes what an old replay plays.
 - Context7 isn't reachable from the cloud container; library APIs were checked against the installed type definitions.
-- `stepTo` in the client is now used only by tests.
-**Golden replays:** none (the RNG sequence and the seed-1234 shuffle are pinned in tests)
+- `stepTo` in the client is now used only by tests. The sweep's hash check is live vs replay in one process; across machines is the goldens' job.
+**Golden replays:** `goldens/` holds 6 bot-vs-bot replays with a hash every 200 ticks and at the end (`hashes.json`): seed-0 (side 1 wins 1-2 at 3:00), seed-4 (side 0 wins 1-0 at 3:00), seed-24 (a Keep kill at 2:56), seed-27 (an overtime star at 4:02), seed-42 (side 1 wins 0-1, `14d647f7`) and seed-54 (a 2-2 draw at 5:00). The state carries card and tower stats, so any content change fails them all at tick 200. After a rule change, re-record them (`pnpm sim match --seed <n> --replay goldens/seed-<n>.json`) and `--update`.
 
 **Next cuts** (in order):
-1. `pnpm sim sweep --matches <n>` (the 2,000-seed check from S13 as a real command): Stage 2 needs a 1,000-match sweep.
-2. Golden replays: stored hashes at checkpoint ticks for a few bot-vs-bot seeds, checked in `pnpm check`.
-3. Keep dormancy (§4): the Keep wakes when it takes damage or one of its Outposts falls. Scenario tests.
-4. Collision and pushing by mass, and no deploys on a tower's footprint.
+1. Collision and pushing by mass, and no deploys on a tower's footprint.
+2. Deploy zone extension (§4): a fallen enemy Outpost opens that lane's side of the enemy half.
+3. The tiebreak (§4): still tied after overtime, the side whose lowest-HP tower has less HP loses (seed-54 will change).
+4. Show a dormant Keep in the client (dimmed until it wakes), so the rule reads at a glance (pillar 2).
 5. A fresh seed per match in the client (`?seed=`, and *Play again* picks a new one).
 
 ---
 
 ## Sessions
+
+### S19 · 2026-09-30 · Keep dormancy
+**Stage:** 2 — Form
+**Cut:** The Keep starts dormant and wakes when it takes damage or one of its own Outposts falls (§4, Next cuts 1), a Stage 2 rule.
+**Done:**
+- Sim: `Tower.dormant` (true for Keeps at the start). A dormant tower doesn't act. At the end of `fight`, after hits land and fallen towers score, a dormant Keep with hp below max or a fallen Outpost of its own wakes; it locks on from the next tick. New invariant: only a Keep can be dormant, and only while unhurt, with its Outposts standing and no target.
+- Goldens re-recorded under the new rule. Seed 0 now ends 1-2 and seed 101 no longer ends in a Keep kill, so seed-101 was replaced by seed-24 (a Keep kill) and seed-4 (a side 0 regulation win) was added. The coverage test now checks kinds of ending, not seeds.
+**Verified:** `pnpm check` green (49 files, 360 tests; 11 new). Scenarios: dormant at the start; a dormant Keep ignores an enemy in range while an Outpost locks on; zero-damage hits don't wake it; a unit's hit wakes it on that tick and it locks on the next and fires 5 later; a spell on the Keep wakes it, a dud or a spell on an Outpost doesn't; its own Outpost falling wakes it unhurt, the enemy Keep sleeps on. 5 invariant cases. 6 mutations were each caught. `pnpm sim sweep --matches 1000`: 0 violations, 0 mismatches; stars 1584 → 2419 and the shortest match 2:16 → 1:01 (undefended Keeps fall sooner). Seed 42 → `14d647f7`. Shots: `arena.png` unchanged, `end.png` → `e680085d8eeb` (Defeat 1-2; I looked at it).
+**Decisions:** "Takes damage" means hp below max: hits for 0 don't wake it, and nothing heals. The Keep wakes at the end of the tick, so it acts from the next one, the same for both sides (pillar 1). The goldens changed on purpose: the state gained `dormant` and Keeps no longer shoot at first.
+**Left out / noticed:** No visual cue for a dormant Keep (Next cuts 4). **Playtest (director):** with the Keep asleep, is a push that takes an Outpost now too decisive?
+**Status:** complete
+
+### S18 · 2026-09-30 · Golden replays
+**Stage:** 2 — Form
+**Cut:** Golden replays checked in `pnpm check` (Next cuts 1), a Stage 2 exit criterion, in place before the Stage 2 rules start changing the sim.
+**Done:**
+- `goldens/`: 5 bot-vs-bot replays (seeds 0, 27, 42, 54, 101: regulation wins for each side, an overtime star, a Keep kill, a draw) and `hashes.json` (a hash every `GOLDEN_EVERY` = 200 ticks and at the end).
+- Tools: `goldens.ts` (`goldenHashes`, `readGoldens`, `readGoldenHashes`, `checkGoldens`, `updateGoldens`). A golden fails at its first differing checkpoint, compared in tick order, or if its replay no longer plays; a replay with no hashes and hashes with no replay fail too. `pnpm sim goldens [--update] [--dir]`.
+**Verified:** `pnpm check` green (48 files, 349 tests; 10 new): the real goldens pass and cover the 5 endings, checkpoint ticks and the final hash, tampered hashes fail at the right tick (in numeric order), a shorter match, missing and stale entries, a replay that no longer plays, `--update`, and the CLI. 7 mutations were each caught (1 only after I added a test). By hand: slinger damage 90 → 91 failed all 5 goldens at tick 200; tower share +1 in `spells.ts` failed them at ticks 400–1000, each at its first divergence; both reverted to green.
+**Decisions:** Goldens are stored replays, not seeds, so a bot change doesn't move them; only the sim and content do. The state carries stats, so any content change fails at tick 200 even if the number never matters, which is intended. Hashes go every 200 ticks, not every tick, to keep `hashes.json` small (56 KB for 5).
+**Left out / noticed:** Cross-machine and browser hashing (the client could check `hashes.json` too). The tiebreak isn't implemented: seed-54 is a draw at 2-2 (Next cuts 4).
+**Status:** complete
+
+### S17 · 2026-09-30 · `pnpm sim sweep`: bot-vs-bot matches by the thousand
+**Stage:** 2 — Form
+**Cut:** `pnpm sim sweep --matches <n> [--from <seed>]` (Next cuts 1): Stage 2 needs a 1,000-match sweep with zero violations and zero mismatches, and §6 lists headless sweeps as a sense.
+**Done:**
+- Tools: `sweep.ts` (`sweep(from, matches, onMatch?)` → `SweepReport`, `describeSweep`). Each seed is played live, then played back from its replay with invariants every tick; the final hashes must agree. It tallies wins/draws, length and overtime, stars, tower damage per side, plays per card (a taken play's card is at the back of its queue) and rejections by reason. A failing seed is recorded as a violation or mismatch, and the sweep goes on. The CLI prints progress every 100 matches to stderr and exits 1 on any failure.
+- `match.ts`: `InvariantError` (so the sweep tells a broken invariant from a replay that doesn't fit) and `playBotReplay` (the live end state as well as the replay; `botReplay` uses it).
+**Verified:** `pnpm check` green (47 files, 339 tests; 17 new): tallies equal the same 6 seeds played one by one, plays per card equal the troops deployed plus the spells landed, determinism, report lines, the CLI and 5 usage errors. With `playReplay`/`playBotReplay` mocked: an invariant break, a hash mismatch and a replay that doesn't fit are each recorded while the sweep goes on, refused commands count by reason and not as plays, and failures stay out of the tallies. 6 mutations were each caught (2 only after I added tests). `pnpm sim sweep --matches 1000` twice, the same output both times: 0 violations, 0 mismatches, side 0 469 · side 1 507 · 24 draws, mean 3:18, 486 to overtime, ~42 s. Seed 42 still `5d516ada`.
+**Decisions:** A sweep is bot vs bot on the starter decks, so each failure is reproduced by `pnpm sim match --seed <n>`. It's not in `pnpm check` (45 s); the tests sweep 6 seeds.
+**Left out / noticed:** Win rate per card needs varied decks (Stage 3 balance). Half of the random-bot matches go to overtime. Goldens next.
+**Status:** complete
 
 ### S16 · 2026-09-30 · Stage 1 exit review: a full match in the browser
 **Stage:** 1 — Block-in → 2 — Form

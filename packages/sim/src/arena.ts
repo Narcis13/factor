@@ -74,4 +74,9 @@ export interface Tower extends TowerSite {
   targetId: number | null;
   /** Ticks until its next hit while locked on. */
   cooldown: number;
+  /**
+   * A dormant tower doesn't act. The Keep starts dormant and wakes for good at the end of the first tick
+   * it has taken damage or one of its own Outposts has fallen (VISION §4). Outposts are never dormant.
+   */
+  dormant: boolean;
 }
