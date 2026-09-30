@@ -5,7 +5,7 @@ import { dirname, join } from 'node:path';
 import { parseArgs } from 'node:util';
 import { loadReplay, saveReplay, type Replay } from '@factor/content';
 import { TICKS_PER_SECOND } from '@factor/sim';
-import { describeResult, emptyReplay, playReplay } from './match.ts';
+import { botReplay, describeResult, playReplay } from './match.ts';
 
 const USAGE = `factor sim (${String(TICKS_PER_SECOND)} ticks/s)
 
@@ -13,8 +13,9 @@ Usage: pnpm sim <command>
 
 Commands:
   match --seed <n> [--dump <tick>] [--replay <file>]
-      Play an empty match headless, with invariants checked every tick, print the result,
-      and save its replay to <file> (default: replays/seed-<n>.json).
+      Play a match headless with a random bot on each side (the seed decides it all), replay it
+      with invariants checked every tick, print the result, and save the replay to <file>
+      (default: replays/seed-<n>.json).
       With --dump, print the full state at <tick> as JSON instead (and save nothing).
 
   replay <file> [--dump <tick>]
@@ -41,7 +42,7 @@ function match(args: string[]): void {
   if (values.seed === undefined) {
     throw new UsageError('match needs --seed <n>');
   }
-  const replay = emptyReplay(parseInteger('--seed', values.seed, UINT32_MAX));
+  const replay = botReplay(parseInteger('--seed', values.seed, UINT32_MAX));
   if (values.dump !== undefined) {
     dump(replay, values.dump);
     return;

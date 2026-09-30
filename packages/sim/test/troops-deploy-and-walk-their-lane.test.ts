@@ -199,9 +199,9 @@ test('a match full of troops plays until a Keep falls, with invariants holding e
     return { state, deaths };
   };
   const first = playOut();
-  // The fixture's towers are weak, so a Keep falls long before the timer: side 0 takes all three at tick 760.
+  // The fixture's towers are weak, so a Keep falls long before the timer: side 0 takes all three at tick 774.
   expect(first.state.result).toEqual({ winner: 0 });
-  expect(first.state.tick).toBe(760);
+  expect(first.state.tick).toBe(774);
   expect(first.state.stars).toEqual([3, 0]);
   expect(first.deaths).toBeGreaterThan(10);
   expect(hashState(playOut().state)).toBe(hashState(first.state));

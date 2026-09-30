@@ -84,6 +84,13 @@ export function actUnit(unit: Unit, stats: UnitStats, field: Field, hits: Hit[])
   }
   const { river } = field.arena;
   const goal = target.entity;
+  // A goal on a bridge is reached over that bridge. A unit on another bridge first leaves it as below.
+  const goalBridge = bridgeUnder(field.arena, goal);
+  if (goalBridge !== null && (!inBand(river, unit.y) || overBridge(goalBridge, unit.x))) {
+    const end = bridgeEnd(unit, stats, river, goalBridge);
+    moveToward(unit, end ?? goal, end === null ? Math.min(stats.speed, gap) : stats.speed);
+    return;
+  }
   // Which way the unit crosses the river to reach its goal, and the banks on the way.
   const forward = goal.y * 2 >= river.y * 2 + river.height ? 1 : -1;
   const [nearBank, farBank] = forward === 1 ? [river.y, river.y + river.height] : [river.y + river.height, river.y];
@@ -105,13 +112,49 @@ function bridgeWaypoint(unit: Unit, stats: UnitStats, arena: Terrain, nearBank: 
   if (bridge === undefined) {
     throw new RangeError('The arena has no bridge');
   }
-  const center = bridge.x + Math.floor(bridge.width / 2);
-  const [minX, maxX] = bridge.width > stats.radius * 2 ? [bridge.x + stats.radius, bridge.x + bridge.width - stats.radius] : [center, center];
+  const [minX, maxX] = bridgeSpan(bridge, stats);
   const onBridgeX = unit.x >= minX && unit.x <= maxX;
   if (beforeRiver || !onBridgeX) {
     return { x: clamp(unit.x, minX, maxX), y: nearBank };
   }
   return { x: unit.x, y: farBank };
+}
+
+/**
+ * Toward a goal on `bridge`: from a bank, that bridge's end on the unit's bank, straight ahead where it
+ * can be. `null` once the unit is there or on the bridge: a bridge is a rectangle, so straight at the goal stays on it.
+ */
+function bridgeEnd(unit: Unit, stats: UnitStats, river: Rect, bridge: Rect): Point | null {
+  if (inBand(river, unit.y)) {
+    return null;
+  }
+  const [minX, maxX] = bridgeSpan(bridge, stats);
+  const end = { x: clamp(unit.x, minX, maxX), y: unit.y < river.y ? river.y : river.y + river.height };
+  return end.x === unit.x && end.y === unit.y ? null : end;
+}
+
+/** Where a unit's center walks on a bridge: a radius in from each side, or the middle if the bridge is too narrow. */
+function bridgeSpan(bridge: Rect, stats: UnitStats): [number, number] {
+  const center = bridge.x + Math.floor(bridge.width / 2);
+  return bridge.width > stats.radius * 2 ? [bridge.x + stats.radius, bridge.x + bridge.width - stats.radius] : [center, center];
+}
+
+/** The bridge a point in the river stands on, or `null` for a point on a bank. */
+function bridgeUnder(arena: Terrain, point: Point): Rect | null {
+  if (!inBand(arena.river, point.y)) {
+    return null;
+  }
+  return arena.bridges.find((bridge) => overBridge(bridge, point.x)) ?? null;
+}
+
+/** Whether `y` is across the river's band, banks excluded on the far side: [river.y, river.y + height). */
+function inBand(river: Rect, y: number): boolean {
+  return y >= river.y && y < river.y + river.height;
+}
+
+/** Whether `x` is within the bridge's width, edges included (as the invariant counts them). */
+function overBridge(bridge: Rect, x: number): boolean {
+  return x >= bridge.x && x <= bridge.x + bridge.width;
 }
 
 /**

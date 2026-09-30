@@ -1,9 +1,16 @@
+import { playBotMatch } from '@factor/bot';
 import { matchSetup, parseReplay, REPLAY_VERSION, STARTER_DECK, type Replay } from '@factor/content';
 import { checkInvariants, createMatch, hashState, step, TICKS_PER_SECOND, type SimState } from '@factor/sim';
 
-/** A match on the starter decks with no commands. There is no bot yet, so every CLI match is one of these. */
+/** A match on the starter decks with no commands. */
 export function emptyReplay(seed: number): Replay {
   return { version: REPLAY_VERSION, seed, decks: [[...STARTER_DECK], [...STARTER_DECK]], commands: [] };
+}
+
+/** The replay of a random bot playing each side on the starter decks: what every CLI match is. */
+export function botReplay(seed: number): Replay {
+  const decks: Replay['decks'] = [[...STARTER_DECK], [...STARTER_DECK]];
+  return { version: REPLAY_VERSION, seed, decks, commands: playBotMatch(seed, decks).commands };
 }
 
 /**

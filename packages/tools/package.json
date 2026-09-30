@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@factor/bot": "workspace:*",
     "@factor/content": "workspace:*",
     "@factor/sim": "workspace:*",
     "playwright": "^1.63.0",

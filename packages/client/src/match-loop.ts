@@ -1,3 +1,5 @@
+import { botTurn, type RandomBot } from '@factor/bot';
+import { BOT_TUNING } from '@factor/content';
 import { step, TICKS_PER_SECOND, type Blast, type Command, type Side, type SimState } from '@factor/sim';
 
 /** Real time per tick: 50 ms at 20 ticks/s. */
@@ -31,14 +33,16 @@ export interface MatchLoop {
   pendingMs: number;
   /** Plays waiting for the next tick. */
   queued: Play[];
+  /** Bots playing sides the human doesn't, asked for their commands every tick. */
+  bots: RandomBot[];
   /** Every command sent to the sim, in order: what a replay needs. */
   commands: Command[];
   /** Spells that landed in the last `BLAST_TICKS` ticks, oldest first, for the client to show. */
   blasts: RecentBlast[];
 }
 
-export function createLoop(state: SimState): MatchLoop {
-  return { previous: state, current: state, pendingMs: 0, queued: [], commands: [], blasts: [] };
+export function createLoop(state: SimState, bots: RandomBot[] = []): MatchLoop {
+  return { previous: state, current: state, pendingMs: 0, queued: [], bots, commands: [], blasts: [] };
 }
 
 /** Queues a play for the next tick. Once the match has ended, it is dropped. */
@@ -50,29 +54,56 @@ export function queuePlay(loop: MatchLoop, side: Side, handSlot: number, x: numb
 
 /** Adds a frame's elapsed real time and steps every tick that is due. Returns the number of ticks stepped. */
 export function advance(loop: MatchLoop, elapsedMs: number): number {
-  if (loop.current.result !== null) {
+  if (ended(loop)) {
     loop.pendingMs = 0;
     return 0;
   }
   loop.pendingMs = Math.min(loop.pendingMs + Math.max(0, elapsedMs), MAX_TICKS_PER_FRAME * TICK_MS);
   let ticks = 0;
-  while (loop.pendingMs >= TICK_MS && loop.current.result === null) {
-    const tick = loop.current.tick;
-    const commands = loop.queued.map((play): Command => ({ tick, ...play }));
-    loop.queued = [];
-    loop.commands.push(...commands);
-    loop.previous = loop.current;
-    loop.current = step(loop.current, commands);
-    const now = loop.current.tick;
-    loop.blasts = loop.blasts.filter((blast) => now - blast.tick < BLAST_TICKS);
-    loop.blasts.push(...loop.current.blasts.map((blast) => ({ ...blast, tick: now })));
+  while (loop.pendingMs >= TICK_MS && !ended(loop)) {
+    tickOnce(loop);
     loop.pendingMs -= TICK_MS;
     ticks++;
   }
-  if (loop.current.result !== null) {
+  if (ended(loop)) {
     loop.pendingMs = 0;
   }
   return ticks;
+}
+
+/**
+ * Steps the loop, bots included, up to `tick` or to the end of the match, as if that much time had
+ * passed with no taps. Leaves the display at `current`.
+ */
+export function runTo(loop: MatchLoop, tick: number): void {
+  while (loop.current.tick < tick && !ended(loop)) {
+    tickOnce(loop);
+  }
+  loop.pendingMs = 0;
+}
+
+/** A function, not an inline check, so a narrowed `result` doesn't outlive the step that changes it. */
+function ended(loop: MatchLoop): boolean {
+  return loop.current.result !== null;
+}
+
+/** One tick: the human's queued plays and the bots' turns become this tick's commands. */
+function tickOnce(loop: MatchLoop): void {
+  const state = loop.current;
+  const tick = state.tick;
+  const commands = loop.queued.map((play): Command => ({ tick, ...play }));
+  loop.queued = [];
+  loop.bots = loop.bots.map((bot) => {
+    const turn = botTurn(bot, state, BOT_TUNING);
+    commands.push(...turn.commands);
+    return turn.bot;
+  });
+  loop.commands.push(...commands);
+  loop.previous = state;
+  loop.current = step(state, commands);
+  const now = loop.current.tick;
+  loop.blasts = loop.blasts.filter((blast) => now - blast.tick < BLAST_TICKS);
+  loop.blasts.push(...loop.current.blasts.map((blast) => ({ ...blast, tick: now })));
 }
 
 /** How far the display is from `previous` toward `current`, in [0, 1]. */

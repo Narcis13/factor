@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadReplay } from '@factor/content';
 import { expect, test } from 'vitest';
-import { emptyReplay } from '../src/index.ts';
+import { botReplay, emptyReplay } from '../src/index.ts';
 
 const cli = fileURLToPath(new URL('../src/cli.ts', import.meta.url));
 const cwd = mkdtempSync(join(tmpdir(), 'factor-replay-'));
@@ -19,7 +19,7 @@ test('match saves its replay under replays/ by default, and replay prints the sa
   expect(played.status).toBe(0);
   expect(played.stdout).toContain('replay  replays/seed-42.json');
   const file = join(cwd, 'replays', 'seed-42.json');
-  expect(loadReplay(readFileSync(file, 'utf8'))).toEqual(emptyReplay(42));
+  expect(loadReplay(readFileSync(file, 'utf8'))).toEqual(botReplay(42));
 
   const replayed = sim('replay', file);
   expect(replayed.status).toBe(0);
