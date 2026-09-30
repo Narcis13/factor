@@ -6,6 +6,7 @@ import { parseArgs } from 'node:util';
 import { loadReplay, saveReplay, type Replay } from '@factor/content';
 import { TICKS_PER_SECOND } from '@factor/sim';
 import { botReplay, describeResult, playReplay } from './match.ts';
+import { describeSweep, sweep } from './sweep.ts';
 import type { ShotRequest } from './shots.ts';
 
 const USAGE = `factor sim (${String(TICKS_PER_SECOND)} ticks/s)
@@ -22,6 +23,12 @@ Commands:
   replay <file> [--dump <tick>]
       Validate a replay file, play it back with invariants checked every tick, and print the result.
       With --dump, print the full state at <tick> as JSON instead.
+
+  sweep --matches <n> [--from <seed>]
+      Play <n> headless bot-vs-bot matches on seeds <seed> (default 0) onward. Each is played live, then
+      played back from its replay with invariants checked every tick, and both must end on the same hash.
+      Print results, match length, stars, tower damage, plays per card and rejections, then every seed
+      that broke an invariant or didn't reproduce. Exits non-zero if any did. Progress goes to stderr.
 
   shots [--out <dir>] [--replay <file>] [--tick <n>]
       Open the client frozen in headless Chromium and save PNGs in <dir> (default: shots). With no
@@ -64,6 +71,32 @@ function match(args: string[]): void {
   mkdirSync(dirname(file), { recursive: true });
   writeFileSync(file, saveReplay(replay));
   console.log(`${describeResult(replay.seed, state)}\nreplay  ${file}`);
+}
+
+const SWEEP_PROGRESS_EVERY = 100;
+
+function sweepCommand(args: string[]): void {
+  const { values } = parseArgs({ args, options: { matches: { type: 'string' }, from: { type: 'string', default: '0' } } });
+  if (values.matches === undefined) {
+    throw new UsageError('sweep needs --matches <n>');
+  }
+  const matches = parseInteger('--matches', values.matches, UINT32_MAX);
+  const from = parseInteger('--from', values.from, UINT32_MAX);
+  if (matches === 0 || from + matches - 1 > UINT32_MAX) {
+    throw new UsageError(`sweep needs 1 or more matches on seeds up to ${String(UINT32_MAX)}`);
+  }
+  const started = performance.now();
+  const report = sweep(from, matches, (seed) => {
+    const done = seed - from + 1;
+    if (done % SWEEP_PROGRESS_EVERY === 0 && done < matches) {
+      console.error(`swept ${String(done)}/${String(matches)}`);
+    }
+  });
+  const seconds = (performance.now() - started) / 1000;
+  console.log(`${describeSweep(report)}\ntook        ${seconds.toFixed(0)} s`);
+  if (report.violations.length > 0 || report.mismatches.length > 0) {
+    process.exitCode = 1;
+  }
 }
 
 function replay(args: string[]): void {
@@ -173,6 +206,8 @@ try {
     match(args);
   } else if (command === 'replay') {
     replay(args);
+  } else if (command === 'sweep') {
+    sweepCommand(args);
   } else if (command === 'shots') {
     await shots(args);
   } else if (command === 'playtest') {
