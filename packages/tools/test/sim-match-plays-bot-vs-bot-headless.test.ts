@@ -23,7 +23,7 @@ test('a bot-vs-bot match plays to its end and prints the result', () => {
   expect(stdout).toContain('result  side 1 wins');
   expect(stdout).toContain('ended   tick 3600 (3:00)');
   expect(stdout).toContain('stars   0-1');
-  expect(stdout).toContain('hash    5d516ada');
+  expect(stdout).toContain('hash    14d647f7');
 });
 
 test('the saved replay carries both bots’ commands', () => {

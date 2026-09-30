@@ -34,6 +34,14 @@ export function checkInvariants(state: SimState): string[] {
       violations.push(`${name} has hp ${String(hp)} of ${String(maxHp)}`);
     }
     violations.push(...checkAttack(name, tower));
+    if (tower.dormant) {
+      const lost = towers.some((other) => other.side === tower.side && other.kind === 'outpost' && other.hp === 0);
+      if (tower.kind !== 'keep' || hp !== maxHp || lost || tower.targetId !== null) {
+        violations.push(`${name} is dormant, but only an unhurt Keep with its Outposts standing and no target can be`);
+      }
+    } else if (typeof tower.dormant !== 'boolean') {
+      violations.push(`${name} has dormant ${String(tower.dormant)}, not a boolean`);
+    }
     const half = Math.floor(size / 2);
     const inside =
       isIntegerIn(size, 1, arena.width) &&

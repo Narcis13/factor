@@ -36,20 +36,20 @@ function copyGoldens(): string {
 
 test('every golden replay still plays to its stored hashes', () => {
   const checks = checkGoldens(GOLDENS);
-  expect(checks.map((check) => check.name)).toEqual(['seed-0', 'seed-101', 'seed-27', 'seed-42', 'seed-54']);
+  expect(checks.map((check) => check.name)).toEqual(['seed-0', 'seed-24', 'seed-27', 'seed-4', 'seed-42', 'seed-54']);
   for (const check of checks) {
     expect(check, check.name).toMatchObject({ problem: null });
   }
 });
 
-test('the goldens cover regulation wins for each side, overtime, a Keep kill and a draw', () => {
-  const ends = Object.fromEntries(readGoldens(GOLDENS).map(({ name, replay }) => [name, playReplay(replay)]));
-  expect(ends['seed-0']).toMatchObject({ tick: 3600, result: { winner: 0 } });
-  expect(ends['seed-42']).toMatchObject({ tick: 3600, result: { winner: 1 } });
-  expect(ends['seed-27']?.tick).toBeGreaterThan(3600);
-  expect(ends['seed-27']?.result).toEqual({ winner: 1 });
-  expect(ends['seed-101']?.towers.some((tower) => tower.kind === 'keep' && tower.hp === 0)).toBe(true);
-  expect(ends['seed-54']).toMatchObject({ tick: 6000, result: { winner: null } });
+test('the goldens cover regulation wins for each side, an overtime star, a Keep kill and a draw', () => {
+  const ends = readGoldens(GOLDENS).map(({ replay }) => playReplay(replay));
+  const regulation = ends.filter((end) => end.tick === end.rules.regulationTicks);
+  expect(regulation.map((end) => end.result?.winner)).toEqual(expect.arrayContaining([0, 1]));
+  const overtime = ends.filter((end) => end.tick > end.rules.regulationTicks);
+  expect(overtime.some((end) => end.result?.winner !== null && end.towers.every((tower) => tower.kind !== 'keep' || tower.hp > 0))).toBe(true);
+  expect(ends.some((end) => end.towers.some((tower) => tower.kind === 'keep' && tower.hp === 0))).toBe(true);
+  expect(ends.some((end) => end.result?.winner === null)).toBe(true);
 });
 
 test('hashes are stored every checkpoint and at the end, and the last is the match’s final hash', () => {
@@ -60,7 +60,7 @@ test('hashes are stored every checkpoint and at the end, and the last is the mat
   expect(ticks).toEqual([...Array.from({ length: Math.floor(final.tick / GOLDEN_EVERY) }, (_, i) => (i + 1) * GOLDEN_EVERY), final.tick]);
   expect(hashes[String(final.tick)]).toBe(hashState(final));
   expect(hashes[String(GOLDEN_EVERY)]).toBe(hashState(playReplay(replay, GOLDEN_EVERY)));
-  expect(readGoldenHashes(GOLDENS)['seed-42']?.['3600']).toBe('5d516ada');
+  expect(readGoldenHashes(GOLDENS)['seed-42']?.['3600']).toBe('14d647f7');
 });
 
 test('a changed hash fails at its checkpoint and names the tick', () => {
@@ -107,7 +107,7 @@ test('--update stores fresh hashes for every replay and drops hashes with no rep
   writeFileSync(join(dir, GOLDEN_HASHES_FILE), '{}');
   expect(updateGoldens(dir).every((check) => check.problem === null)).toBe(true);
   const hashes = readGoldenHashes(dir);
-  expect(Object.keys(hashes)).toEqual(['seed-0', 'seed-101', 'seed-42', 'seed-54', 'seed-9']);
+  expect(Object.keys(hashes)).toEqual(['seed-0', 'seed-24', 'seed-4', 'seed-42', 'seed-54', 'seed-9']);
   expect(hashes['seed-9']).toEqual(goldenHashes(botReplay(9)));
   expect(hashes['seed-42']).toEqual(readGoldenHashes(GOLDENS)['seed-42']);
   expect(readFileSync(join(dir, GOLDEN_HASHES_FILE), 'utf8')).toBe(readFileSync(join(dir, GOLDEN_HASHES_FILE), 'utf8').trimEnd() + '\n');
@@ -116,8 +116,8 @@ test('--update stores fresh hashes for every replay and drops hashes with no rep
 test('goldens prints one line per golden and exits 0 when all match', () => {
   const { status, stdout } = sim('goldens', '--dir', GOLDENS);
   expect(status).toBe(0);
-  expect(stdout).toContain('seed-42   ok      18 checkpoints to tick 3600');
-  expect(stdout.trimEnd().split('\n')).toHaveLength(5);
+  expect(stdout).toContain('seed-42  ok      18 checkpoints to tick 3600');
+  expect(stdout.trimEnd().split('\n')).toHaveLength(6);
 });
 
 test('goldens exits 1 and names the tick when a golden changed; --update fixes it', () => {
@@ -127,10 +127,10 @@ test('goldens exits 1 and names the tick when a golden changed; --update fixes i
   writeFileSync(join(dir, GOLDEN_HASHES_FILE), JSON.stringify(hashes));
   const failed = sim('goldens', '--dir', dir);
   expect(failed.status).toBe(1);
-  expect(failed.stdout).toMatch(/^seed-54 {3}FAIL {4}tick 200: expected ffffffff, got [0-9a-f]{8}$/m);
+  expect(failed.stdout).toMatch(/^seed-54 {2}FAIL {4}tick 200: expected ffffffff, got [0-9a-f]{8}$/m);
   const updated = sim('goldens', '--dir', dir, '--update');
   expect(updated.status).toBe(0);
-  expect(updated.stdout).toContain('seed-54   stored  30 checkpoints to tick 6000');
+  expect(updated.stdout).toContain('seed-54  stored  30 checkpoints to tick 6000');
   expect(readGoldenHashes(dir)).toEqual(readGoldenHashes(GOLDENS));
 });
 

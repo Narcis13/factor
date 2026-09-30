@@ -46,7 +46,7 @@ test.each<{ label: string; broken: SimState; message: RegExp }>([
   },
   {
     label: 'a fallen Keep with no result',
-    broken: { ...healthy, towers: withTower(3, { hp: 0 }) },
+    broken: { ...healthy, towers: withTower(3, { hp: 0, dormant: false }) },
     message: /side 1's Keep has fallen but the match has no result/,
   },
   {
@@ -89,6 +89,31 @@ test.each<{ label: string; broken: SimState; message: RegExp }>([
     label: 'a tower past the far edge',
     broken: { ...healthy, towers: withTower(3, { y: 19_001 }) },
     message: /tower 3 .* is not inside the arena/,
+  },
+  {
+    label: 'a dormant Outpost',
+    broken: { ...healthy, towers: withTower(1, { dormant: true }) },
+    message: /tower 1 is dormant, but only an unhurt Keep/,
+  },
+  {
+    label: 'a dormant Keep that has taken damage',
+    broken: { ...healthy, towers: withTower(0, { hp: 299 }) },
+    message: /tower 0 is dormant/,
+  },
+  {
+    label: 'a dormant Keep with a target',
+    broken: { ...healthy, towers: withTower(3, { targetId: 7, cooldown: 5 }) },
+    message: /tower 3 is dormant/,
+  },
+  {
+    label: 'a dormant Keep whose Outpost has fallen',
+    broken: { ...healthy, towers: withTower(4, { hp: 0 }) },
+    message: /tower 3 is dormant/,
+  },
+  {
+    label: 'a dormant flag that is not a boolean',
+    broken: { ...healthy, towers: withTower(2, { dormant: 0 as unknown as boolean }) },
+    message: /tower 2 has dormant 0, not a boolean/,
   },
   {
     label: 'energy above max',

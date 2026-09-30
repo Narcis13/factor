@@ -140,7 +140,7 @@ export function createMatch(setup: MatchSetup): SimState {
   // Fields are copied one by one, so nothing from the setup is shared with the state or leaks into it.
   const towers = setup.arena.towers.map(({ kind, side, lane, x, y, size }, id): Tower => {
     const { hp } = towerStats[kind];
-    return { id, kind, side, lane, x, y, size, hp, maxHp: hp, targetId: null, cooldown: 0 };
+    return { id, kind, side, lane, x, y, size, hp, maxHp: hp, targetId: null, cooldown: 0, dormant: kind === 'keep' };
   });
   const rng = seedRng(setup.seed);
   const players: [Player, Player] = [
