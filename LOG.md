@@ -7,10 +7,10 @@ Sculpt log. The **Current state** block is rewritten at the end of every session
 ## Current state
 
 **Stage:** 2 — Form (Stage 1 — Block-in closed in S16)
-**Last session:** S17 · 2026-09-30
+**Last session:** S18 · 2026-09-30
 **Works:**
 - A pnpm monorepo with `sim`, `content`, `bot`, `tools` and `client` packages, strict TS 6.0, no build step.
-- `pnpm check` is green: typecheck, lint, 339 tests (one of them drives headless Chromium).
+- `pnpm check` is green: typecheck, lint, 349 tests (one of them drives headless Chromium), the golden replays included.
 - ESLint enforces the sim's hard rules (imports, Math/Date/timers, async, classes, `**`, float literals) in the sim and its tests, and in the bot (which may import only `sim` and `content`).
 - Sim: `createMatch(setup)`, pure `step(state, commands)` at a fixed tick, sfc32 RNG in state, `hashState`. `MatchSetup` carries rules, the `ArenaLayout`, tower stats, a card catalog and both decks.
 - Players: energy 5 → 10, +1 per 56 ticks, 2× from 2:00 and in overtime. Decks of 8 shuffled from the seed; hand of 4 + queue; plays spend and cycle, with 5 rejection reasons.
@@ -19,7 +19,7 @@ Sculpt log. The **Current state** block is rewritten at the end of every session
 - Match timer and result: 3:00 regulation, then up to 2:00 overtime while stars are tied.
 - Bot: `createRandomBot`/`botTurn` (pure, own seeded rng), pacing in `BOT_TUNING`. `playBotMatch(seed)`.
 - Content: `CARDS` (juggernaut, warden, slinger, flare), `TOWER_STATS`, `MATCH_RULES`, `ARENA`, `BOT_TUNING`, `matchSetup(seed, decks?)`, replay v0.
-- `pnpm sim match`/`replay` (seed 42: side 1 wins 0-1 at 3:00, `5d516ada`). `pnpm sim sweep --matches 1000`: 0 violations, 0 mismatches, ~45 s. `pnpm shots`: `arena.png` `586a9e3247b1`, `end.png` `bb2a0544d547`. `pnpm playtest`: a full live match in headless Chromium, checked against its replay.
+- `pnpm sim match`/`replay` (seed 42: side 1 wins 0-1 at 3:00, `5d516ada`). `pnpm sim sweep --matches 1000`: 0 violations, 0 mismatches, ~45 s. `pnpm sim goldens [--update]`. `pnpm shots`: `arena.png` `586a9e3247b1`, `end.png` `bb2a0544d547`. `pnpm playtest`: a full live match in headless Chromium, checked against its replay.
 - Client: `pnpm dev` runs seed 0 live, human side 0 vs the bot. HUD stars, end panel, replay in localStorage, *Play again*, *Save replay*; `?replay=last|<url>` and `?tick=`.
 **Known issues:**
 - No formatter configured yet. Units don't collide, and they can be deployed on a tower's footprint. No Keep dormancy.
@@ -29,18 +29,29 @@ Sculpt log. The **Current state** block is rewritten at the end of every session
 - Replays don't carry rules, layout or stats; a content change silently changes what an old replay plays.
 - Context7 isn't reachable from the cloud container; library APIs were checked against the installed type definitions.
 - `stepTo` in the client is now used only by tests. The sweep's hash check is live vs replay in one process; across machines is the goldens' job.
-**Golden replays:** none (the RNG sequence and the seed-1234 shuffle are pinned in tests)
+**Golden replays:** `goldens/` holds 5 bot-vs-bot replays with a hash every 200 ticks and at the end (`hashes.json`): seed-0 (side 0 wins 1-0 at 3:00), seed-42 (side 1 wins 0-1, `5d516ada`), seed-27 (an overtime star at 4:49), seed-101 (a Keep kill at 3:18) and seed-54 (a 2-2 draw at 5:00). The state carries card and tower stats, so any content change fails them all at tick 200.
 
 **Next cuts** (in order):
-1. Golden replays: stored hashes at checkpoint ticks for a few bot-vs-bot seeds, checked in `pnpm check`.
-2. Keep dormancy (§4): the Keep wakes when it takes damage or one of its Outposts falls. Scenario tests.
-3. Collision and pushing by mass, and no deploys on a tower's footprint.
-4. Deploy zone extension (§4): a fallen enemy Outpost opens that lane's side of the enemy half.
+1. Keep dormancy (§4): the Keep wakes when it takes damage or one of its Outposts falls. Scenario tests; regenerate the goldens.
+2. Collision and pushing by mass, and no deploys on a tower's footprint.
+3. Deploy zone extension (§4): a fallen enemy Outpost opens that lane's side of the enemy half.
+4. The tiebreak (§4): still tied after overtime, the side whose lowest-HP tower has less HP loses (seed-54 will change).
 5. A fresh seed per match in the client (`?seed=`, and *Play again* picks a new one).
 
 ---
 
 ## Sessions
+
+### S18 · 2026-09-30 · Golden replays
+**Stage:** 2 — Form
+**Cut:** Golden replays checked in `pnpm check` (Next cuts 1), a Stage 2 exit criterion, in place before the Stage 2 rules start changing the sim.
+**Done:**
+- `goldens/`: 5 bot-vs-bot replays (seeds 0, 27, 42, 54, 101: regulation wins for each side, an overtime star, a Keep kill, a draw) and `hashes.json` (a hash every `GOLDEN_EVERY` = 200 ticks and at the end).
+- Tools: `goldens.ts` (`goldenHashes`, `readGoldens`, `readGoldenHashes`, `checkGoldens`, `updateGoldens`). A golden fails at its first differing checkpoint, compared in tick order, or if its replay no longer plays; a replay with no hashes and hashes with no replay fail too. `pnpm sim goldens [--update] [--dir]`.
+**Verified:** `pnpm check` green (48 files, 349 tests; 10 new): the real goldens pass and cover the 5 endings, checkpoint ticks and the final hash, tampered hashes fail at the right tick (in numeric order), a shorter match, missing and stale entries, a replay that no longer plays, `--update`, and the CLI. 7 mutations were each caught (1 only after I added a test). By hand: slinger damage 90 → 91 failed all 5 goldens at tick 200; tower share +1 in `spells.ts` failed them at ticks 400–1000, each at its first divergence; both reverted to green.
+**Decisions:** Goldens are stored replays, not seeds, so a bot change doesn't move them; only the sim and content do. The state carries stats, so any content change fails at tick 200 even if the number never matters, which is intended. Hashes go every 200 ticks, not every tick, to keep `hashes.json` small (56 KB for 5).
+**Left out / noticed:** Cross-machine and browser hashing (the client could check `hashes.json` too). The tiebreak isn't implemented: seed-54 is a draw at 2-2 (Next cuts 4).
+**Status:** complete
 
 ### S17 · 2026-09-30 · `pnpm sim sweep`: bot-vs-bot matches by the thousand
 **Stage:** 2 — Form

@@ -6,6 +6,7 @@ import { parseArgs } from 'node:util';
 import { loadReplay, saveReplay, type Replay } from '@factor/content';
 import { TICKS_PER_SECOND } from '@factor/sim';
 import { botReplay, describeResult, playReplay } from './match.ts';
+import { checkGoldens, GOLDEN_EVERY, GOLDEN_HASHES_FILE, updateGoldens } from './goldens.ts';
 import { describeSweep, sweep } from './sweep.ts';
 import type { ShotRequest } from './shots.ts';
 
@@ -29,6 +30,13 @@ Commands:
       played back from its replay with invariants checked every tick, and both must end on the same hash.
       Print results, match length, stars, tower damage, plays per card and rejections, then every seed
       that broke an invariant or didn't reproduce. Exits non-zero if any did. Progress goes to stderr.
+
+  goldens [--update] [--dir <dir>]
+      Play every golden replay in <dir> (default: goldens) with invariants checked every tick, and compare
+      its state hashes every ${String(GOLDEN_EVERY)} ticks and at its end with those in <dir>/${GOLDEN_HASHES_FILE}. Print each golden
+      and the first tick where it differs; exit non-zero if any does. --update stores fresh hashes instead:
+      only after an intended change, and log why. To add a golden, save a replay into <dir> (for example
+      with match --seed <n> --replay goldens/seed-<n>.json) and run --update.
 
   shots [--out <dir>] [--replay <file>] [--tick <n>]
       Open the client frozen in headless Chromium and save PNGs in <dir> (default: shots). With no
@@ -95,6 +103,28 @@ function sweepCommand(args: string[]): void {
   const seconds = (performance.now() - started) / 1000;
   console.log(`${describeSweep(report)}\ntook        ${seconds.toFixed(0)} s`);
   if (report.violations.length > 0 || report.mismatches.length > 0) {
+    process.exitCode = 1;
+  }
+}
+
+function goldens(args: string[]): void {
+  const { values } = parseArgs({
+    args,
+    options: { update: { type: 'boolean', default: false }, dir: { type: 'string', default: 'goldens' } },
+  });
+  let checks;
+  try {
+    checks = values.update ? updateGoldens(values.dir) : checkGoldens(values.dir);
+  } catch (error) {
+    throw new InputError(error instanceof Error ? error.message : String(error));
+  }
+  const width = Math.max(...checks.map((check) => check.name.length));
+  for (const { name, checkpoints, lastTick, problem } of checks) {
+    const status = problem === null ? (values.update ? 'stored' : 'ok') : 'FAIL';
+    const detail = problem ?? `${String(checkpoints)} checkpoints to tick ${String(lastTick)}`;
+    console.log(`${name.padEnd(width)}  ${status.padEnd(6)}  ${detail}`);
+  }
+  if (checks.some((check) => check.problem !== null)) {
     process.exitCode = 1;
   }
 }
@@ -206,6 +236,8 @@ try {
     match(args);
   } else if (command === 'replay') {
     replay(args);
+  } else if (command === 'goldens') {
+    goldens(args);
   } else if (command === 'sweep') {
     sweepCommand(args);
   } else if (command === 'shots') {
