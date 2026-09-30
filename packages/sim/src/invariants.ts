@@ -1,4 +1,4 @@
-import type { SimState } from './state.ts';
+import { MAX_STARS, type SimState } from './state.ts';
 
 const UINT32_MAX = 0xffffffff;
 
@@ -94,7 +94,7 @@ export function checkInvariants(state: SimState): string[] {
     }
   }
   for (const side of [0, 1] as const) {
-    if (!isIntegerIn(stars[side], 0, 3)) {
+    if (!isIntegerIn(stars[side], 0, MAX_STARS)) {
       violations.push(`side ${String(side)} has ${String(stars[side])} stars`);
     }
   }

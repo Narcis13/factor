@@ -1,16 +1,21 @@
 // Browser entry. Runs a match live at 20 ticks/s; side 0 plays by tapping a card, then the arena,
-// against a random bot on side 1. `?tick=<n>` instead plays the match to tick n with no taps and
-// freezes it there (for `pnpm shots`).
+// against a random bot on side 1. `?replay=<url>` (or `?replay=last`) plays a replay back instead,
+// from side 0's seat, with the hand shown but not playable. `?tick=<n>` plays either to tick n with no
+// taps and freezes it there (for `pnpm shots`). When a live match ends, its replay is saved in
+// localStorage; every end screen offers a new live match or the replay as a file.
 import { createRandomBot } from '@factor/bot';
-import { BOT_TUNING, matchSetup } from '@factor/content';
+import { BOT_TUNING, matchSetup, saveReplay, STARTER_DECKS, type Replay } from '@factor/content';
 import { createMatch } from '@factor/sim';
 import { Application, Graphics } from 'pixi.js';
 import { blastScene, groundScene, hpBarScene, noDeployRect, toScreen, towerScene, unitScene } from './arena-view.ts';
 import { tap, type Controls } from './controls.ts';
 import { BACKGROUND, drawArena, drawBlasts, drawHpBars, drawNoDeploy, drawUnits } from './draw-arena.ts';
+import { EndView } from './draw-end.ts';
 import { HudView } from './draw-hud.ts';
+import { endScene } from './end-view.ts';
 import { hudScene } from './hud-view.ts';
 import { advance, alpha, BLAST_TICKS, createLoop, runTo } from './match-loop.ts';
+import { loopReplay, readReplay, REPLAY_STORAGE_KEY } from './match-replay.ts';
 import { layoutScreen, type ScreenLayout } from './screen-layout.ts';
 
 const app = new Application();
@@ -25,19 +30,24 @@ await app.init({
 });
 document.body.appendChild(app.canvas);
 
-const frozenAt = parseTick(new URLSearchParams(window.location.search).get('tick'));
-const SEED = 0;
-const start = createMatch(matchSetup(SEED));
-const loop = createLoop(start, [createRandomBot(1, SEED, start, BOT_TUNING)]);
+const params = new URLSearchParams(window.location.search);
+const frozenAt = parseTick(params.get('tick'));
+const replayName = params.get('replay');
+const watched: Replay | null = replayName === null ? null : await readReplay(replayName, { stored, fetchText }).catch(showError);
+const SEED = watched?.seed ?? 0;
+const DECKS = watched?.decks ?? STARTER_DECKS;
+const start = createMatch(matchSetup(SEED, DECKS));
+const loop = watched === null ? createLoop(start, [createRandomBot(1, SEED, start, BOT_TUNING)]) : createLoop(start, [], watched.commands);
 if (frozenAt !== null) {
   runTo(loop, frozenAt);
 }
-const controls: Controls = { side: 0, selected: null };
+const controls: Controls = { side: 0, selected: null, watching: watched !== null };
 
 const ground = new Graphics();
 const field = new Graphics();
 const hud = new HudView();
-app.stage.addChild(ground, field, hud.root);
+const end = new EndView();
+app.stage.addChild(ground, field, hud.root, end.root);
 let layout: ScreenLayout = resize();
 
 /** Lays the screen out again and redraws the ground, which only changes with the screen size. */
@@ -64,6 +74,7 @@ function render(): void {
   drawBlasts(field, blastScene(loop.blasts, current, t, BLAST_TICKS, layout.view));
   drawHpBars(field, hpBarScene(current, units, layout.view));
   hud.draw(hudScene(previous, current, t, layout.hud, controls.side, controls.selected));
+  end.draw(endScene(current, controls.side, layout.end), app.screen);
   app.render();
 }
 
@@ -73,11 +84,25 @@ window.addEventListener('resize', () => {
 });
 
 if (frozenAt === null) {
+  let replayText: string | null = null;
   app.canvas.addEventListener('pointerdown', (event) => {
-    tap(controls, loop, layout, event.clientX, event.clientY);
+    const action = tap(controls, loop, layout, event.clientX, event.clientY);
+    if (action === 'again') {
+      // A fresh live match, even after watching a replay.
+      window.location.assign(window.location.pathname);
+    } else if (action === 'save-replay' && replayText !== null) {
+      download(`factor-seed-${String(SEED)}.json`, replayText);
+    }
   });
   app.ticker.add((ticker) => {
     advance(loop, ticker.elapsedMS);
+    if (loop.current.result !== null && replayText === null) {
+      replayText = saveReplay(loopReplay(SEED, DECKS, loop));
+      // A watched replay is already saved somewhere; only a new match becomes the last one.
+      if (watched === null) {
+        remember(replayText);
+      }
+    }
     render();
   });
   app.start();
@@ -87,6 +112,54 @@ render();
 // `pnpm shots` waits for this before capturing.
 document.documentElement.dataset.renderer = app.renderer.name;
 document.documentElement.dataset.ready = 'true';
+
+/** Puts why the page can't go on where the player sees it, then fails as before (so `pnpm shots` reports it too). */
+function showError(error: unknown): never {
+  const message = document.createElement('pre');
+  message.style.cssText = 'color:#fff;padding:16px;white-space:pre-wrap;font:14px sans-serif';
+  message.textContent = error instanceof Error ? error.message : String(error);
+  app.canvas.remove();
+  document.body.append(message);
+  throw error;
+}
+
+function stored(): string | null {
+  return window.localStorage.getItem(REPLAY_STORAGE_KEY);
+}
+
+async function fetchText(url: string): Promise<string> {
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`Could not fetch the replay ${url}: ${String(response.status)} ${response.statusText}`);
+  }
+  // The dev server answers an unknown path with the page itself.
+  if (response.headers.get('content-type')?.includes('text/html') === true) {
+    throw new Error(`Could not fetch the replay ${url}: there is no such file`);
+  }
+  return response.text();
+}
+
+/** Keeps the replay as the last finished match's. Storage can be full or blocked; the match is over either way. */
+function remember(replay: string): void {
+  try {
+    window.localStorage.setItem(REPLAY_STORAGE_KEY, replay);
+    document.documentElement.dataset.replaySaved = 'true';
+  } catch (error) {
+    console.warn('The replay could not be saved in localStorage', error);
+  }
+}
+
+/** Hands `text` to the browser as a file download. */
+function download(name: string, text: string): void {
+  const url = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = name;
+  link.click();
+  setTimeout(() => {
+    URL.revokeObjectURL(url);
+  }, 1000);
+}
 
 function parseTick(value: string | null): number | null {
   if (value === null || !/^\d+$/.test(value)) {

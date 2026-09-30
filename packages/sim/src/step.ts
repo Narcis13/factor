@@ -1,7 +1,7 @@
 import { copyPlayer, playCard, regenerate } from './cards.ts';
 import { decideResult } from './result.ts';
 import { blastHits } from './spells.ts';
-import { copyCards, copyRules, copyTerrain, copyTowerStats, type Command, type RejectReason, type SimState } from './state.ts';
+import { copyCards, copyRules, copyTerrain, copyTowerStats, MAX_STARS, type Command, type RejectReason, type SimState } from './state.ts';
 import { actTower, actUnit, deployZone, inRect, unitStats, type Hit } from './troops.ts';
 
 /**
@@ -88,7 +88,7 @@ function fight(state: SimState, hits: Hit[]): void {
   for (const tower of standing) {
     if (tower.hp === 0) {
       const scorer = tower.side === 0 ? 1 : 0;
-      state.stars[scorer] = tower.kind === 'keep' ? 3 : Math.min(3, state.stars[scorer] + 1);
+      state.stars[scorer] = tower.kind === 'keep' ? MAX_STARS : Math.min(MAX_STARS, state.stars[scorer] + 1);
     }
   }
 }

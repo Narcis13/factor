@@ -13,6 +13,7 @@
     "test": "vitest run",
     "sim": "node packages/tools/src/cli.ts",
     "shots": "node packages/tools/src/cli.ts shots",
+    "playtest": "node packages/tools/src/cli.ts playtest",
     "dev": "pnpm --filter @factor/client dev"
   },
   "devDependencies": {
