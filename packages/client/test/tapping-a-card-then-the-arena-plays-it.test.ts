@@ -61,7 +61,7 @@ test('a screen point maps to the arena point under it, with side 0 at the bottom
 
 test('tapping a card and then the arena queues a play for side 0 there', () => {
   const loop = createLoop(START);
-  const controls: Controls = { side: 0, selected: null };
+  const controls: Controls = { side: 0, selected: null, watching: false };
   tap(controls, loop, PHONE, ...center(PHONE.hud.slots[1] ?? PHONE.hud.next));
   expect(controls.selected).toBe(1);
   const { view } = PHONE;
@@ -77,7 +77,7 @@ test('tapping a card and then the arena queues a play for side 0 there', () => {
 
 test('tapping the selected card again deselects it; tapping another switches', () => {
   const loop = createLoop(START);
-  const controls: Controls = { side: 0, selected: null };
+  const controls: Controls = { side: 0, selected: null, watching: false };
   const [slot0, slot3] = [PHONE.hud.slots[0], PHONE.hud.slots[3]];
   if (slot0 === undefined || slot3 === undefined) {
     throw new Error('missing slots');
@@ -92,7 +92,7 @@ test('tapping the selected card again deselects it; tapping another switches', (
 
 test('tapping the arena with no card selected, or off the arena with one, does nothing', () => {
   const loop = createLoop(START);
-  const controls: Controls = { side: 0, selected: null };
+  const controls: Controls = { side: 0, selected: null, watching: false };
   tap(controls, loop, PHONE, ...center({ x: PHONE.view.left, y: PHONE.view.top, width: 432, height: 768 }));
   expect(loop.queued).toEqual([]);
   tap(controls, loop, PHONE, ...center(PHONE.hud.slots[2] ?? PHONE.hud.next));

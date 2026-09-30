@@ -64,7 +64,7 @@ test('the panel sits over the arena, with its stars and both buttons inside it a
 
 test('after the end, taps answer only the buttons: no card is selected and nothing is played', () => {
   const loop = createLoop(ended(1, [0, 1]));
-  const controls: Controls = { side: 0, selected: 2 };
+  const controls: Controls = { side: 0, selected: 2, watching: false };
   expect(tap(controls, loop, PHONE, ...center(PHONE.end.again))).toBe('again');
   expect(controls.selected).toBeNull();
   expect(tap(controls, loop, PHONE, ...center(PHONE.end.save))).toBe('save-replay');
@@ -80,7 +80,7 @@ test('after the end, taps answer only the buttons: no card is selected and nothi
 
 test('while the match runs, the buttons are not there to tap', () => {
   const loop = createLoop(START);
-  const controls: Controls = { side: 0, selected: null };
+  const controls: Controls = { side: 0, selected: null, watching: false };
   expect(contains(PHONE.end.again, ...center(PHONE.end.again))).toBe(true);
   expect(tap(controls, loop, PHONE, ...center(PHONE.end.again))).toBeNull();
   expect(tap(controls, loop, PHONE, ...center(PHONE.end.save))).toBeNull();

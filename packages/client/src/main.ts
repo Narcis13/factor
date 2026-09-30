@@ -1,9 +1,10 @@
 // Browser entry. Runs a match live at 20 ticks/s; side 0 plays by tapping a card, then the arena,
-// against a random bot on side 1. `?tick=<n>` instead plays the match to tick n with no taps and
-// freezes it there (for `pnpm shots`). When a live match ends, its replay is saved in localStorage
-// and the end screen offers a rematch or the replay as a file.
+// against a random bot on side 1. `?replay=<url>` (or `?replay=last`) plays a replay back instead,
+// from side 0's seat, with the hand shown but not playable. `?tick=<n>` plays either to tick n with no
+// taps and freezes it there (for `pnpm shots`). When a live match ends, its replay is saved in
+// localStorage; every end screen offers a new live match or the replay as a file.
 import { createRandomBot } from '@factor/bot';
-import { BOT_TUNING, matchSetup, saveReplay, STARTER_DECKS } from '@factor/content';
+import { BOT_TUNING, matchSetup, saveReplay, STARTER_DECKS, type Replay } from '@factor/content';
 import { createMatch } from '@factor/sim';
 import { Application, Graphics } from 'pixi.js';
 import { blastScene, groundScene, hpBarScene, noDeployRect, toScreen, towerScene, unitScene } from './arena-view.ts';
@@ -14,7 +15,7 @@ import { HudView } from './draw-hud.ts';
 import { endScene } from './end-view.ts';
 import { hudScene } from './hud-view.ts';
 import { advance, alpha, BLAST_TICKS, createLoop, runTo } from './match-loop.ts';
-import { loopReplay, REPLAY_STORAGE_KEY } from './match-replay.ts';
+import { loopReplay, readReplay, REPLAY_STORAGE_KEY } from './match-replay.ts';
 import { layoutScreen, type ScreenLayout } from './screen-layout.ts';
 
 const app = new Application();
@@ -29,15 +30,18 @@ await app.init({
 });
 document.body.appendChild(app.canvas);
 
-const frozenAt = parseTick(new URLSearchParams(window.location.search).get('tick'));
-const SEED = 0;
-const DECKS = STARTER_DECKS;
+const params = new URLSearchParams(window.location.search);
+const frozenAt = parseTick(params.get('tick'));
+const replayName = params.get('replay');
+const watched: Replay | null = replayName === null ? null : await readReplay(replayName, { stored, fetchText }).catch(showError);
+const SEED = watched?.seed ?? 0;
+const DECKS = watched?.decks ?? STARTER_DECKS;
 const start = createMatch(matchSetup(SEED, DECKS));
-const loop = createLoop(start, [createRandomBot(1, SEED, start, BOT_TUNING)]);
+const loop = watched === null ? createLoop(start, [createRandomBot(1, SEED, start, BOT_TUNING)]) : createLoop(start, [], watched.commands);
 if (frozenAt !== null) {
   runTo(loop, frozenAt);
 }
-const controls: Controls = { side: 0, selected: null };
+const controls: Controls = { side: 0, selected: null, watching: watched !== null };
 
 const ground = new Graphics();
 const field = new Graphics();
@@ -84,7 +88,8 @@ if (frozenAt === null) {
   app.canvas.addEventListener('pointerdown', (event) => {
     const action = tap(controls, loop, layout, event.clientX, event.clientY);
     if (action === 'again') {
-      window.location.reload();
+      // A fresh live match, even after watching a replay.
+      window.location.assign(window.location.pathname);
     } else if (action === 'save-replay' && replayText !== null) {
       download(`factor-seed-${String(SEED)}.json`, replayText);
     }
@@ -93,7 +98,10 @@ if (frozenAt === null) {
     advance(loop, ticker.elapsedMS);
     if (loop.current.result !== null && replayText === null) {
       replayText = saveReplay(loopReplay(SEED, DECKS, loop));
-      remember(replayText);
+      // A watched replay is already saved somewhere; only a new match becomes the last one.
+      if (watched === null) {
+        remember(replayText);
+      }
     }
     render();
   });
@@ -104,6 +112,32 @@ render();
 // `pnpm shots` waits for this before capturing.
 document.documentElement.dataset.renderer = app.renderer.name;
 document.documentElement.dataset.ready = 'true';
+
+/** Puts why the page can't go on where the player sees it, then fails as before (so `pnpm shots` reports it too). */
+function showError(error: unknown): never {
+  const message = document.createElement('pre');
+  message.style.cssText = 'color:#fff;padding:16px;white-space:pre-wrap;font:14px sans-serif';
+  message.textContent = error instanceof Error ? error.message : String(error);
+  app.canvas.remove();
+  document.body.append(message);
+  throw error;
+}
+
+function stored(): string | null {
+  return window.localStorage.getItem(REPLAY_STORAGE_KEY);
+}
+
+async function fetchText(url: string): Promise<string> {
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`Could not fetch the replay ${url}: ${String(response.status)} ${response.statusText}`);
+  }
+  // The dev server answers an unknown path with the page itself.
+  if (response.headers.get('content-type')?.includes('text/html') === true) {
+    throw new Error(`Could not fetch the replay ${url}: there is no such file`);
+  }
+  return response.text();
+}
 
 /** Keeps the replay as the last finished match's. Storage can be full or blocked; the match is over either way. */
 function remember(replay: string): void {

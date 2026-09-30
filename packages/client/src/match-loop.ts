@@ -35,14 +35,16 @@ export interface MatchLoop {
   queued: Play[];
   /** Bots playing sides the human doesn't, asked for their commands every tick. */
   bots: RandomBot[];
+  /** A replay's commands still to come, in tick order, each sent on its own tick. Empty in live play. */
+  feed: Command[];
   /** Every command sent to the sim, in order: what a replay needs. */
   commands: Command[];
   /** Spells that landed in the last `BLAST_TICKS` ticks, oldest first, for the client to show. */
   blasts: RecentBlast[];
 }
 
-export function createLoop(state: SimState, bots: RandomBot[] = []): MatchLoop {
-  return { previous: state, current: state, pendingMs: 0, queued: [], bots, commands: [], blasts: [] };
+export function createLoop(state: SimState, bots: RandomBot[] = [], feed: readonly Command[] = []): MatchLoop {
+  return { previous: state, current: state, pendingMs: 0, queued: [], bots, feed: [...feed], commands: [], blasts: [] };
 }
 
 /** Queues a play for the next tick. Once the match has ended, it is dropped. */
@@ -87,12 +89,21 @@ function ended(loop: MatchLoop): boolean {
   return loop.current.result !== null;
 }
 
-/** One tick: the human's queued plays and the bots' turns become this tick's commands. */
+/**
+ * One tick: the human's queued plays, the bots' turns and the replay's commands for this tick become
+ * this tick's commands. A replay's commands keep their recorded order, so it plays back exactly.
+ */
 function tickOnce(loop: MatchLoop): void {
   const state = loop.current;
   const tick = state.tick;
   const commands = loop.queued.map((play): Command => ({ tick, ...play }));
   loop.queued = [];
+  let due = 0;
+  while (loop.feed[due]?.tick === tick) {
+    due++;
+  }
+  commands.push(...loop.feed.slice(0, due));
+  loop.feed = loop.feed.slice(due);
   loop.bots = loop.bots.map((bot) => {
     const turn = botTurn(bot, state, BOT_TUNING);
     commands.push(...turn.commands);

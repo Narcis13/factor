@@ -7,10 +7,10 @@ Sculpt log. The **Current state** block is rewritten at the end of every session
 ## Current state
 
 **Stage:** 1 — Block-in
-**Last session:** S14 · 2026-09-30
+**Last session:** S15 · 2026-09-30
 **Works:**
 - A pnpm monorepo with `sim`, `content`, `bot`, `tools` and `client` packages, strict TS 6.0, no build step.
-- `pnpm check` is green: typecheck, lint, 313 tests (one of them drives headless Chromium).
+- `pnpm check` is green: typecheck, lint, 320 tests (one of them drives headless Chromium).
 - ESLint enforces the sim's hard rules (imports, Math/Date/timers, async, classes, `**`, float literals) in the sim and its tests, and in the bot (which may import only `sim` and `content`).
 - Sim: `createMatch(setup)`, pure `step(state, commands)` at a fixed tick, sfc32 RNG in state, `hashState`. `MatchSetup` carries rules, the `ArenaLayout`, tower stats, a card catalog and both decks.
 - Players: energy 5 → 10, +1 per 56 ticks, 2× from 2:00 and in overtime. Decks of 8 shuffled from the seed; hand of 4 + queue; plays spend and cycle, with 5 rejection reasons.
@@ -20,7 +20,7 @@ Sculpt log. The **Current state** block is rewritten at the end of every session
 - Bot: `createRandomBot`/`botTurn` (pure, own seeded rng), pacing in `BOT_TUNING`. `playBotMatch(seed)`.
 - Content: `CARDS` (juggernaut, warden, slinger, flare), `TOWER_STATS`, `MATCH_RULES`, `ARENA`, `BOT_TUNING`, `matchSetup(seed, decks?)`, replay v0.
 - `pnpm sim match --seed <n>` plays bot vs bot and saves the replay; `pnpm sim replay` agrees (seed 42: side 1 wins 0-1 at 3:00, `5d516ada`).
-- Client: `pnpm dev` runs seed 0 live, human side 0 vs the bot on side 1. Stars show at the right edge on each bank of the river. At the end: a Victory/Defeat/Draw panel with both sides' stars, the replay kept in localStorage (`factor.lastReplay`), *Play again* (reload) and *Save replay* (JSON download). `?tick=` plays the bot too. `pnpm shots` is `586a9e3247b1`.
+- Client: `pnpm dev` runs seed 0 live, human side 0 vs the bot on side 1. Stars show at the right edge on each bank of the river. At the end: a Victory/Defeat/Draw panel with both sides' stars, the replay kept in localStorage (`factor.lastReplay`), *Play again* (a new live match) and *Save replay* (JSON download). `?replay=last` or `?replay=<url>` plays a replay back from side 0's seat (hand shown, not playable); a missing or invalid one says why on the page. `?tick=` freezes either. `pnpm shots`: `arena.png` `586a9e3247b1`, `end.png` (seed 0 bot vs bot via `?replay=`) `bb2a0544d547`; `--replay <file> --tick <n>` shoots any replay.
 **Known issues:**
 - No formatter configured yet.
 - Units don't collide, and they can be deployed on a tower's footprint. No Keep dormancy (Stage 2).
@@ -33,14 +33,25 @@ Sculpt log. The **Current state** block is rewritten at the end of every session
 **Golden replays:** none (the RNG sequence and the seed-1234 shuffle are pinned in tests)
 
 **Next cuts** (in order):
-1. `?replay=` plays a replay back in the client (a file URL, or `last` for the localStorage one), and `pnpm shots` learns `?replay=&tick=` and an end-screen shot.
-2. Stage 1 exit review: play a full match against the bot headless and in the browser, then close the stage.
-3. `pnpm sim sweep --matches <n>` (the 2,000-seed check from S13 as a real command), ahead of Stage 2's 1,000-match criterion.
-4. A fresh seed per match in the client (`?seed=`, and *Play again* picks a new one).
+1. Stage 1 exit review: every criterion now has code behind it. Play a full match against the bot headless and in the browser (live and `?replay=last`), then close the stage.
+2. `pnpm sim sweep --matches <n>` (the 2,000-seed check from S13 as a real command), ahead of Stage 2's 1,000-match criterion.
+3. A fresh seed per match in the client (`?seed=`, and *Play again* picks a new one).
+4. `&debug=1` overlays for shots (ranges, targets, paths; VISION §6).
 
 ---
 
 ## Sessions
+
+### S15 · 2026-09-30 · Replays play back in the client
+**Stage:** 1 — Block-in
+**Cut:** `?replay=` plays a replay back in the client (`last` from localStorage, or a URL), freezable with `?tick=`, and `pnpm shots` shoots replays and an end screen (Next cuts 1): the last unmet Stage 1 criterion.
+**Done:**
+- Client: `MatchLoop.feed` (a replay's commands, sent on their own ticks in recorded order; `createLoop(state, bots, feed)`). `readReplay(name, sources)` in `match-replay.ts`. `Controls.watching`: taps can't select or play, the end screen still answers. `main.ts` plays a replay with no bot, doesn't overwrite the stored replay with it, sends *Play again* to a fresh live match, and shows why on the page if the replay is missing or invalid.
+- Tools: `shoot(requests)` (one server and browser for many shots; a replay is served to the page via `page.route`), `defaultShots` (`arena` at tick 90, `end` of bot-vs-bot seed 0 at `END_TICK`), `shots --replay <file> [--tick <n>]` and `--tick <n>`. `readReplayFile` extracted (second use).
+**Verified:** `pnpm check` green (44 files, 320 tests; 7 new): a 40-tap live match fed back state-for-state at every checkpoint and to the same end, hash and command log; real-time playback matches jumping; the feed is copied; watching blocks taps; `last` vs URL, and missing/invalid replays refused with a reason. The browser test shows a replay frozen at tick 90 is pixel-identical to the live `?tick=90` shot, and shots repeat. 4 mutations were each caught (one only by that pixel test). `pnpm shots` twice gave `586a9e3247b1`/`bb2a0544d547`. I looked at `end.png` (Victory 1-0), a seed-42 replay at 2:00, and both error pages. In the browser, `?replay=last` from localStorage draws the same pixels as the same replay by URL. Vite serves `replays/` files via `/@fs/`. Seed 42 still hashes `5d516ada`.
+**Decisions:** A replay is watched from side 0's seat. In replay mode *Play again* starts a live match, and *Save replay* downloads what was watched. The dev server's HTML fallback for unknown paths counts as a missing replay.
+**Left out / noticed:** Debug overlays (Next cuts 4); pause and seek. Units walk under the HUD stars on the right bank (the stars stay on top). **Playtest (director):** open `?replay=last` after a match on your phone. Does watching it back read clearly?
+**Status:** complete
 
 ### S14 · 2026-09-30 · Stars, the end screen, and the client saves its replay
 **Stage:** 1 — Block-in

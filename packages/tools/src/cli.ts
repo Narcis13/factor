@@ -1,11 +1,12 @@
 import { createHash } from 'node:crypto';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
+import { basename, dirname, extname, join } from 'node:path';
 import { parseArgs } from 'node:util';
 import { loadReplay, saveReplay, type Replay } from '@factor/content';
 import { TICKS_PER_SECOND } from '@factor/sim';
 import { botReplay, describeResult, playReplay } from './match.ts';
+import type { ShotRequest } from './shots.ts';
 
 const USAGE = `factor sim (${String(TICKS_PER_SECOND)} ticks/s)
 
@@ -22,8 +23,11 @@ Commands:
       Validate a replay file, play it back with invariants checked every tick, and print the result.
       With --dump, print the full state at <tick> as JSON instead.
 
-  shots [--out <dir>]
-      Open the client frozen at tick 90 in headless Chromium and save it as <dir>/arena.png (default dir: shots).
+  shots [--out <dir>] [--replay <file>] [--tick <n>]
+      Open the client frozen in headless Chromium and save PNGs in <dir> (default: shots). With no
+      options: arena.png (live against the bot at tick 90) and end.png (the end of bot-vs-bot seed 0,
+      played back with ?replay=). --tick <n> shoots the live match at tick n as arena-<n>.png.
+      --replay <file> plays that replay back to --tick (default: its end) as <file name>-<n|end>.png.
       Also runs as pnpm shots.`;
 
 const UINT32_MAX = 0xffffffff;
@@ -60,17 +64,21 @@ function replay(args: string[]): void {
   if (file === undefined || extra.length > 0) {
     throw new UsageError('replay needs exactly one <file>');
   }
-  let loaded: Replay;
-  try {
-    loaded = loadReplay(readFileSync(file, 'utf8'));
-  } catch (error) {
-    throw new InputError(`${file}: ${error instanceof Error ? error.message : String(error)}`);
-  }
+  const loaded = readReplayFile(file);
   if (values.dump !== undefined) {
     dump(loaded, values.dump);
     return;
   }
   console.log(describeResult(loaded.seed, playReplay(loaded)));
+}
+
+/** Loads and validates a replay file; any problem is bad input, named after the file. */
+function readReplayFile(file: string): Replay {
+  try {
+    return loadReplay(readFileSync(file, 'utf8'));
+  } catch (error) {
+    throw new InputError(`${file}: ${error instanceof Error ? error.message : String(error)}`);
+  }
 }
 
 /** Prints the full state at the tick given by `--dump`. */
@@ -84,16 +92,29 @@ function dump(replay: Replay, tickText: string): void {
 }
 
 async function shots(args: string[]): Promise<void> {
-  const { values } = parseArgs({ args, options: { out: { type: 'string', default: 'shots' } } });
+  const { values } = parseArgs({
+    args,
+    options: { out: { type: 'string', default: 'shots' }, replay: { type: 'string' }, tick: { type: 'string' } },
+  });
   // Loaded here so the other commands don't pay for starting Vite and Playwright.
-  const { SHOT_VIEWPORT, shootArena } = await import('./shots.ts');
-  const shot = await shootArena();
+  const { defaultShots, END_TICK, SHOT_VIEWPORT, shoot } = await import('./shots.ts');
+  const tick = values.tick === undefined ? undefined : parseInteger('--tick', values.tick, Number.MAX_SAFE_INTEGER);
+  let requests: ShotRequest[];
+  if (values.replay !== undefined) {
+    const name = `${basename(values.replay, extname(values.replay))}-${tick === undefined ? 'end' : String(tick)}`;
+    requests = [{ name, tick: tick ?? END_TICK, replay: readReplayFile(values.replay) }];
+  } else {
+    requests = tick === undefined ? defaultShots() : [{ name: `arena-${String(tick)}`, tick }];
+  }
+  const taken = await shoot(requests);
   await mkdir(values.out, { recursive: true });
-  const file = join(values.out, 'arena.png');
-  await writeFile(file, shot.png);
-  const sha = createHash('sha256').update(shot.png).digest('hex').slice(0, 12);
   const size = `${String(SHOT_VIEWPORT.width)}×${String(SHOT_VIEWPORT.height)}`;
-  console.log(`saved ${file}  ${size}  ${shot.renderer}  sha256 ${sha}`);
+  for (const shot of taken) {
+    const file = join(values.out, `${shot.name}.png`);
+    await writeFile(file, shot.png);
+    const sha = createHash('sha256').update(shot.png).digest('hex').slice(0, 12);
+    console.log(`saved ${file}  ${size}  ${shot.renderer}  sha256 ${sha}`);
+  }
 }
 
 function parseInteger(flag: string, text: string, max: number): number {
