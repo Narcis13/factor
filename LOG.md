@@ -7,38 +7,53 @@ Sculpt log. The **Current state** block is rewritten at the end of every session
 ## Current state
 
 **Stage:** 1 — Block-in
-**Last session:** S12 · 2026-09-29
+**Last session:** S13 · 2026-09-30
 **Works:**
-- A pnpm monorepo with `sim`, `content`, `tools` and `client` packages, strict TS 6.0, no build step.
-- `pnpm check` is green: typecheck, lint, 280 tests (one of them drives headless Chromium).
-- ESLint enforces the sim's hard rules (imports, Math/Date/timers, async, classes, `**`, float literals), in sim tests too.
+- A pnpm monorepo with `sim`, `content`, `bot`, `tools` and `client` packages, strict TS 6.0, no build step.
+- `pnpm check` is green: typecheck, lint, 302 tests (one of them drives headless Chromium).
+- ESLint enforces the sim's hard rules (imports, Math/Date/timers, async, classes, `**`, float literals) in the sim and its tests, and in the bot (which may import only `sim` and `content`).
 - Sim: `createMatch(setup)`, pure `step(state, commands)` at a fixed tick, sfc32 RNG in state, `hashState`. `MatchSetup` carries rules, the `ArenaLayout`, tower stats, a card catalog and both decks.
 - Players: energy 5 → 10, +1 per 56 ticks, 2× from 2:00 and in overtime. Decks of 8 shuffled from the seed; hand of 4 + queue; plays spend and cycle, with 5 rejection reasons.
-- Troops deploy one `Unit` on their own half, wait 20 ticks, then act: lock-on, acquisition in sight (`ground | buildings`), lane and bridge walking, hits `firstHitTicks` after locking on and then every `hitTicks`. Towers lock on to the nearest enemy unit in range. All of a tick's hits land together; the dead leave; an Outpost gives 1 star, the Keep brings its destroyer to 3 and ends the match.
-- Spells land instantly anywhere: every enemy unit or tower their circle touches takes `damage`, towers only `towerDamageBp` of it. Hits land with the fight's; `state.blasts` records the spells that landed this tick.
+- Troops deploy one `Unit` on their own half, wait 20 ticks, then act: lock-on, acquisition in sight (`ground | buildings`), lane and bridge walking (a goal on a bridge is reached over that bridge), hits `firstHitTicks` after locking on and then every `hitTicks`. Towers lock on to the nearest enemy unit in range. All of a tick's hits land together; the dead leave; an Outpost gives 1 star, the Keep brings its destroyer to 3 and ends the match.
+- Spells land instantly anywhere: every enemy unit or tower their circle touches takes `damage`, towers only `towerDamageBp` of it.
 - Match timer and result: 3:00 regulation, then up to 2:00 overtime while stars are tied.
-- Content: `CARDS` (juggernaut 5 buildings-only tank, warden 3 melee, slinger 4 ranged, flare 4: 2.5 tiles, 500 damage, 30% to towers), `TOWER_STATS` (Keep 4000/100, Outpost 2500/90, 7-tile range, every 0.8 s), `MATCH_RULES`, `ARENA`, `matchSetup(seed, decks?)`, replay v0.
-- `pnpm sim match --seed <n>` / `pnpm sim replay <file>` play headless (no commands yet) and agree on the hash (seed 42: `53f43fdb`).
-- Client: `pnpm dev` runs seed 0 live with a HUD; taps become side-0 commands. Towers (rubble once fallen), units, hp bars, and a landed spell's area fading out over 0.5 s. `pnpm shots` shoots `?tick=90`, byte-identical.
+- Bot: `createRandomBot`/`botTurn` (pure, own seeded rng): a random slot, a 1–4 s wait (`BOT_TUNING` in content), then a play once affordable — troops on a random own-half tile center, spells on a random enemy. `playBotMatch(seed)`.
+- Content: `CARDS` (juggernaut, warden, slinger, flare), `TOWER_STATS`, `MATCH_RULES`, `ARENA`, `BOT_TUNING`, `matchSetup(seed, decks?)`, replay v0.
+- `pnpm sim match --seed <n>` plays bot vs bot, saves the replay with both bots' commands, and `pnpm sim replay` agrees (seed 42: side 1 wins 0-1 at 3:00, `5d516ada`). 2,000 seeds: 0 invariant violations, 0 replay mismatches, 957/999/44 wins/wins/draws.
+- Client: `pnpm dev` runs seed 0 live, human side 0 vs the bot on side 1; the loop records both into `loop.commands`. `?tick=` plays the bot too. `pnpm shots` is `d33ad2f0f71a`.
 **Known issues:**
 - No formatter configured yet.
 - Units don't collide, and they can be deployed on a tower's footprint. No Keep dormancy (Stage 2).
-- Hp bars are thin (4 px at phone size); unit bars have only been seen in tests, not in a shot. Units are small and low-contrast on the grass. The flare marker's fill is faint.
-- The client shows no stars and nothing when the match ends; side 1 never plays.
+- Hp bars are thin (4 px at phone size). Units are small and low-contrast on the grass. The flare marker's fill is faint.
+- The client shows no stars and nothing when the match ends.
 - Shots need Playwright's pinned Chromium or `FACTOR_CHROMIUM=<path>`. In the cloud container use `FACTOR_CHROMIUM=/opt/pw-browsers/chromium_headless_shell-1194/chrome-linux/headless_shell`.
 - Replays don't carry rules, layout or stats; a content change silently changes what an old replay plays.
 - Context7 isn't reachable from the cloud container; library APIs were checked against the installed type definitions.
+- `stepTo` in the client is now used only by tests.
 **Golden replays:** none (the RNG sequence and the seed-1234 shuffle are pinned in tests)
 
 **Next cuts** (in order):
-1. A random-legal-move bot playing side 1 in the client and in `pnpm sim match`, which records its commands into the replay.
-2. Stars on the HUD and a win/lose/draw screen; the client auto-saves the replay of a finished match.
-3. `?replay=` plays a replay back in the client, and `pnpm shots` learns `?replay=&tick=`.
-4. Stage 1 exit review: play a full match against the bot headless and in the browser, then close the stage.
+1. Stars on the HUD and a win/lose/draw screen; the client auto-saves the replay of a finished match.
+2. `?replay=` plays a replay back in the client, and `pnpm shots` learns `?replay=&tick=`.
+3. Stage 1 exit review: play a full match against the bot headless and in the browser, then close the stage.
+4. `pnpm sim sweep --matches <n>` (the 2,000-seed check from S13 as a real command), ahead of Stage 2's 1,000-match criterion.
 
 ---
 
 ## Sessions
+
+### S13 · 2026-09-30 · A random bot plays side 1
+**Stage:** 1 — Block-in
+**Cut:** A random-legal-move bot (Next cuts 1) in a new `packages/bot`: it plays side 1 in the client and both sides in `pnpm sim match`, and its commands go into the replay.
+**Done:**
+- Bot: `random-bot.ts` (`RandomBot` is plain JSON with its own sfc32 rng seeded from the match seed and side; `botTurn` is pure) and `bot-match.ts` (`playBotMatch`). Content: `BOT_TUNING` (1–4 s between plays).
+- Tools: `botReplay(seed)`; `match` now plays bot vs bot, saves that replay and plays it back with invariants.
+- Client: `MatchLoop.bots`, asked every tick; `tickOnce` is shared by `advance` and the new `runTo`, which `?tick=` uses, so a shot shows what live play would show.
+- Sim fix: a unit chasing an enemy that stands on a bridge past the river's middle walked straight through the water. It now goes to that bridge's end on its own bank first (`bridgeEnd`, `bridgeSpan`, `bridgeUnder`). The bot found it: 15 of 1000 seeds broke the river invariant.
+**Verified:** `pnpm check` green (40 files, 302 tests; 22 new). Bot scenarios: 7 seeds end with invariants held and zero rejections; troops on own-half tile centers; spells on standing enemies (units too); minimum waits and saving up; the same seed gives the same match; independent rng streams; no mutation; silence after the result. Client: bot commands recorded and replayable alongside taps; `runTo` equals live play. Sim: 3 bridge scenarios, all failing without the fix. 3 bot mutations each caught. A 2,000-seed sweep: 0 violations, 0 mismatches. `match` vs `replay` agree for seeds 42 and 1259. I looked at the shot (`d33ad2f0f71a`, twice): a side-1 juggernaut at 2:56.
+**Decisions:** The bot has its own rng, so it never touches the match's. Its pacing is data in `content`. The CLI's match is bot vs bot, and `emptyReplay` remains as a fixture. Seed 42's hash changed from `53f43fdb` on purpose (commands now). The troop-match scenario now ends at tick 774 instead of 760, because of the bridge fix.
+**Left out / noticed:** Stars and the end screen (Next cuts 1). The sweep command (Next cuts 4). **Playtest (director):** is the bot a fair sparring partner, and does 1–4 s between plays feel right?
+**Status:** complete
 
 ### S12 · 2026-09-29 · Flare deals area damage
 **Stage:** 1 — Block-in

@@ -1,11 +1,12 @@
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync } from 'node:fs';
+import { mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { loadReplay } from '@factor/content';
 import type { SimState } from '@factor/sim';
 import { expect, test } from 'vitest';
-import { emptyReplay, formatClock, playReplay } from '../src/index.ts';
+import { botReplay, formatClock, playReplay } from '../src/index.ts';
 
 const cli = fileURLToPath(new URL('../src/cli.ts', import.meta.url));
 
@@ -16,13 +17,22 @@ function sim(...args: string[]) {
   return spawnSync(process.execPath, [cli, ...args], { encoding: 'utf8', cwd });
 }
 
-test('an empty match runs through overtime and prints a draw', () => {
+test('a bot-vs-bot match plays to its end and prints the result', () => {
   const { status, stdout } = sim('match', '--seed', '42');
   expect(status).toBe(0);
-  expect(stdout).toContain('result  draw');
-  expect(stdout).toContain('ended   tick 6000 (5:00, overtime)');
-  expect(stdout).toContain('stars   0-0');
-  expect(stdout).toMatch(/hash {4}[0-9a-f]{8}/);
+  expect(stdout).toContain('result  side 1 wins');
+  expect(stdout).toContain('ended   tick 3600 (3:00)');
+  expect(stdout).toContain('stars   0-1');
+  expect(stdout).toContain('hash    5d516ada');
+});
+
+test('the saved replay carries both bots’ commands', () => {
+  expect(sim('match', '--seed', '9').status).toBe(0);
+  const saved = loadReplay(readFileSync(join(cwd, 'replays', 'seed-9.json'), 'utf8'));
+  expect(saved).toEqual(botReplay(9));
+  for (const side of [0, 1]) {
+    expect(saved.commands.filter((command) => command.side === side).length).toBeGreaterThan(10);
+  }
 });
 
 test('the same seed prints the same final hash in separate processes; another seed does not', () => {
@@ -37,13 +47,13 @@ test('--dump prints the state at that tick as JSON', () => {
   const state = JSON.parse(stdout) as SimState;
   expect(state.tick).toBe(600);
   expect(state.result).toBeNull();
-  expect(state).toEqual(playReplay(emptyReplay(42), 600));
+  expect(state).toEqual(playReplay(botReplay(42), 600));
 });
 
 test('--dump past the end of the match fails', () => {
-  const { status, stderr } = sim('match', '--seed', '42', '--dump', '6001');
+  const { status, stderr } = sim('match', '--seed', '42', '--dump', '3601');
   expect(status).toBe(1);
-  expect(stderr).toContain('The match ended at tick 6000, before tick 6001');
+  expect(stderr).toContain('The match ended at tick 3600, before tick 3601');
 });
 
 test.each([[], ['--seed', 'abc'], ['--seed', '4294967296'], ['--seed', '1', '--dump', '1.5'], ['--seed', '1', '--wat']])(

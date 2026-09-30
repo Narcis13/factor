@@ -1,5 +1,5 @@
 {
-  "name": "@factor/client",
+  "name": "@factor/bot",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -7,16 +7,10 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "dev": "vite",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@factor/bot": "workspace:*",
     "@factor/content": "workspace:*",
-    "@factor/sim": "workspace:*",
-    "pixi.js": "^8.21.0"
-  },
-  "devDependencies": {
-    "vite": "^8.3.1"
+    "@factor/sim": "workspace:*"
   }
 }

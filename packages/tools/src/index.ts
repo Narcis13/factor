@@ -1,1 +1,1 @@
-export { describeResult, emptyReplay, formatClock, playReplay } from './match.ts';
+export { botReplay, describeResult, emptyReplay, formatClock, playReplay } from './match.ts';

@@ -78,6 +78,28 @@ export default defineConfig(
           ],
         },
       ],
+    },
+  },
+  {
+    // The bot is deterministic too (VISION §5): the same observations give the same commands.
+    files: ['packages/bot/src/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              regex: '^(?!(\\.{1,2}/|@factor/(sim|content)$))',
+              message: 'packages/bot imports only the sim and content (VISION §5).',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ['packages/sim/**/*.ts', 'packages/bot/**/*.ts'],
+    rules: {
       'no-restricted-globals': ['error', ...simRestrictedGlobals],
       'no-restricted-properties': ['error', ...simRestrictedMath],
       'no-restricted-syntax': [
