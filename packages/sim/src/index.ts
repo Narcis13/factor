@@ -6,6 +6,7 @@ export { nextBelow, nextUint32, seedRng, shuffle, type Rng } from './rng.ts';
 export {
   createMatch,
   hashState,
+  MAX_STARS,
   type Command,
   type MatchResult,
   type MatchRules,

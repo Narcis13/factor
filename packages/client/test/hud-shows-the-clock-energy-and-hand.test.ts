@@ -24,6 +24,12 @@ test('with stars tied, the clock goes on into overtime', () => {
   expect(formatClock(stepTo(START, 6000))).toBe('OT 0:00');
 });
 
+test('a match decided as regulation runs out stops the clock at 0:00, not in overtime', () => {
+  const end = stepTo(START, 3600);
+  expect(formatClock({ ...end, result: { winner: 1 } })).toBe('0:00');
+  expect(formatClock({ ...stepTo(START, 3601), result: { winner: 0 } })).toBe('OT 2:00');
+});
+
 test('energy includes regeneration toward the next one', () => {
   expect(energyLevel(START, 0)).toBe(5);
   expect(energyLevel(stepTo(START, 28), 0)).toBe(5.5);

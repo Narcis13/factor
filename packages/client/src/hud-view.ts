@@ -1,6 +1,6 @@
 import { TICKS_PER_SECOND, type CardId, type Side, type SimState } from '@factor/sim';
 import type { ScreenRect } from './arena-view.ts';
-import type { HudLayout } from './screen-layout.ts';
+import type { HudLayout, ScreenPoint } from './screen-layout.ts';
 
 /** A card in the hand as the player sees it. */
 export interface CardFace {
@@ -11,6 +11,15 @@ export interface CardFace {
   /** Enough energy to play it now. */
   affordable: boolean;
   selected: boolean;
+}
+
+/** A star slot: drawn in its side's color once earned, hollow until then. */
+export interface StarPip {
+  side: Side;
+  x: number;
+  y: number;
+  radius: number;
+  earned: boolean;
 }
 
 /** Everything the HUD shows for one side, placed on the screen. */
@@ -28,6 +37,8 @@ export interface HudScene {
   energyBar: ScreenRect;
   hand: CardFace[];
   next: { card: CardId; rect: ScreenRect } | null;
+  /** Both sides' stars, side 0's first: they matter to both players. */
+  stars: StarPip[];
 }
 
 /**
@@ -63,7 +74,13 @@ export function hudScene(
     energyBar: layout.energyBar,
     hand,
     next: next === undefined ? null : { card: next, rect: layout.next },
+    stars: [...starPips(current, 0, layout.stars[0], layout.starRadius), ...starPips(current, 1, layout.stars[1], layout.starRadius)],
   };
+}
+
+/** `side`'s star slots at `points`, the first `stars[side]` of them earned. */
+export function starPips(state: Pick<SimState, 'stars'>, side: Side, points: readonly ScreenPoint[], radius: number): StarPip[] {
+  return points.map((point, i) => ({ side, x: point.x, y: point.y, radius, earned: i < state.stars[side] }));
 }
 
 /** Energy as a real number: whole energy plus the progress toward the next one. */
@@ -72,10 +89,13 @@ export function energyLevel(state: SimState, side: Side): number {
   return energy + energyProgress / state.rules.energy.ticksPerEnergy;
 }
 
-/** Time left in the current period, rounded up to whole seconds, so `0:00` only shows at its end. */
-export function formatClock(state: SimState): string {
+/**
+ * Time left in the current period, rounded up to whole seconds, so `0:00` only shows at its end.
+ * A match decided when regulation runs out stays at `0:00`: overtime starts only if stars are tied.
+ */
+export function formatClock(state: Pick<SimState, 'tick' | 'rules' | 'result'>): string {
   const { regulationTicks, overtimeTicks } = state.rules;
-  const overtime = state.tick >= regulationTicks;
+  const overtime = state.tick > regulationTicks || (state.tick === regulationTicks && state.result === null);
   const end = overtime ? regulationTicks + overtimeTicks : regulationTicks;
   const seconds = Math.ceil(Math.max(0, end - state.tick) / TICKS_PER_SECOND);
   const clock = `${String(Math.floor(seconds / 60))}:${String(seconds % 60).padStart(2, '0')}`;

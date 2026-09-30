@@ -44,6 +44,9 @@ export interface MatchRules {
   deployDelayTicks: number;
 }
 
+/** The most stars a side can hold: destroying the Keep brings its destroyer here and ends the match (VISION §4). */
+export const MAX_STARS = 3;
+
 /** How the match ended. A `null` winner is a draw. */
 export interface MatchResult {
   winner: Side | null;

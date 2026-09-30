@@ -1,14 +1,15 @@
 import type { CardId } from '@factor/sim';
 import { Container, Graphics, Text } from 'pixi.js';
-import type { HudScene } from './hud-view.ts';
-import { cardColor } from './palette.ts';
+import type { HudScene, StarPip } from './hud-view.ts';
+import { cardColor, SIDE_COLOR } from './palette.ts';
 
 const CARD_EDGE = 0x0d1014;
 const SELECTED_EDGE = 0xffd23f;
 const BAR_BACK = 0x2a1d33;
 const BAR_FILL = 0xc04fd6;
 const BAR_TICK = 0x14181d;
-const FONT = { fontFamily: 'sans-serif', fill: 0xffffff, stroke: { color: 0x000000, width: 3 } } as const;
+const STAR_EDGE = 0x0d1014;
+export const FONT = { fontFamily: 'sans-serif', fill: 0xffffff, stroke: { color: 0x000000, width: 3 } } as const;
 
 /** One card's labels. */
 interface CardLabels {
@@ -65,6 +66,8 @@ export class HudView {
       labels.name.visible = labels.cost.visible = i < scene.hand.length;
     }
 
+    drawStars(g, scene.stars);
+
     this.next.name.visible = this.next.cost.visible = scene.next !== null;
     if (scene.next !== null) {
       const { x, y, width, height } = scene.next.rect;
@@ -76,6 +79,15 @@ export class HudView {
       this.next.name.text = scene.next.card;
       this.next.name.position.set(x + width / 2, y + height / 2);
     }
+  }
+}
+
+/** Five-pointed stars: an earned one is filled in its side's color, the rest are dark and ringed in it. */
+export function drawStars(g: Graphics, pips: readonly StarPip[]): void {
+  for (const { side, x, y, radius, earned } of pips) {
+    g.star(x, y, 5, radius, radius * 0.45)
+      .fill(earned ? { color: SIDE_COLOR[side] } : { color: STAR_EDGE, alpha: 0.45 })
+      .stroke(earned ? { color: STAR_EDGE, width: 2 } : { color: SIDE_COLOR[side], width: 2 });
   }
 }
 

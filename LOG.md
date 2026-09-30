@@ -7,25 +7,25 @@ Sculpt log. The **Current state** block is rewritten at the end of every session
 ## Current state
 
 **Stage:** 1 — Block-in
-**Last session:** S13 · 2026-09-30
+**Last session:** S14 · 2026-09-30
 **Works:**
 - A pnpm monorepo with `sim`, `content`, `bot`, `tools` and `client` packages, strict TS 6.0, no build step.
-- `pnpm check` is green: typecheck, lint, 302 tests (one of them drives headless Chromium).
+- `pnpm check` is green: typecheck, lint, 313 tests (one of them drives headless Chromium).
 - ESLint enforces the sim's hard rules (imports, Math/Date/timers, async, classes, `**`, float literals) in the sim and its tests, and in the bot (which may import only `sim` and `content`).
 - Sim: `createMatch(setup)`, pure `step(state, commands)` at a fixed tick, sfc32 RNG in state, `hashState`. `MatchSetup` carries rules, the `ArenaLayout`, tower stats, a card catalog and both decks.
 - Players: energy 5 → 10, +1 per 56 ticks, 2× from 2:00 and in overtime. Decks of 8 shuffled from the seed; hand of 4 + queue; plays spend and cycle, with 5 rejection reasons.
-- Troops deploy one `Unit` on their own half, wait 20 ticks, then act: lock-on, acquisition in sight (`ground | buildings`), lane and bridge walking (a goal on a bridge is reached over that bridge), hits `firstHitTicks` after locking on and then every `hitTicks`. Towers lock on to the nearest enemy unit in range. All of a tick's hits land together; the dead leave; an Outpost gives 1 star, the Keep brings its destroyer to 3 and ends the match.
-- Spells land instantly anywhere: every enemy unit or tower their circle touches takes `damage`, towers only `towerDamageBp` of it.
+- Troops deploy one `Unit` on their own half, wait 20 ticks, then act: lock-on, acquisition in sight (`ground | buildings`), lane and bridge walking, timed hits. Towers lock on to the nearest enemy unit in range. Hits land together; an Outpost gives 1 star, the Keep brings its destroyer to `MAX_STARS` (3) and ends the match.
+- Spells land instantly anywhere: enemy units and towers in the circle take `damage`, towers only `towerDamageBp` of it.
 - Match timer and result: 3:00 regulation, then up to 2:00 overtime while stars are tied.
-- Bot: `createRandomBot`/`botTurn` (pure, own seeded rng): a random slot, a 1–4 s wait (`BOT_TUNING` in content), then a play once affordable — troops on a random own-half tile center, spells on a random enemy. `playBotMatch(seed)`.
+- Bot: `createRandomBot`/`botTurn` (pure, own seeded rng), pacing in `BOT_TUNING`. `playBotMatch(seed)`.
 - Content: `CARDS` (juggernaut, warden, slinger, flare), `TOWER_STATS`, `MATCH_RULES`, `ARENA`, `BOT_TUNING`, `matchSetup(seed, decks?)`, replay v0.
-- `pnpm sim match --seed <n>` plays bot vs bot, saves the replay with both bots' commands, and `pnpm sim replay` agrees (seed 42: side 1 wins 0-1 at 3:00, `5d516ada`). 2,000 seeds: 0 invariant violations, 0 replay mismatches, 957/999/44 wins/wins/draws.
-- Client: `pnpm dev` runs seed 0 live, human side 0 vs the bot on side 1; the loop records both into `loop.commands`. `?tick=` plays the bot too. `pnpm shots` is `d33ad2f0f71a`.
+- `pnpm sim match --seed <n>` plays bot vs bot and saves the replay; `pnpm sim replay` agrees (seed 42: side 1 wins 0-1 at 3:00, `5d516ada`).
+- Client: `pnpm dev` runs seed 0 live, human side 0 vs the bot on side 1. Stars show at the right edge on each bank of the river. At the end: a Victory/Defeat/Draw panel with both sides' stars, the replay kept in localStorage (`factor.lastReplay`), *Play again* (reload) and *Save replay* (JSON download). `?tick=` plays the bot too. `pnpm shots` is `586a9e3247b1`.
 **Known issues:**
 - No formatter configured yet.
 - Units don't collide, and they can be deployed on a tower's footprint. No Keep dormancy (Stage 2).
-- Hp bars are thin (4 px at phone size). Units are small and low-contrast on the grass. The flare marker's fill is faint.
-- The client shows no stars and nothing when the match ends.
+- Hp bars are thin (4 px at phone size). Units are small and low-contrast on the grass. The flare marker's fill and the hollow HUD stars are faint.
+- *Play again* replays seed 0, so the bot and the shuffle are the same every match.
 - Shots need Playwright's pinned Chromium or `FACTOR_CHROMIUM=<path>`. In the cloud container use `FACTOR_CHROMIUM=/opt/pw-browsers/chromium_headless_shell-1194/chrome-linux/headless_shell`.
 - Replays don't carry rules, layout or stats; a content change silently changes what an old replay plays.
 - Context7 isn't reachable from the cloud container; library APIs were checked against the installed type definitions.
@@ -33,14 +33,26 @@ Sculpt log. The **Current state** block is rewritten at the end of every session
 **Golden replays:** none (the RNG sequence and the seed-1234 shuffle are pinned in tests)
 
 **Next cuts** (in order):
-1. Stars on the HUD and a win/lose/draw screen; the client auto-saves the replay of a finished match.
-2. `?replay=` plays a replay back in the client, and `pnpm shots` learns `?replay=&tick=`.
-3. Stage 1 exit review: play a full match against the bot headless and in the browser, then close the stage.
-4. `pnpm sim sweep --matches <n>` (the 2,000-seed check from S13 as a real command), ahead of Stage 2's 1,000-match criterion.
+1. `?replay=` plays a replay back in the client (a file URL, or `last` for the localStorage one), and `pnpm shots` learns `?replay=&tick=` and an end-screen shot.
+2. Stage 1 exit review: play a full match against the bot headless and in the browser, then close the stage.
+3. `pnpm sim sweep --matches <n>` (the 2,000-seed check from S13 as a real command), ahead of Stage 2's 1,000-match criterion.
+4. A fresh seed per match in the client (`?seed=`, and *Play again* picks a new one).
 
 ---
 
 ## Sessions
+
+### S14 · 2026-09-30 · Stars, the end screen, and the client saves its replay
+**Stage:** 1 — Block-in
+**Cut:** Show both sides' stars on the HUD, a win/lose/draw screen when the match ends, and auto-save the finished match's replay in the browser (Next cuts 1). The client showed neither stars nor an ending.
+**Done:**
+- Sim: `MAX_STARS` (3) replaces the hard-coded 3 in `step` and the invariants, and is exported (third use: the HUD). No behavior change; seed 42 still hashes `5d516ada`.
+- Client: `ScreenLayout` gains `hud.stars` (per side, a column in the last tile column right of the bridge, growing away from the river) and `end` (panel, title, star groups, two buttons). `HudScene.stars`/`starPips`, `drawStars` (Pixi `star`). `end-view.ts` (`endScene`, `outcome`: victory/defeat/draw per side, viewer's stars left) and `draw-end.ts` (`EndView`: shade, panel, title, stars, *Play again*, *Save replay*). `tap` returns an `EndAction` once the match is over, and nothing else answers then. `match-replay.ts` (`loopReplay`, `REPLAY_STORAGE_KEY`). `main.ts` saves the replay to localStorage on the tick the result appears (and sets `data-replay-saved`), reloads on *Play again*, downloads `factor-seed-0.json` on *Save replay*.
+- Fix: a match decided as regulation runs out showed `OT 2:00`; the clock now stays at `0:00` unless overtime really starts.
+**Verified:** `pnpm check` green (43 files, 313 tests; 11 new): pips earned from `current`, both players see the same stars, star columns on their bank and clear of the bridge (phone and desktop), outcomes for both sides and draws, the panel and buttons inside the arena and apart, taps after the end answer only the buttons and play nothing, buttons dead while the match runs, a 40-tap live match vs the bot saved → loaded → replayed to the same tick, result and hash, the replay is a copy, and the clock at a decided 3:00. 4 mutations were each caught. `pnpm shots` twice gave `586a9e3247b1` (stars added); I looked at it. Headless `?tick=99999`: Defeat 0-2 panel (looked at it). A live headless run with a faked clock: one tap, the match ran to its end, the replay was in localStorage, and `pnpm sim`'s `playReplay` played it back with invariants (side 1 wins 0-2 at 3:00). *Save replay* downloaded `factor-seed-0.json`, byte-identical to the stored replay; *Play again* reloaded to a fresh match; the clock read `0:00` (looked at it); no page errors.
+**Decisions:** Stars read the same for both players, by side color: side 0's below the river, side 1's above. *Play again* reloads the page (a new seed is Next cuts 4). The replay is saved only in live play, never in `?tick=` mode, so a shot doesn't overwrite a real match. `MAX_STARS` is a rule constant in the sim, not content (like `TICKS_PER_SECOND`).
+**Left out / noticed:** `?replay=` and an end-screen shot (Next cuts 1). A fresh seed per match (Next cuts 4). Faint hollow stars (Known issues). **Playtest (director):** are the stars readable at a glance on a phone? Does the end panel feel like an ending? Is *Save replay* a useful way to hand over a match?
+**Status:** complete
 
 ### S13 · 2026-09-30 · A random bot plays side 1
 **Stage:** 1 — Block-in
