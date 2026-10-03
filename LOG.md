@@ -41,6 +41,18 @@ Sculpt log. The **Current state** block is rewritten at the end of every session
 
 ## Sessions
 
+### S26 · 2026-10-03 · Stage 2 exit review
+**Stage:** 2 — Form → 3 — Detail
+**Cut:** Check every Stage 2 exit criterion end to end, in the browser too, and finish the client readability left over (dormant Keeps, a fresh seed per match, why a tied match was won).
+**Done:**
+- Client: dormant Keeps drawn dimmed with an inner ring until they wake; `?seed=<n>` (0 by default) and *Play again* on a fresh random seed (`url-params.ts`); the end panel says "Stars tied: decided on tower hp" when the tiebreak decided.
+- Sim tests: a unit stays locked on when a nearer enemy arrives, and retargets when its target dies or leaves range (towers had this; units didn't).
+- Stage 2 criteria: every §4 rule implemented and covered (target filters, flyers, lock-on/retarget, collision and pushing, deploy delay, Keep activation, deploy-zone extension, 2× energy, overtime, tiebreak); 8 archetype cards; goldens in place; `pnpm sim sweep --matches 1000` (S25, sim unchanged since): 0 violations, 0 mismatches.
+**Verified:** `pnpm check` green (59 files, 413 tests; 7 new). `pnpm playtest`: a full live match in headless Chromium, seed 0, side 0 won on the tiebreak at 5:00 (1-1), 45 plays taken, 29 refused for energy, no page errors, the `?replay=last` end screen pixel-identical. A scripted 60 s live session on seed 7, every hand slot and both lanes: no errors; looked at frames (shots in flight, flyers, the bot's bastion, units crossing). `pnpm dev` in the app's browser pane at phone size: the hand, the selection and the shade for a closed lane, a rabble deployed; the pane was hidden, so frames didn't advance there. Looked at `arena.png` (dimmed Keeps) and the tiebreak note.
+**Decisions:** Stage 2 is complete. *Play again* uses the client's own randomness for the seed (never the sim's); the first match stays seed 0 so `pnpm shots` and `pnpm playtest` are unchanged.
+**Left out / noticed:** Feel can't be signed off by the agent. **Playtest (director):** play a few matches on a phone. Do flyers, buildings and splash read at a glance? Is the opened lane after an Outpost falls too strong? Does the bastion stall pushes too long?
+**Status:** complete
+
 ### S25 · 2026-10-02 · Deploy zone extension and the tiebreak
 **Stage:** 2 — Form
 **Cut:** The last two §4 rules: a fallen enemy Outpost opens that lane's side of the enemy half for deploys, and stars tied at the end of overtime go to the tower-hp tiebreak.

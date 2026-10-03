@@ -24,10 +24,13 @@ export interface ScreenRect {
 
 export type GroundKind = 'tile-light' | 'tile-dark' | 'river' | 'bridge';
 
-/** Something to draw. Towers carry their owner and whether they've fallen; the ground belongs to no one. */
+/**
+ * Something to draw. Towers carry their owner, whether they've fallen, and whether they're dormant
+ * (a Keep before it wakes, VISION §4); the ground belongs to no one.
+ */
 export type Shape =
   | { kind: GroundKind; rect: ScreenRect }
-  | { kind: 'keep' | 'outpost'; side: Side; rect: ScreenRect; fallen: boolean };
+  | { kind: 'keep' | 'outpost'; side: Side; rect: ScreenRect; fallen: boolean; dormant: boolean };
 
 /** How much hp something has left, as a bar on the screen: `fraction` of it filled in its side's color. */
 export interface HpBar {
@@ -146,6 +149,7 @@ export function towerScene(state: Pick<SimState, 'towers'>, view: View): Shape[]
     side: tower.side,
     rect: toScreen(view, towerFootprint(tower)),
     fallen: tower.hp === 0,
+    dormant: tower.dormant,
   }));
 }
 

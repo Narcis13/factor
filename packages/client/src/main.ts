@@ -1,8 +1,9 @@
 // Browser entry. Runs a match live at 20 ticks/s; side 0 plays by tapping a card, then the arena,
 // against a random bot on side 1. `?replay=<url>` (or `?replay=last`) plays a replay back instead,
-// from side 0's seat, with the hand shown but not playable. `?tick=<n>` plays either to tick n with no
-// taps and freezes it there (for `pnpm shots`). When a live match ends, its replay is saved in
-// localStorage; every end screen offers a new live match or the replay as a file.
+// from side 0's seat, with the hand shown but not playable. `?seed=<n>` picks the live match's seed
+// (0 by default). `?tick=<n>` plays either to tick n with no taps and freezes it there (for
+// `pnpm shots`). When a live match ends, its replay is saved in localStorage; every end screen offers
+// a new live match on a fresh seed, or the replay as a file.
 import { createRandomBot } from '@factor/bot';
 import { BOT_TUNING, matchSetup, saveReplay, STARTER_DECKS, type Replay } from '@factor/content';
 import { createMatch } from '@factor/sim';
@@ -17,6 +18,7 @@ import { hudScene } from './hud-view.ts';
 import { advance, alpha, BLAST_TICKS, createLoop, runTo } from './match-loop.ts';
 import { loopReplay, readReplay, REPLAY_STORAGE_KEY } from './match-replay.ts';
 import { layoutScreen, type ScreenLayout } from './screen-layout.ts';
+import { freshSeed, parseSeed, parseTick } from './url-params.ts';
 
 const app = new Application();
 await app.init({
@@ -34,7 +36,7 @@ const params = new URLSearchParams(window.location.search);
 const frozenAt = parseTick(params.get('tick'));
 const replayName = params.get('replay');
 const watched: Replay | null = replayName === null ? null : await readReplay(replayName, { stored, fetchText }).catch(showError);
-const SEED = watched?.seed ?? 0;
+const SEED = watched?.seed ?? parseSeed(params.get('seed')) ?? 0;
 const DECKS = watched?.decks ?? STARTER_DECKS;
 const start = createMatch(matchSetup(SEED, DECKS));
 const loop = watched === null ? createLoop(start, [createRandomBot(1, SEED, start, BOT_TUNING)]) : createLoop(start, [], watched.commands);
@@ -93,8 +95,8 @@ if (frozenAt === null) {
   app.canvas.addEventListener('pointerdown', (event) => {
     const action = tap(controls, loop, layout, event.clientX, event.clientY);
     if (action === 'again') {
-      // A fresh live match, even after watching a replay.
-      window.location.assign(window.location.pathname);
+      // A fresh live match on a new seed (new shuffles, a new bot), even after watching a replay.
+      window.location.assign(`${window.location.pathname}?seed=${String(freshSeed(Math.random))}`);
     } else if (action === 'save-replay' && replayText !== null) {
       download(`factor-seed-${String(SEED)}.json`, replayText);
     }
@@ -164,11 +166,4 @@ function download(name: string, text: string): void {
   setTimeout(() => {
     URL.revokeObjectURL(url);
   }, 1000);
-}
-
-function parseTick(value: string | null): number | null {
-  if (value === null || !/^\d+$/.test(value)) {
-    return null;
-  }
-  return Number(value);
 }

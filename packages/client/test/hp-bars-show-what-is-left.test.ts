@@ -32,6 +32,12 @@ test('a damaged tower shows what it has left; a fallen one has no bar and is dra
   expect(towerScene(state, VIEW).map((shape) => ('fallen' in shape ? shape.fallen : null))).toEqual([false, false, false, false, true, false]);
 });
 
+test('the Keeps are drawn dormant until they wake; Outposts never are', () => {
+  expect(towerScene(START, VIEW).map((shape) => ('dormant' in shape ? shape.dormant : null))).toEqual([true, false, false, true, false, false]);
+  const awake = { ...START, towers: START.towers.map((tower) => (tower.id === 0 ? { ...tower, dormant: false } : tower)) };
+  expect(towerScene(awake, VIEW).map((shape) => ('dormant' in shape ? shape.dormant : null))).toEqual([false, false, false, true, false, false]);
+});
+
 test('a unit at full hp has no bar; a damaged one has one as wide as its circle, above it', () => {
   expect(hpBarScene({ towers: [] }, [unit(1200, 1200)], VIEW)).toEqual([]);
   expect(hpBarScene({ towers: [] }, [unit(300, 1200)], VIEW)).toEqual([

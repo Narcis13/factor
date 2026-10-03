@@ -16,6 +16,10 @@ export interface EndScene {
   titleAt: ScreenPoint;
   /** The viewer's stars on the left, the opponent's on the right. */
   stars: StarPip[];
+  /** Why the match was decided, when the stars don't say: the tower-hp tiebreak (VISION §4). `null` otherwise. */
+  note: string | null;
+  /** The center of the note, between the stars and the buttons. */
+  noteAt: ScreenPoint;
   again: ScreenRect;
   save: ScreenRect;
 }
@@ -26,11 +30,15 @@ export function endScene(state: Pick<SimState, 'result' | 'stars'>, side: Side, 
     return null;
   }
   const opponent = side === 0 ? 1 : 0;
+  const starsBottom = (layout.stars.left[0]?.y ?? layout.title.y) + layout.starRadius;
+  const tiebreak = state.result.winner !== null && state.stars[0] === state.stars[1];
   return {
     outcome: outcome(state.result, side),
     panel: layout.panel,
     titleAt: layout.title,
     stars: [...starPips(state, side, layout.stars.left, layout.starRadius), ...starPips(state, opponent, layout.stars.right, layout.starRadius)],
+    note: tiebreak ? 'Stars tied: decided on tower hp' : null,
+    noteAt: { x: layout.title.x, y: Math.round((starsBottom + layout.again.y) / 2) },
     again: layout.again,
     save: layout.save,
   };

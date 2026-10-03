@@ -23,9 +23,14 @@ export function drawArena(graphics: Graphics, shapes: Shape[]): void {
     const { x, y, width, height } = shape.rect;
     graphics.rect(x, y, width, height);
     if (shape.kind === 'keep' || shape.kind === 'outpost') {
-      // A fallen tower stays as grey rubble, ringed in its side's color.
+      // A fallen tower stays as grey rubble, ringed in its side's color. A dormant Keep is its side's
+      // color dimmed, with an inner ring, until it wakes.
       const [fill, edge] = shape.fallen ? [RUBBLE, SIDE_COLOR[shape.side]] : [SIDE_COLOR[shape.side], TOWER_EDGE];
-      graphics.fill({ color: fill }).stroke({ color: edge, width: 2 });
+      graphics.fill({ color: fill, alpha: shape.dormant ? 0.45 : 1 }).stroke({ color: edge, width: 2 });
+      if (shape.dormant) {
+        const inset = Math.max(2, width / 6);
+        graphics.rect(x + inset, y + inset, width - inset * 2, height - inset * 2).stroke({ color: SIDE_COLOR[shape.side], width: 2, alpha: 0.9 });
+      }
     } else {
       graphics.fill({ color: GROUND[shape.kind] });
     }
