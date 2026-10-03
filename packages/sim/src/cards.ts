@@ -31,6 +31,8 @@ export interface UnitStats extends AttackStats {
   sight: number;
   targets: TargetFilter;
   layer: Layer;
+  /** Units a play of the card spawns, in a formation around the aim point (VISION §4). At least 1. */
+  count: number;
 }
 
 /**
@@ -46,8 +48,8 @@ export interface SpellStats {
 }
 
 /**
- * What the sim needs to know about a card. A troop deploys one unit on its side's half; a spell
- * lands anywhere. Energy spent to play it is `cost`.
+ * What the sim needs to know about a card. A troop deploys `unit.count` units on its side's half; a
+ * spell lands anywhere. Energy spent to play it is `cost`.
  */
 export type CardStats = { cost: number; type: 'troop'; unit: UnitStats } | { cost: number; type: 'spell'; spell: SpellStats };
 
@@ -133,10 +135,10 @@ function copyCard(stats: CardStats): CardStats {
     const { radius, damage, towerDamageBp } = stats.spell;
     return { cost: stats.cost, type: 'spell', spell: { radius, damage, towerDamageBp } };
   }
-  const { hp, speed, radius, mass, range, sight, targets, layer, damage, hitTicks, firstHitTicks } = stats.unit;
+  const { hp, speed, radius, mass, range, sight, targets, layer, count, damage, hitTicks, firstHitTicks } = stats.unit;
   return {
     cost: stats.cost,
     type: 'troop',
-    unit: { hp, speed, radius, mass, range, sight, targets, layer, damage, hitTicks, firstHitTicks },
+    unit: { hp, speed, radius, mass, range, sight, targets, layer, count, damage, hitTicks, firstHitTicks },
   };
 }

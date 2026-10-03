@@ -44,6 +44,9 @@ export interface MatchRules {
   deployDelayTicks: number;
 }
 
+/** The most units one play may spawn. */
+const MAX_COUNT = 30;
+
 /** The most stars a side can hold: destroying the Keep brings its destroyer here and ends the match (VISION §4). */
 export const MAX_STARS = 3;
 
@@ -120,11 +123,12 @@ export function createMatch(setup: MatchSetup): SimState {
   for (const [id, card] of Object.entries(cards)) {
     requireInteger(`${id} cost`, card.cost, 0, energy.max);
     if (card.type === 'troop') {
-      const { hp, speed, radius, mass, sight, targets, layer } = card.unit;
+      const { hp, speed, radius, mass, sight, targets, layer, count } = card.unit;
       requireInteger(`${id} hp`, hp, 1);
       requireInteger(`${id} speed`, speed, 1);
       requireInteger(`${id} radius`, radius, 1);
       requireInteger(`${id} mass`, mass, 1);
+      requireInteger(`${id} count`, count, 1, MAX_COUNT);
       requireAttack(id, card.unit);
       requireInteger(`${id} sight`, sight, card.unit.range);
       // Setups come from outside the type system too (hand-edited content), so check the string.

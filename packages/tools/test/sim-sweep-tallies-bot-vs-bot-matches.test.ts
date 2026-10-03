@@ -50,7 +50,9 @@ test('plays per card match the troops that deployed and the spells that landed',
   for (let index = 0; index < MATCHES; index++) {
     let lastId = -1;
     playReplay(botReplay(FROM + index), undefined, (state) => {
-      state.units.filter((unit) => unit.id > lastId).forEach((unit) => count(unit.card));
+      // A bot plays at most once a tick, and a swarm's units all appear together: one play per side and card.
+      const fresh = state.units.filter((unit) => unit.id > lastId);
+      new Set(fresh.map((unit) => `${String(unit.side)} ${unit.card}`)).forEach((play) => count(play.slice(2)));
       lastId = Math.max(lastId, state.nextId - 1);
       state.blasts.forEach((blast) => count(blast.card));
     });

@@ -10,6 +10,7 @@ const CARD_COLOR: Record<CardId, number> = {
   slinger: 0x6b8e3a,
   flare: 0xc2562b,
   harrier: 0xd4b13a,
+  rabble: 0x9c4fb8,
 };
 
 export function cardColor(card: CardId): number {

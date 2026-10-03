@@ -32,6 +32,31 @@ export function deployZone(arena: Terrain, side: Side): Rect {
     : { x: 0, y: riverEnd, width: arena.width, height: arena.height - riverEnd };
 }
 
+/**
+ * Where a play's `count` units appear (VISION §4, Card types): rows of up to ⌈√count⌉, each row
+ * centered, units a diameter apart, the formation centered on the aim point. Rows run from the
+ * front (toward the enemy) back, so side 1's formation is side 0's mirrored. Kept inside the arena;
+ * the end-of-tick push moves any that landed on a tower or in the river.
+ */
+export function formation(arena: Terrain, aim: { side: Side; x: number; y: number }, count: number, radius: number): Point[] {
+  let columns = 1;
+  while (columns * columns < count) {
+    columns++;
+  }
+  const rows = Math.ceil(count / columns);
+  const forward = aim.side === 0 ? 1 : -1;
+  const points: Point[] = [];
+  for (let i = 0; i < count; i++) {
+    const row = Math.floor(i / columns);
+    const inRow = Math.min(columns, count - row * columns);
+    const column = i % columns;
+    const dx = (column * 2 - (inRow - 1)) * radius;
+    const dy = ((rows - 1) - row * 2) * radius * forward;
+    points.push({ x: clamp(aim.x + dx, 0, arena.width - 1), y: clamp(aim.y + dy, 0, arena.height - 1) });
+  }
+  return points;
+}
+
 export function inRect(rect: Rect, x: number, y: number): boolean {
   return x >= rect.x && x < rect.x + rect.width && y >= rect.y && y < rect.y + rect.height;
 }

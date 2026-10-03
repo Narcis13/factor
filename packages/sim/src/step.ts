@@ -5,7 +5,7 @@ import { placementRejection } from './placement.ts';
 import { decideResult } from './result.ts';
 import { blastHits } from './spells.ts';
 import { copyCards, copyRules, copyTerrain, copyTowerStats, MAX_STARS, type Command, type RejectReason, type Side, type SimState } from './state.ts';
-import { actTower, actUnit, unitStats, type Hit } from './troops.ts';
+import { actTower, actUnit, formation, unitStats, type Hit } from './troops.ts';
 
 /**
  * Advances the match by exactly one tick. `commands` are the commands for `state.tick`.
@@ -43,11 +43,13 @@ export function step(state: SimState, commands: readonly Command[]): SimState {
       const card = handCard(next, command);
       playCard(next.players[command.side], command.handSlot, card.stats.cost);
       if (card.stats.type === 'troop') {
-        const { hp } = card.stats.unit;
-        const { side, x, y } = command;
+        const { hp, count, radius } = card.stats.unit;
+        const { side } = command;
         const deployTicks = next.rules.deployDelayTicks;
-        next.units.push({ id: next.nextId, side, card: card.id, x, y, hp, maxHp: hp, deployTicks, targetId: null, cooldown: 0 });
-        next.nextId += 1;
+        for (const { x, y } of formation(next.arena, command, count, radius)) {
+          next.units.push({ id: next.nextId, side, card: card.id, x, y, hp, maxHp: hp, deployTicks, targetId: null, cooldown: 0 });
+          next.nextId += 1;
+        }
       } else {
         const { side, x, y } = command;
         next.blasts.push({ side, card: card.id, x, y });

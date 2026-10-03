@@ -3,7 +3,7 @@ import { expect, test } from 'vitest';
 import { CARD_IDS, CARDS, MATCH_RULES, matchSetup, STARTER_DECK } from '../src/index.ts';
 
 test('the cards each cost something playable', () => {
-  expect(CARD_IDS).toEqual(['juggernaut', 'warden', 'slinger', 'flare', 'harrier']);
+  expect(CARD_IDS).toEqual(['juggernaut', 'warden', 'slinger', 'flare', 'harrier', 'rabble']);
   for (const id of CARD_IDS) {
     expect(CARDS[id].cost).toBeGreaterThan(0);
     expect(CARDS[id].cost).toBeLessThanOrEqual(MATCH_RULES.energy.max);

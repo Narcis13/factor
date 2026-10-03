@@ -8,9 +8,9 @@
       "slinger",
       "flare",
       "harrier",
+      "rabble",
       "juggernaut",
-      "warden",
-      "slinger"
+      "warden"
     ],
     [
       "juggernaut",
@@ -18,9 +18,9 @@
       "slinger",
       "flare",
       "harrier",
+      "rabble",
       "juggernaut",
-      "warden",
-      "slinger"
+      "warden"
     ]
   ],
   "commands": [
@@ -53,7 +53,7 @@
       "y": 6500
     },
     {
-      "tick": 392,
+      "tick": 336,
       "side": 1,
       "handSlot": 2,
       "x": 2500,
@@ -67,63 +67,70 @@
       "y": 6500
     },
     {
-      "tick": 616,
+      "tick": 560,
       "side": 1,
       "handSlot": 2,
       "x": 15500,
       "y": 29500
     },
     {
-      "tick": 672,
+      "tick": 616,
       "side": 0,
       "handSlot": 2,
       "x": 9500,
       "y": 11500
     },
     {
-      "tick": 896,
-      "side": 1,
-      "handSlot": 1,
-      "x": 13500,
-      "y": 17500
-    },
-    {
-      "tick": 952,
+      "tick": 784,
       "side": 0,
       "handSlot": 1,
       "x": 16500,
       "y": 11500
     },
     {
-      "tick": 1064,
+      "tick": 840,
+      "side": 1,
+      "handSlot": 1,
+      "x": 13500,
+      "y": 17500
+    },
+    {
+      "tick": 1008,
+      "side": 0,
+      "handSlot": 2,
+      "x": 13700,
+      "y": 16746
+    },
+    {
+      "tick": 1008,
       "side": 1,
       "handSlot": 2,
       "x": 8500,
       "y": 20500
     },
     {
-      "tick": 1176,
-      "side": 0,
-      "handSlot": 2,
-      "x": 4500,
-      "y": 16820
-    },
-    {
-      "tick": 1288,
-      "side": 1,
-      "handSlot": 1,
-      "x": 5500,
-      "y": 21500
-    },
-    {
-      "tick": 1400,
+      "tick": 1232,
       "side": 0,
       "handSlot": 2,
       "x": 11500,
       "y": 13500
     },
     {
-      "tick": 1456,
+      "tick": 1232,
+      "side": 1,
+      "handSlot": 1,
+      "x": 5500,
+      "y": 21500
+    },
+    {
+      "tick": 1512,
+      "side": 0,
+      "handSlot": 2,
+      "x": 5500,
+      "y": 5500
+    },
+    {
+      "tick": 1512,
       "side": 1,
       "handSlot": 0,
       "x": 17500,
@@ -133,151 +140,158 @@
       "tick": 1680,
       "side": 0,
       "handSlot": 2,
-      "x": 5500,
-      "y": 5500
-    },
-    {
-      "tick": 1736,
-      "side": 1,
-      "handSlot": 3,
-      "x": 500,
-      "y": 27500
-    },
-    {
-      "tick": 1904,
-      "side": 0,
-      "handSlot": 2,
       "x": 12500,
       "y": 3500
     },
     {
-      "tick": 1960,
+      "tick": 1680,
       "side": 1,
-      "handSlot": 1,
-      "x": 14500,
-      "y": 24500
+      "handSlot": 3,
+      "x": 11500,
+      "y": 23500
     },
     {
-      "tick": 2184,
+      "tick": 1848,
       "side": 0,
       "handSlot": 2,
       "x": 3500,
       "y": 10500
     },
     {
-      "tick": 2240,
+      "tick": 1848,
       "side": 1,
-      "handSlot": 3,
-      "x": 15500,
-      "y": 23500
+      "handSlot": 1,
+      "x": 7500,
+      "y": 17500
     },
     {
-      "tick": 2352,
+      "tick": 2016,
       "side": 0,
       "handSlot": 0,
       "x": 1500,
       "y": 3500
     },
     {
-      "tick": 2432,
+      "tick": 2128,
       "side": 1,
       "handSlot": 3,
-      "x": 1500,
-      "y": 23500
+      "x": 17500,
+      "y": 24500
     },
     {
-      "tick": 2488,
+      "tick": 2240,
       "side": 0,
       "handSlot": 0,
       "x": 11500,
       "y": 5500
     },
     {
-      "tick": 2544,
+      "tick": 2352,
       "side": 1,
-      "handSlot": 2,
-      "x": 2233,
-      "y": 8705
+      "handSlot": 3,
+      "x": 1500,
+      "y": 23500
     },
     {
-      "tick": 2600,
+      "tick": 2432,
       "side": 0,
       "handSlot": 1,
-      "x": 17500,
+      "x": 2500,
       "y": 12500
     },
     {
-      "tick": 2684,
+      "tick": 2488,
+      "side": 1,
+      "handSlot": 2,
+      "x": 12540,
+      "y": 10596
+    },
+    {
+      "tick": 2572,
+      "side": 0,
+      "handSlot": 0,
+      "x": 13500,
+      "y": 1500
+    },
+    {
+      "tick": 2572,
       "side": 1,
       "handSlot": 2,
       "x": 12500,
       "y": 30500
     },
     {
-      "tick": 2740,
+      "tick": 2656,
       "side": 0,
-      "handSlot": 0,
-      "x": 13500,
-      "y": 8500
+      "handSlot": 1,
+      "x": 3500,
+      "y": 11500
     },
     {
-      "tick": 2768,
+      "tick": 2712,
       "side": 1,
       "handSlot": 3,
       "x": 1500,
       "y": 17500
     },
     {
-      "tick": 2852,
+      "tick": 2740,
       "side": 0,
-      "handSlot": 1,
-      "x": 10500,
-      "y": 12500
+      "handSlot": 0,
+      "x": 6500,
+      "y": 13500
     },
     {
-      "tick": 2880,
+      "tick": 2824,
       "side": 1,
       "handSlot": 0,
       "x": 8500,
       "y": 17500
     },
     {
-      "tick": 2992,
+      "tick": 2852,
       "side": 0,
       "handSlot": 0,
-      "x": 15500,
-      "y": 500
+      "x": 9500,
+      "y": 5500
     },
     {
-      "tick": 3020,
+      "tick": 2964,
       "side": 1,
       "handSlot": 3,
       "x": 11500,
       "y": 22500
     },
     {
-      "tick": 3104,
+      "tick": 2992,
       "side": 0,
-      "handSlot": 0,
-      "x": 500,
-      "y": 7500
+      "handSlot": 3,
+      "x": 11500,
+      "y": 3500
     },
     {
-      "tick": 3132,
+      "tick": 3076,
+      "side": 0,
+      "handSlot": 1,
+      "x": 13500,
+      "y": 3500
+    },
+    {
+      "tick": 3076,
       "side": 1,
       "handSlot": 3,
-      "x": 604,
-      "y": 7884
+      "x": 3500,
+      "y": 6500
+    },
+    {
+      "tick": 3160,
+      "side": 0,
+      "handSlot": 1,
+      "x": 8500,
+      "y": 5500
     },
     {
       "tick": 3188,
-      "side": 0,
-      "handSlot": 3,
-      "x": 1500,
-      "y": 1500
-    },
-    {
-      "tick": 3244,
       "side": 1,
       "handSlot": 0,
       "x": 13500,
@@ -286,9 +300,9 @@
     {
       "tick": 3272,
       "side": 0,
-      "handSlot": 1,
-      "x": 2500,
-      "y": 4500
+      "handSlot": 0,
+      "x": 7500,
+      "y": 12500
     },
     {
       "tick": 3328,
@@ -300,9 +314,9 @@
     {
       "tick": 3384,
       "side": 0,
-      "handSlot": 1,
-      "x": 16500,
-      "y": 14500
+      "handSlot": 0,
+      "x": 12500,
+      "y": 1500
     },
     {
       "tick": 3412,
@@ -313,17 +327,17 @@
     },
     {
       "tick": 3496,
-      "side": 0,
-      "handSlot": 0,
-      "x": 17500,
-      "y": 500
-    },
-    {
-      "tick": 3524,
       "side": 1,
       "handSlot": 2,
       "x": 11500,
       "y": 23500
+    },
+    {
+      "tick": 3524,
+      "side": 0,
+      "handSlot": 3,
+      "x": 5500,
+      "y": 1500
     }
   ]
 }

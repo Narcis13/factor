@@ -49,7 +49,7 @@ export const CARDS: Record<CardId, CardStats> = {
 };
 
 /** Both hit every 10 ticks, the first time 5 ticks after locking on, and notice enemies 4 tiles off. */
-const FIGHT = { hitTicks: 10, firstHitTicks: 5, sight: 4000, targets: 'ground', layer: 'ground' } as const;
+const FIGHT = { hitTicks: 10, firstHitTicks: 5, sight: 4000, targets: 'ground', layer: 'ground', count: 1 } as const;
 
 export const TROOPS: Record<CardId, CardStats> = {
   walker: { cost: 1, type: 'troop', unit: { hp: 500, speed: 50, radius: 500, mass: 5, range: 0, damage: 50, ...FIGHT } },
