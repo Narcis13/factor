@@ -25,6 +25,24 @@ function sim(...args: string[]) {
   return spawnSync(process.execPath, [cli, ...args], { encoding: 'utf8' });
 }
 
+/** How many checkpoints a stored golden has, and its last tick: what `goldens` prints for it. */
+function stored(name: string): { checkpoints: number; lastTick: number } {
+  const ticks = Object.keys(readGoldenHashes(GOLDENS)[name] ?? {}).map(Number);
+  return { checkpoints: ticks.length, lastTick: Math.max(...ticks) };
+}
+
+/**
+ * Every golden's name. seed-0, seed-42 and seed-54 are always kept; the rest are chosen, when the
+ * goldens are re-recorded, to cover the kinds of ending below.
+ */
+const NAMES = Object.keys(readGoldenHashes(GOLDENS));
+/** A golden that isn't one of the three always kept, to remove from a copy. */
+const SPARE = NAMES.find((name) => !['seed-0', 'seed-42', 'seed-54'].includes(name)) ?? 'none';
+
+/** A bot-vs-bot seed that isn't a golden, to add to a copy. */
+const EXTRA_SEED = [9, 10, 11, 12, 13, 14].find((seed) => !NAMES.includes(`seed-${String(seed)}`)) ?? 999;
+const EXTRA = `seed-${String(EXTRA_SEED)}`;
+
 /** A copy of the real goldens to tamper with. */
 function copyGoldens(): string {
   const dir = mkdtempSync(join(tmpdir(), 'factor-goldens-'));
@@ -36,7 +54,9 @@ function copyGoldens(): string {
 
 test('every golden replay still plays to its stored hashes', () => {
   const checks = checkGoldens(GOLDENS);
-  expect(checks.map((check) => check.name)).toEqual(['seed-0', 'seed-24', 'seed-27', 'seed-4', 'seed-42', 'seed-54']);
+  expect(checks.map((check) => check.name)).toEqual(NAMES);
+  expect(NAMES).toEqual(expect.arrayContaining(['seed-0', 'seed-42', 'seed-54']));
+  expect(SPARE).not.toBe('none');
   for (const check of checks) {
     expect(check, check.name).toMatchObject({ problem: null });
   }
@@ -57,10 +77,13 @@ test('hashes are stored every checkpoint and at the end, and the last is the mat
   const hashes = goldenHashes(replay);
   const final = playReplay(replay);
   const ticks = Object.keys(hashes).map(Number);
-  expect(ticks).toEqual([...Array.from({ length: Math.floor(final.tick / GOLDEN_EVERY) }, (_, i) => (i + 1) * GOLDEN_EVERY), final.tick]);
+  // The final tick is a checkpoint of its own unless it falls on one.
+  const every = Array.from({ length: Math.floor(final.tick / GOLDEN_EVERY) }, (_, i) => (i + 1) * GOLDEN_EVERY);
+  expect(ticks).toEqual(final.tick % GOLDEN_EVERY === 0 ? every : [...every, final.tick]);
   expect(hashes[String(final.tick)]).toBe(hashState(final));
   expect(hashes[String(GOLDEN_EVERY)]).toBe(hashState(playReplay(replay, GOLDEN_EVERY)));
-  expect(readGoldenHashes(GOLDENS)['seed-42']?.['3600']).toBe('14d647f7');
+  const end42 = playReplay(botReplay(42));
+  expect(readGoldenHashes(GOLDENS)['seed-42']?.[String(end42.tick)]).toBe(hashState(end42));
 });
 
 test('a changed hash fails at its checkpoint and names the tick', () => {
@@ -71,7 +94,7 @@ test('a changed hash fails at its checkpoint and names the tick', () => {
   writeFileSync(join(dir, GOLDEN_HASHES_FILE), JSON.stringify(hashes));
   const failed = checkGoldens(dir).filter((check) => check.problem !== null);
   expect(failed).toEqual([
-    { name: 'seed-42', checkpoints: 18, lastTick: 3600, problem: `tick 1200: expected 00000000, got ${String(readGoldenHashes(GOLDENS)['seed-42']?.['1200'])}` },
+    { name: 'seed-42', ...stored('seed-42'), problem: `tick 1200: expected 00000000, got ${String(readGoldenHashes(GOLDENS)['seed-42']?.['1200'])}` },
   ]);
 
   // Checkpoints compare in tick order, not text order ("1200" < "400").
@@ -83,32 +106,34 @@ test('a changed hash fails at its checkpoint and names the tick', () => {
 test('a match that now ends at another tick fails at the first checkpoint it misses', () => {
   const dir = copyGoldens();
   const hashes = readGoldenHashes(dir);
-  hashes['seed-0'] = { ...hashes['seed-0'], '3800': 'abcdef01' };
+  const past = String(stored('seed-0').lastTick + GOLDEN_EVERY);
+  hashes['seed-0'] = { ...hashes['seed-0'], [past]: 'abcdef01' };
   writeFileSync(join(dir, GOLDEN_HASHES_FILE), JSON.stringify(hashes));
-  expect(checkGoldens(dir).find((check) => check.name === 'seed-0')?.problem).toBe('tick 3800: expected abcdef01, got no checkpoint');
+  expect(checkGoldens(dir).find((check) => check.name === 'seed-0')?.problem).toBe(`tick ${past}: expected abcdef01, got no checkpoint`);
 });
 
 test('a replay with no stored hashes, hashes with no replay, and a replay that no longer plays all fail', () => {
   const dir = copyGoldens();
-  writeFileSync(join(dir, 'seed-9.json'), saveReplay(botReplay(9)));
-  rmSync(join(dir, 'seed-27.json'));
-  const extra = { tick: 3700, side: 0 as const, handSlot: 0, x: 0, y: 0 };
+  writeFileSync(join(dir, `${EXTRA}.json`), saveReplay(botReplay(EXTRA_SEED)));
+  rmSync(join(dir, `${SPARE}.json`));
+  const { lastTick } = stored('seed-42');
+  const extra = { tick: lastTick + 100, side: 0 as const, handSlot: 0, x: 0, y: 0 };
   writeFileSync(join(dir, 'seed-42.json'), saveReplay({ ...botReplay(42), commands: [...botReplay(42).commands, extra] }));
   const problems = Object.fromEntries(checkGoldens(dir).map((check) => [check.name, check.problem]));
-  expect(problems['seed-9']).toBe('no stored hashes in hashes.json');
-  expect(problems['seed-27']).toBe('stored hashes but no replay');
-  expect(problems['seed-42']).toBe('The match ended at tick 3600 with 1 commands unplayed');
+  expect(problems[EXTRA]).toBe('no stored hashes in hashes.json');
+  expect(problems[SPARE]).toBe('stored hashes but no replay');
+  expect(problems['seed-42']).toBe(`The match ended at tick ${String(lastTick)} with 1 commands unplayed`);
 });
 
 test('--update stores fresh hashes for every replay and drops hashes with no replay', () => {
   const dir = copyGoldens();
-  writeFileSync(join(dir, 'seed-9.json'), saveReplay(botReplay(9)));
-  rmSync(join(dir, 'seed-27.json'));
+  writeFileSync(join(dir, `${EXTRA}.json`), saveReplay(botReplay(EXTRA_SEED)));
+  rmSync(join(dir, `${SPARE}.json`));
   writeFileSync(join(dir, GOLDEN_HASHES_FILE), '{}');
   expect(updateGoldens(dir).every((check) => check.problem === null)).toBe(true);
   const hashes = readGoldenHashes(dir);
-  expect(Object.keys(hashes)).toEqual(['seed-0', 'seed-24', 'seed-4', 'seed-42', 'seed-54', 'seed-9']);
-  expect(hashes['seed-9']).toEqual(goldenHashes(botReplay(9)));
+  expect(Object.keys(hashes)).toEqual([...NAMES.filter((name) => name !== SPARE), EXTRA].sort());
+  expect(hashes[EXTRA]).toEqual(goldenHashes(botReplay(EXTRA_SEED)));
   expect(hashes['seed-42']).toEqual(readGoldenHashes(GOLDENS)['seed-42']);
   expect(readFileSync(join(dir, GOLDEN_HASHES_FILE), 'utf8')).toBe(readFileSync(join(dir, GOLDEN_HASHES_FILE), 'utf8').trimEnd() + '\n');
 });
@@ -116,8 +141,10 @@ test('--update stores fresh hashes for every replay and drops hashes with no rep
 test('goldens prints one line per golden and exits 0 when all match', () => {
   const { status, stdout } = sim('goldens', '--dir', GOLDENS);
   expect(status).toBe(0);
-  expect(stdout).toContain('seed-42  ok      18 checkpoints to tick 3600');
-  expect(stdout.trimEnd().split('\n')).toHaveLength(6);
+  const { checkpoints, lastTick } = stored('seed-42');
+  // Names are padded to the longest one.
+  expect(stdout).toMatch(new RegExp(`^seed-42 +ok +${String(checkpoints)} checkpoints to tick ${String(lastTick)}$`, 'm'));
+  expect(stdout.trimEnd().split('\n')).toHaveLength(NAMES.length);
 });
 
 test('goldens exits 1 and names the tick when a golden changed; --update fixes it', () => {
@@ -127,10 +154,11 @@ test('goldens exits 1 and names the tick when a golden changed; --update fixes i
   writeFileSync(join(dir, GOLDEN_HASHES_FILE), JSON.stringify(hashes));
   const failed = sim('goldens', '--dir', dir);
   expect(failed.status).toBe(1);
-  expect(failed.stdout).toMatch(/^seed-54 {2}FAIL {4}tick 200: expected ffffffff, got [0-9a-f]{8}$/m);
+  expect(failed.stdout).toMatch(/^seed-54 +FAIL {4}tick 200: expected ffffffff, got [0-9a-f]{8}$/m);
   const updated = sim('goldens', '--dir', dir, '--update');
   expect(updated.status).toBe(0);
-  expect(updated.stdout).toContain('seed-54  stored  30 checkpoints to tick 6000');
+  const { checkpoints, lastTick } = stored('seed-54');
+  expect(updated.stdout).toMatch(new RegExp(`^seed-54 +stored +${String(checkpoints)} checkpoints to tick ${String(lastTick)}$`, 'm'));
   expect(readGoldenHashes(dir)).toEqual(readGoldenHashes(GOLDENS));
 });
 

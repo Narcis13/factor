@@ -48,9 +48,13 @@ export interface ArenaLayout extends Terrain {
   towers: TowerSite[];
 }
 
-/** How something hits (VISION §4). Every hit lands instantly for now; projectiles come later. */
+/** How something hits (VISION §4). */
 export interface AttackStats {
   damage: number;
+  /** Milli-tiles around where a hit lands that it also hits; 0 hits the target alone. */
+  splash: number;
+  /** Milli-tiles per tick a hit flies before it lands; 0 lands at once (melee). */
+  projectileSpeed: number;
   /** Ticks between hits once it's attacking. */
   hitTicks: number;
   /** Ticks from locking on to the first hit. At least 1. */
@@ -79,4 +83,10 @@ export interface Tower extends TowerSite {
    * it has taken damage or one of its own Outposts has fallen (VISION §4). Outposts are never dormant.
    */
   dormant: boolean;
+}
+
+/** The square of ground a tower stands on. */
+export function footprint({ x, y, size }: Pick<TowerSite, 'x' | 'y' | 'size'>): Rect {
+  const half = Math.floor(size / 2);
+  return { x: x - half, y: y - half, width: size, height: size };
 }

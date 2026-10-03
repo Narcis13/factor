@@ -1,5 +1,5 @@
 import { towerFootprint } from '@factor/content';
-import { deployZone, MILLI_PER_TILE, type Blast, type CardId, type Rect, type Side, type SimState, type Terrain } from '@factor/sim';
+import { deployZones, MILLI_PER_TILE, type Blast, type CardId, type Rect, type Side, type SimState, type Splash, type Terrain } from '@factor/sim';
 
 /**
  * How the arena sits on the screen: a whole number of pixels per tile, centered, with side 0 at the
@@ -24,10 +24,13 @@ export interface ScreenRect {
 
 export type GroundKind = 'tile-light' | 'tile-dark' | 'river' | 'bridge';
 
-/** Something to draw. Towers carry their owner and whether they've fallen; the ground belongs to no one. */
+/**
+ * Something to draw. Towers carry their owner, whether they've fallen, and whether they're dormant
+ * (a Keep before it wakes, VISION §4); the ground belongs to no one.
+ */
 export type Shape =
   | { kind: GroundKind; rect: ScreenRect }
-  | { kind: 'keep' | 'outpost'; side: Side; rect: ScreenRect; fallen: boolean };
+  | { kind: 'keep' | 'outpost'; side: Side; rect: ScreenRect; fallen: boolean; dormant: boolean };
 
 /** How much hp something has left, as a bar on the screen: `fraction` of it filled in its side's color. */
 export interface HpBar {
@@ -36,6 +39,9 @@ export interface HpBar {
   /** In [0, 1]. */
   fraction: number;
 }
+
+/** How far above its shadow a flying unit is drawn, in its radii. */
+export const FLY_LIFT = 0.9;
 
 /** A unit on the screen: a circle, in CSS pixels. */
 export interface UnitShape {
@@ -47,6 +53,10 @@ export interface UnitShape {
   radius: number;
   /** Still waiting out its deploy delay. */
   deploying: boolean;
+  /** A flying unit: drawn over the ground units, lifted above its shadow. */
+  flying: boolean;
+  /** A building: drawn as a square block rather than a disc. */
+  building: boolean;
   hp: number;
   maxHp: number;
 }
@@ -55,6 +65,23 @@ export interface UnitShape {
 export interface BlastShape {
   side: Side;
   card: CardId;
+  x: number;
+  y: number;
+  radius: number;
+  fade: number;
+}
+
+/** A shot in flight on the screen: a dot in its side's color, bigger for a splash shell. */
+export interface ProjectileShape {
+  side: Side;
+  x: number;
+  y: number;
+  radius: number;
+}
+
+/** A splash that landed: a ring of its radius, fading out as `fade` falls from 1 toward 0. */
+export interface SplashShape {
+  side: Side;
   x: number;
   y: number;
   radius: number;
@@ -122,6 +149,7 @@ export function towerScene(state: Pick<SimState, 'towers'>, view: View): Shape[]
     side: tower.side,
     rect: toScreen(view, towerFootprint(tower)),
     fallen: tower.hp === 0,
+    dormant: tower.dormant,
   }));
 }
 
@@ -141,7 +169,8 @@ export function hpBarScene(state: Pick<SimState, 'towers'>, units: readonly Unit
   }
   for (const unit of units) {
     if (unit.hp < unit.maxHp) {
-      const rect = { x: unit.x - unit.radius, y: unit.y - unit.radius - gap - height, width: unit.radius * 2, height };
+      const top = unit.y - unit.radius - (unit.flying ? unit.radius * FLY_LIFT : 0);
+      const rect = { x: unit.x - unit.radius, y: top - gap - height, width: unit.radius * 2, height };
       bars.push({ side: unit.side, rect, fraction: unit.hp / unit.maxHp });
     }
   }
@@ -150,20 +179,25 @@ export function hpBarScene(state: Pick<SimState, 'towers'>, units: readonly Unit
 
 /**
  * Units, `alpha` of the way from where they stood in `previous` to where they stand in `current`
- * (VISION §5). A unit new in `current` shows where it is.
+ * (VISION §5). A unit new in `current` shows where it is. Ground units come first, then flying ones,
+ * so flyers are drawn on top.
  */
 export function unitScene(previous: SimState, current: SimState, alpha: number, view: View): UnitShape[] {
   const before = new Map(previous.units.map((unit) => [unit.id, unit]));
   const scale = view.tilePx / MILLI_PER_TILE;
-  return current.units.map((unit) => {
+  const shapes = current.units.map((unit): UnitShape => {
     const from = before.get(unit.id) ?? unit;
     const x = from.x + (unit.x - from.x) * alpha;
     const y = from.y + (unit.y - from.y) * alpha;
     const stats = current.cards[unit.card];
-    const radius = stats?.type === 'troop' ? stats.unit.radius * scale : scale * MILLI_PER_TILE / 2;
+    const known = stats !== undefined && stats.type !== 'spell' ? stats : undefined;
+    const radius = known === undefined ? (scale * MILLI_PER_TILE) / 2 : known.unit.radius * scale;
+    const flying = known?.unit.layer === 'air';
+    const building = known?.type === 'building';
     const { id, side, card, hp, maxHp } = unit;
-    return { id, side, card, ...pointToScreen(view, x, y), radius, deploying: unit.deployTicks > 0, hp, maxHp };
+    return { id, side, card, ...pointToScreen(view, x, y), radius, deploying: unit.deployTicks > 0, flying, building, hp, maxHp };
   });
+  return [...shapes.filter((shape) => !shape.flying), ...shapes.filter((shape) => shape.flying)];
 }
 
 /**
@@ -189,10 +223,46 @@ export function blastScene(
   return shapes;
 }
 
-/** Where `side` may not deploy a troop, to shade while one is selected: the rest of the arena. */
-export function noDeployRect(arena: Terrain, side: Side): Rect {
-  const zone = deployZone(arena, side);
-  return zone.y === 0
-    ? { x: 0, y: zone.height, width: arena.width, height: arena.height - zone.height }
-    : { x: 0, y: 0, width: arena.width, height: zone.y };
+/**
+ * Shots in flight, `alpha` of the way from where they were in `previous` to where they are in
+ * `current`. A shot new in `current` shows where it is. A dot is a sixth of a tile across, a splash
+ * shell's a quarter.
+ */
+export function projectileScene(previous: Pick<SimState, 'projectiles'>, current: Pick<SimState, 'projectiles'>, alpha: number, view: View): ProjectileShape[] {
+  const before = new Map(previous.projectiles.map((shot) => [shot.id, shot]));
+  return current.projectiles.map((shot) => {
+    const from = before.get(shot.id) ?? shot;
+    const x = from.x + (shot.x - from.x) * alpha;
+    const y = from.y + (shot.y - from.y) * alpha;
+    return { side: shot.side, ...pointToScreen(view, x, y), radius: view.tilePx * (shot.splash > 0 ? 0.25 : 1 / 6) };
+  });
+}
+
+/** Recent splash hits as rings of their radius, each fading out like a blast over `lifeTicks`. */
+export function splashScene(splashes: readonly (Splash & { tick: number })[], current: Pick<SimState, 'tick'>, alpha: number, lifeTicks: number, view: View): SplashShape[] {
+  const scale = view.tilePx / MILLI_PER_TILE;
+  const shapes: SplashShape[] = [];
+  for (const { side, x, y, radius, tick } of splashes) {
+    const fade = 1 - (current.tick - tick + alpha) / lifeTicks;
+    if (fade > 0) {
+      shapes.push({ side, ...pointToScreen(view, x, y), radius: radius * scale, fade: Math.min(1, fade) });
+    }
+  }
+  return shapes;
+}
+
+/**
+ * Where `side` may not deploy a troop or building, to shade while one is selected: the river, and each
+ * lane's side of the enemy half that a fallen enemy Outpost hasn't opened.
+ */
+export function noDeployRects(state: Pick<SimState, 'arena' | 'towers'>, side: Side): Rect[] {
+  const { arena } = state;
+  const zones = deployZones(state, side);
+  const home = zones[0];
+  const riverEnd = arena.river.y + arena.river.height;
+  const enemy = home?.y === 0 ? { x: 0, y: riverEnd, width: arena.width, height: arena.height - riverEnd } : { x: 0, y: 0, width: arena.width, height: arena.river.y };
+  const middle = Math.floor(arena.width / 2);
+  const lanes = [{ ...enemy, width: middle }, { ...enemy, x: middle, width: arena.width - middle }];
+  const open = (lane: Rect) => zones.some((zone) => zone.x === lane.x && zone.y === lane.y && zone.width === lane.width && zone.height === lane.height);
+  return [{ ...arena.river }, ...lanes.filter((lane) => !open(lane))];
 }

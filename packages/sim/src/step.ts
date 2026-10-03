@@ -1,8 +1,11 @@
+import { flyProjectiles, resolveStrikes, type Strike } from './attacks.ts';
 import { copyPlayer, playCard, regenerate } from './cards.ts';
+import { separate } from './collision.ts';
+import { placementRejection } from './placement.ts';
 import { decideResult } from './result.ts';
 import { blastHits } from './spells.ts';
 import { copyCards, copyRules, copyTerrain, copyTowerStats, MAX_STARS, type Command, type RejectReason, type Side, type SimState } from './state.ts';
-import { actTower, actUnit, deployZone, inRect, unitStats, type Hit } from './troops.ts';
+import { actTower, actUnit, formation, groundObstacles, isBuilding, unitStats, type Hit } from './troops.ts';
 
 /**
  * Advances the match by exactly one tick. `commands` are the commands for `state.tick`.
@@ -21,6 +24,7 @@ export function step(state: SimState, commands: readonly Command[]): SimState {
     towers: state.towers.map((tower) => ({ ...tower })),
     towerStats: copyTowerStats(state.towerStats),
     units: state.units.map((unit) => ({ ...unit })),
+    projectiles: state.projectiles.map((shot) => ({ ...shot })),
     nextId: state.nextId,
     cards: copyCards(state.cards),
     players: [copyPlayer(state.players[0]), copyPlayer(state.players[1])],
@@ -28,6 +32,7 @@ export function step(state: SimState, commands: readonly Command[]): SimState {
     result: null,
     rejected: [],
     blasts: [],
+    splashes: [],
   };
   // Side 0 resolves first, whatever order the commands arrived in; order within a side is kept.
   // Each command sees the energy and hand the ones before it left. A spell picks its victims from the
@@ -39,12 +44,14 @@ export function step(state: SimState, commands: readonly Command[]): SimState {
     if (reason === null) {
       const card = handCard(next, command);
       playCard(next.players[command.side], command.handSlot, card.stats.cost);
-      if (card.stats.type === 'troop') {
-        const { hp } = card.stats.unit;
-        const { side, x, y } = command;
+      if (card.stats.type !== 'spell') {
+        const { hp, count, radius } = card.stats.unit;
+        const { side } = command;
         const deployTicks = next.rules.deployDelayTicks;
-        next.units.push({ id: next.nextId, side, card: card.id, x, y, hp, maxHp: hp, deployTicks, targetId: null, cooldown: 0 });
-        next.nextId += 1;
+        for (const { x, y } of formation(next.arena, command, count, radius)) {
+          next.units.push({ id: next.nextId, side, card: card.id, x, y, hp, maxHp: hp, deployTicks, age: 0, targetId: null, cooldown: 0 });
+          next.nextId += 1;
+        }
       } else {
         const { side, x, y } = command;
         next.blasts.push({ side, card: card.id, x, y });
@@ -65,18 +72,31 @@ export function step(state: SimState, commands: readonly Command[]): SimState {
 }
 
 /**
- * Towers, then units, act in id order; a new unit starts its deploy delay this very tick. Their hits
- * join the spells' `hits` and land together afterwards, so a unit that dies this tick still lands its own hit. Then the dead leave
+ * Projectiles fired before this tick fly, and those that arrive land. Then towers, then units, act in
+ * id order; a new unit starts its deploy delay this very tick. Their strikes land at once or start
+ * flying. All the tick's hits, the spells' included, land together afterwards, so a unit that dies
+ * this tick still lands its own hit. Then the dead leave
  * the field and fallen towers score (VISION §4, Winning): an Outpost earns its destroyer 1 star, the
- * Keep brings them to 3. Last, a dormant Keep that has taken damage or lost an Outpost wakes; it acts
- * from the next tick on.
+ * Keep brings them to 3. A dormant Keep that has taken damage or lost an Outpost wakes; it acts
+ * from the next tick on. Buildings lose their decay with the tick's hits. Last, the units left standing
+ * push each other apart, each layer on its own: ground units also out of standing towers, buildings
+ * and the river, flying units only within the arena. Buildings never move.
  */
 function fight(state: SimState, hits: Hit[]): void {
+  flyProjectiles(state, hits);
+  const strikes: Strike[] = [];
   for (const tower of state.towers) {
-    actTower(tower, state.towerStats[tower.kind], state, hits);
+    actTower(tower, state.towerStats[tower.kind], state, strikes);
   }
   for (const unit of state.units) {
-    actUnit(unit, unitStats(state, unit), state, hits);
+    actUnit(unit, unitStats(state, unit), state, strikes);
+  }
+  resolveStrikes(state, strikes, hits);
+  for (const unit of state.units) {
+    const card = state.cards[unit.card];
+    if (card?.type === 'building' && unit.age > 0) {
+      hits.push({ targetId: unit.id, damage: decay(unit.maxHp, card.lifetimeTicks, unit.age) });
+    }
   }
   const standing = state.towers.filter((tower) => tower.hp > 0);
   for (const { targetId, damage } of hits) {
@@ -97,6 +117,31 @@ function fight(state: SimState, hits: Hit[]): void {
       keep.dormant = false;
     }
   }
+  // Buildings don't move: ground units walk around them as they do around towers.
+  const obstacles = groundObstacles(state);
+  for (const layer of ['ground', 'air'] as const) {
+    const units = state.units.filter((unit) => !isBuilding(state, unit) && unitStats(state, unit).layer === layer);
+    const bodies = units.map((unit) => {
+      const { radius, mass } = unitStats(state, unit);
+      return { x: unit.x, y: unit.y, radius, mass };
+    });
+    separate(bodies, layer === 'ground' ? obstacles : [], state.arena, layer === 'ground');
+    units.forEach((unit, i) => {
+      const body = bodies[i];
+      if (body !== undefined) {
+        unit.x = body.x;
+        unit.y = body.y;
+      }
+    });
+  }
+}
+
+/**
+ * A building's hp lost on the tick it reaches `age`: its max hp spread evenly over its lifetime, the
+ * remainders falling where they add up, so it has lost exactly all of it at `lifetimeTicks`.
+ */
+function decay(maxHp: number, lifetimeTicks: number, age: number): number {
+  return Math.floor((maxHp * age) / lifetimeTicks) - Math.floor((maxHp * (age - 1)) / lifetimeTicks);
 }
 
 function outpostFallen(state: SimState, side: Side): boolean {
@@ -112,12 +157,10 @@ function validate(tick: number, state: SimState, command: Command): RejectReason
   if (!Number.isSafeInteger(handSlot) || handSlot < 0 || handSlot >= state.players[command.side].hand.length) {
     return 'bad-slot';
   }
-  if (!Number.isSafeInteger(x) || !Number.isSafeInteger(y) || x < 0 || x >= state.arena.width || y < 0 || y >= state.arena.height) {
-    return 'out-of-bounds';
-  }
   const { stats } = handCard(state, command);
-  if (stats.type === 'troop' && !inRect(deployZone(state.arena, command.side), x, y)) {
-    return 'outside-deploy-zone';
+  const misplaced = placementRejection(state, command.side, stats, x, y);
+  if (misplaced !== null) {
+    return misplaced;
   }
   if (state.players[command.side].energy < stats.cost) {
     return 'not-enough-energy';

@@ -8,7 +8,7 @@ const VIEW = fitView(ARENA, 540, 960);
 const START = createMatch(matchSetup(0));
 
 function unit(hp: number, maxHp: number): UnitShape {
-  return { id: 6, side: 1, card: 'warden', x: 100, y: 200, radius: 15, deploying: false, hp, maxHp };
+  return { id: 6, side: 1, card: 'warden', x: 100, y: 200, radius: 15, deploying: false, flying: false, building: false, hp, maxHp };
 }
 
 test('every standing tower has a full bar just above its footprint, as wide as it is', () => {
@@ -30,6 +30,12 @@ test('a damaged tower shows what it has left; a fallen one has no bar and is dra
   expect(bars).toHaveLength(5);
   expect(bars[1]?.fraction).toBe(625 / 2500);
   expect(towerScene(state, VIEW).map((shape) => ('fallen' in shape ? shape.fallen : null))).toEqual([false, false, false, false, true, false]);
+});
+
+test('the Keeps are drawn dormant until they wake; Outposts never are', () => {
+  expect(towerScene(START, VIEW).map((shape) => ('dormant' in shape ? shape.dormant : null))).toEqual([true, false, false, true, false, false]);
+  const awake = { ...START, towers: START.towers.map((tower) => (tower.id === 0 ? { ...tower, dormant: false } : tower)) };
+  expect(towerScene(awake, VIEW).map((shape) => ('dormant' in shape ? shape.dormant : null))).toEqual([false, false, false, true, false, false]);
 });
 
 test('a unit at full hp has no bar; a damaged one has one as wide as its circle, above it', () => {

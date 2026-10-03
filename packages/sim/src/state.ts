@@ -3,6 +3,7 @@ import { dealPlayer, pickCards, type CardId, type CardStats, type EnergyRules, t
 import { hashJson } from './hash.ts';
 import { seedRng, type Rng } from './rng.ts';
 import { BASIS_POINTS } from './units.ts';
+import type { Projectile, Splash } from './attacks.ts';
 import type { Blast } from './spells.ts';
 import type { Unit } from './troops.ts';
 
@@ -20,9 +21,9 @@ export interface Command {
 /**
  * Why a command did nothing: `wrong-tick` (stamped for another tick), `bad-slot` (no such hand slot),
  * `out-of-bounds` (the point is outside the arena), `outside-deploy-zone` (a troop aimed outside its
- * side's half) or `not-enough-energy` (less energy than the card costs).
+ * side's half), `occupied` (a troop aimed on a standing tower) or `not-enough-energy` (less energy than the card costs).
  */
-export type RejectReason = 'wrong-tick' | 'bad-slot' | 'out-of-bounds' | 'outside-deploy-zone' | 'not-enough-energy';
+export type RejectReason = 'wrong-tick' | 'bad-slot' | 'out-of-bounds' | 'outside-deploy-zone' | 'occupied' | 'not-enough-energy';
 
 export interface RejectedCommand {
   command: Command;
@@ -43,6 +44,9 @@ export interface MatchRules {
   /** Ticks a troop's unit stands on the field before it acts. */
   deployDelayTicks: number;
 }
+
+/** The most units one play may spawn. */
+const MAX_COUNT = 30;
 
 /** The most stars a side can hold: destroying the Keep brings its destroyer here and ends the match (VISION §4). */
 export const MAX_STARS = 3;
@@ -65,7 +69,9 @@ export interface SimState {
   towerStats: Record<TowerKind, TowerStats>;
   /** Troops on the field, ascending by id. Their ids follow the towers'. */
   units: Unit[];
-  /** The id the next unit gets. */
+  /** Shots in flight, ascending by id. They share the units' id sequence. */
+  projectiles: Projectile[];
+  /** The id the next unit or projectile gets. */
   nextId: number;
   /** The stats of every card in either deck, by id. Never changes during a match. */
   cards: Record<CardId, CardStats>;
@@ -79,6 +85,8 @@ export interface SimState {
   rejected: RejectedCommand[];
   /** Spells that landed in the step that produced this state, in resolution order. */
   blasts: Blast[];
+  /** Splash hits that landed in the step that produced this state, in resolution order. */
+  splashes: Splash[];
 }
 
 /** Everything a match starts from. The numbers come from `content` (D7). */
@@ -119,16 +127,29 @@ export function createMatch(setup: MatchSetup): SimState {
   const cards = pickCards(setup.cards, [...setup.decks[0], ...setup.decks[1]]);
   for (const [id, card] of Object.entries(cards)) {
     requireInteger(`${id} cost`, card.cost, 0, energy.max);
-    if (card.type === 'troop') {
-      const { hp, speed, radius, sight, targets } = card.unit;
+    if (card.type !== 'spell') {
+      const { hp, speed, radius, mass, sight, targets, layer, count } = card.unit;
       requireInteger(`${id} hp`, hp, 1);
-      requireInteger(`${id} speed`, speed, 1);
+      if (card.type === 'building') {
+        requireInteger(`${id} lifetimeTicks`, card.lifetimeTicks, 1);
+        // A building stands still on the ground, one per play.
+        if (speed !== 0 || layer !== 'ground' || count !== 1) {
+          throw new RangeError(`${id} is a building: speed 0, layer ground and count 1, got ${String(speed)}, ${layer}, ${String(count)}`);
+        }
+      } else {
+        requireInteger(`${id} speed`, speed, 1);
+      }
       requireInteger(`${id} radius`, radius, 1);
+      requireInteger(`${id} mass`, mass, 1);
+      requireInteger(`${id} count`, count, 1, MAX_COUNT);
       requireAttack(id, card.unit);
       requireInteger(`${id} sight`, sight, card.unit.range);
       // Setups come from outside the type system too (hand-edited content), so check the string.
-      if (!(['ground', 'buildings'] as readonly string[]).includes(targets)) {
-        throw new RangeError(`${id} targets must be ground or buildings, got ${targets}`);
+      if (!(['ground', 'air', 'buildings'] as readonly string[]).includes(targets)) {
+        throw new RangeError(`${id} targets must be ground, air or buildings, got ${targets}`);
+      }
+      if (!(['ground', 'air'] as readonly string[]).includes(layer)) {
+        throw new RangeError(`${id} layer must be ground or air, got ${layer}`);
       }
     } else {
       const { radius, damage, towerDamageBp } = card.spell;
@@ -155,6 +176,7 @@ export function createMatch(setup: MatchSetup): SimState {
     towers,
     towerStats,
     units: [],
+    projectiles: [],
     nextId: towers.length,
     cards,
     players,
@@ -162,6 +184,7 @@ export function createMatch(setup: MatchSetup): SimState {
     result: null,
     rejected: [],
     blasts: [],
+    splashes: [],
   };
 }
 
@@ -192,12 +215,22 @@ export function copyRules({ regulationTicks, overtimeTicks, deckSize, handSize, 
 }
 
 export function copyTowerStats(stats: Readonly<Record<TowerKind, TowerStats>>): Record<TowerKind, TowerStats> {
-  const copy = ({ hp, damage, hitTicks, firstHitTicks, range }: TowerStats): TowerStats => ({ hp, damage, hitTicks, firstHitTicks, range });
+  const copy = ({ hp, damage, splash, projectileSpeed, hitTicks, firstHitTicks, range }: TowerStats): TowerStats => ({
+    hp,
+    damage,
+    splash,
+    projectileSpeed,
+    hitTicks,
+    firstHitTicks,
+    range,
+  });
   return { keep: copy(stats.keep), outpost: copy(stats.outpost) };
 }
 
-function requireAttack(name: string, { damage, hitTicks, firstHitTicks, range }: AttackStats): void {
+function requireAttack(name: string, { damage, splash, projectileSpeed, hitTicks, firstHitTicks, range }: AttackStats): void {
   requireInteger(`${name} damage`, damage, 0);
+  requireInteger(`${name} splash`, splash, 0);
+  requireInteger(`${name} projectileSpeed`, projectileSpeed, 0);
   requireInteger(`${name} hitTicks`, hitTicks, 1);
   requireInteger(`${name} firstHitTicks`, firstHitTicks, 1);
   requireInteger(`${name} range`, range, 0);

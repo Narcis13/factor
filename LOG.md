@@ -6,41 +6,121 @@ Sculpt log. The **Current state** block is rewritten at the end of every session
 
 ## Current state
 
-**Stage:** 2 — Form (Stage 1 — Block-in closed in S16)
-**Last session:** S19 · 2026-09-30
+**Stage:** 3 — Detail (Stage 2 — Form closed in S26)
+**Last session:** S26 · 2026-10-03
 **Works:**
 - A pnpm monorepo with `sim`, `content`, `bot`, `tools` and `client` packages, strict TS 6.0, no build step.
-- `pnpm check` is green: typecheck, lint, 360 tests (one of them drives headless Chromium), the golden replays included.
+- `pnpm check` is green: typecheck, lint, 413 tests (one of them drives headless Chromium), the golden replays included.
 - ESLint enforces the sim's hard rules (imports, Math/Date/timers, async, classes, `**`, float literals) in the sim and its tests, and in the bot (which may import only `sim` and `content`).
-- Sim: `createMatch(setup)`, pure `step(state, commands)` at a fixed tick, sfc32 RNG in state, `hashState`. `MatchSetup` carries rules, the `ArenaLayout`, tower stats, a card catalog and both decks.
-- Players: energy 5 → 10, +1 per 56 ticks, 2× from 2:00 and in overtime. Decks of 8 shuffled from the seed; hand of 4 + queue; plays spend and cycle, with 5 rejection reasons.
-- Troops deploy one `Unit` on their own half, wait 20 ticks, then act: lock-on, acquisition in sight (`ground | buildings`), lane and bridge walking, timed hits. Towers lock on to the nearest enemy unit in range. Keeps start dormant and wake for good once hurt or once one of their Outposts falls. An Outpost gives 1 star; the Keep ends the match (`MAX_STARS`).
-- Spells land instantly anywhere: enemy units and towers in the circle take `damage`, towers only `towerDamageBp` of it.
-- Match timer and result: 3:00 regulation, then up to 2:00 overtime while stars are tied.
-- Bot: `createRandomBot`/`botTurn` (pure, own seeded rng), pacing in `BOT_TUNING`. `playBotMatch(seed)`.
-- Content: `CARDS` (juggernaut, warden, slinger, flare), `TOWER_STATS`, `MATCH_RULES`, `ARENA`, `BOT_TUNING`, `matchSetup(seed, decks?)`, replay v0.
-- `pnpm sim match`/`replay` (seed 42: side 1 wins 0-1 at 3:00, `14d647f7`). `pnpm sim sweep --matches 1000`: 0 violations, 0 mismatches, ~45 s. `pnpm sim goldens [--update]`. `pnpm shots`: `arena.png` `586a9e3247b1`, `end.png` `e680085d8eeb`. `pnpm playtest`: a full live match in headless Chromium, checked against its replay.
-- Client: `pnpm dev` runs seed 0 live, human side 0 vs the bot. HUD stars, end panel, replay in localStorage, *Play again*, *Save replay*; `?replay=last|<url>` and `?tick=`.
+- Sim: `createMatch(setup)`, pure `step(state, commands)` at a fixed tick, sfc32 RNG in state, `hashState`. `MatchSetup` carries rules, the `ArenaLayout`, tower stats, a card catalog and both decks. Every §4 rule is in and has scenario tests.
+- Players: energy 5 → 10, +1 per 56 ticks, 2× from 2:00 and in overtime. Decks of 8 shuffled from the seed; hand of 4 + queue; plays spend and cycle, with 6 rejection reasons. `deployZones` (own half + lanes opened by fallen enemy Outposts) and `placementRejection` (the bot uses both).
+- Units (`troops.ts`): `count` per play in a mirrored formation; 1 s deploy delay; lock-on until the target dies or leaves range; acquisition in sight by filter (`ground | air | buildings`; `air` reaches both layers, `buildings` towers and buildings); ground units walk lane and bridge around towers and buildings, `air` units fly straight. `collision.ts`: pushes by mass per layer, out of towers, buildings and the river; slides take the shorter clear way; head-on pairs step aside. `attacks.ts`: melee hits land at once, ranged ones fly as homing projectiles; splash hits what the filter reaches, towers too. Buildings: static units that decay over their lifetime.
+- Towers shoot the nearest enemy in range, ground or air, with projectiles. Keeps start dormant and wake when hurt or when an Outpost of theirs falls. Spells hit both layers, towers for `towerDamageBp`. Result: 3:00, overtime while tied, then the weakest-standing-tower tiebreak.
+- Content: 8 cards, one per archetype: juggernaut (tank), warden (melee), slinger (ranged), rabble (swarm), harrier (flyer), bombardier (splash), flare (spell), bastion (building). `STARTER_DECK` holds each once.
+- Bot: `createRandomBot`/`botTurn` (random legal plays, own seeded rng), `playBotMatch(seed)`.
+- Tools: `pnpm sim match`/`replay` (seed 42: side 0 wins 1-0 at 3:00, `8c4bb8f0`); `pnpm sim sweep --matches 1000`: 0 violations, 0 mismatches, ~61 s; `pnpm sim goldens [--update]`; `pnpm shots` (`arena.png` `dae59c9f3cc4`, `end.png` `2aec0a54fe55`); `pnpm playtest` (a full live match in headless Chromium, ~5 min).
+- Client (placeholder shapes): flyers lifted over shadows, buildings as squares, shots as dots, splashes as rings, dormant Keeps dimmed with an inner ring, no-deploy shade per closed lane. `?seed=`, *Play again* on a fresh seed, `?replay=`, `?tick=`; the end panel says when the tiebreak decided.
 **Known issues:**
-- No formatter configured yet. Units don't collide, and they can be deployed on a tower's footprint. Nothing on screen shows that a Keep is dormant.
+- No formatter configured yet. Nothing on screen shows that a tower's footprint refuses troops.
+- Steering is local: a unit walled in by its own building between the arena's edge and a tower waits until the building decays. Sweeps take ~61 s.
+- The deploy-zone extension is the whole lane of the enemy half (§4 as written); random-bot Keep kills are now 18% of matches. Director to decide whether it should stop short of the Keep.
 - Hp bars are thin, units are small and low-contrast, and the flare marker and hollow HUD stars are faint.
-- *Play again* replays seed 0, so the bot and the shuffle are the same every match.
-- Browser tools need `FACTOR_CHROMIUM=/opt/pw-browsers/chromium_headless_shell-1194/chrome-linux/headless_shell` in the cloud container (without it the shots test fails). It runs Node 22 (`engines` asks for ≥ 24; pnpm warns, everything works).
+- On Windows: pnpm comes through corepack (`corepack pnpm`), and Chromium needs `pnpm --filter @factor/tools exec playwright install --only-shell chromium` once. In the cloud container, `FACTOR_CHROMIUM=/opt/pw-browsers/chromium_headless_shell-1194/chrome-linux/headless_shell`.
 - Replays don't carry rules, layout or stats; a content change silently changes what an old replay plays.
-- Context7 isn't reachable from the cloud container; library APIs were checked against the installed type definitions.
-- `stepTo` in the client is now used only by tests. The sweep's hash check is live vs replay in one process; across machines is the goldens' job.
-**Golden replays:** `goldens/` holds 6 bot-vs-bot replays with a hash every 200 ticks and at the end (`hashes.json`): seed-0 (side 1 wins 1-2 at 3:00), seed-4 (side 0 wins 1-0 at 3:00), seed-24 (a Keep kill at 2:56), seed-27 (an overtime star at 4:02), seed-42 (side 1 wins 0-1, `14d647f7`) and seed-54 (a 2-2 draw at 5:00). The state carries card and tower stats, so any content change fails them all at tick 200. After a rule change, re-record them (`pnpm sim match --seed <n> --replay goldens/seed-<n>.json`) and `--update`.
+- Context7 isn't reachable; library APIs were checked against the installed type definitions.
+**Golden replays:** `goldens/` holds bot-vs-bot replays with a hash every 200 ticks and at the end (`hashes.json`): seed-0, seed-42 and seed-54 always, plus the first seeds that cover a regulation win for each side, an overtime win, a Keep kill and a draw (now seed-3, seed-9, seed-234). The goldens tests read the names from `hashes.json`. After a rule change: re-record (`pnpm sim match --seed <n> --replay goldens/seed-<n>.json` for each) and `--update`.
 
 **Next cuts** (in order):
-1. Collision and pushing by mass, and no deploys on a tower's footprint.
-2. Deploy zone extension (§4): a fallen enemy Outpost opens that lane's side of the enemy half.
-3. The tiebreak (§4): still tied after overtime, the side whose lowest-HP tower has less HP loses (seed-54 will change).
-4. Show a dormant Keep in the client (dimmed until it wakes), so the rule reads at a glance (pillar 2).
-5. A fresh seed per match in the client (`?seed=`, and *Play again* picks a new one).
+1. The heuristic bot: defends a threatened lane, counter-pushes, manages energy (Stage 3).
+2. Balance sweeps with varied decks: win rate per card, flagging outliers for the director (Stage 3).
+3. 8 more cards toward 16, each with scenario tests for its defining behavior (Stage 3).
+4. Waiting on the director: art direction for sprites, animations, hit effects and SFX (Stage 3; VISION §11).
 
 ---
 
 ## Sessions
+
+### S26 · 2026-10-03 · Stage 2 exit review
+**Stage:** 2 — Form → 3 — Detail
+**Cut:** Check every Stage 2 exit criterion end to end, in the browser too, and finish the client readability left over (dormant Keeps, a fresh seed per match, why a tied match was won).
+**Done:**
+- Client: dormant Keeps drawn dimmed with an inner ring until they wake; `?seed=<n>` (0 by default) and *Play again* on a fresh random seed (`url-params.ts`); the end panel says "Stars tied: decided on tower hp" when the tiebreak decided.
+- Sim tests: a unit stays locked on when a nearer enemy arrives, and retargets when its target dies or leaves range (towers had this; units didn't).
+- Stage 2 criteria: every §4 rule implemented and covered (target filters, flyers, lock-on/retarget, collision and pushing, deploy delay, Keep activation, deploy-zone extension, 2× energy, overtime, tiebreak); 8 archetype cards; goldens in place; `pnpm sim sweep --matches 1000` (S25, sim unchanged since): 0 violations, 0 mismatches.
+**Verified:** `pnpm check` green (59 files, 413 tests; 7 new). `pnpm playtest`: a full live match in headless Chromium, seed 0, side 0 won on the tiebreak at 5:00 (1-1), 45 plays taken, 29 refused for energy, no page errors, the `?replay=last` end screen pixel-identical. A scripted 60 s live session on seed 7, every hand slot and both lanes: no errors; looked at frames (shots in flight, flyers, the bot's bastion, units crossing). `pnpm dev` in the app's browser pane at phone size: the hand, the selection and the shade for a closed lane, a rabble deployed; the pane was hidden, so frames didn't advance there. Looked at `arena.png` (dimmed Keeps) and the tiebreak note.
+**Decisions:** Stage 2 is complete. *Play again* uses the client's own randomness for the seed (never the sim's); the first match stays seed 0 so `pnpm shots` and `pnpm playtest` are unchanged.
+**Left out / noticed:** Feel can't be signed off by the agent. **Playtest (director):** play a few matches on a phone. Do flyers, buildings and splash read at a glance? Is the opened lane after an Outpost falls too strong? Does the bastion stall pushes too long?
+**Status:** complete
+
+### S25 · 2026-10-02 · Deploy zone extension and the tiebreak
+**Stage:** 2 — Form
+**Cut:** The last two §4 rules: a fallen enemy Outpost opens that lane's side of the enemy half for deploys, and stars tied at the end of overtime go to the tower-hp tiebreak.
+**Done:**
+- Sim: `deployZones(state, side)` replaces `deployZone`: the home half, then each lane (split down the middle) of the enemy half whose enemy Outpost has fallen. `placementRejection` checks all of them; the river never opens and standing towers stay `occupied`. `decideResult`: at the end of overtime with stars tied, the side whose weakest standing tower has less hp loses; equal hp is a draw. With no overtime the tiebreak comes at the end of regulation.
+- Bot: picks among legal tiles of every zone. Client: `noDeployRects` shades the river and each closed lane of the enemy half (an opened lane is left clear).
+**Verified:** `pnpm check` green (57 files, 406 tests; 8 new): zones for each side and lane, the opener's opponent gains nothing, both lanes open; deploys in the opened lane (on rubble too), refused in the closed lane, the river and the Keep; tiebreak wins either way, a Keep counting, weakest not total, fallen Outposts not counted as 0, an even tiebreak a draw, no tiebreak at the end of regulation when overtime follows; the shade with a lane opened. `pnpm sim sweep --matches 1000`: 1000 healthy, 0 violations, 0 mismatches, 61 s; draws 147 → 1, Keep kills ~0 → 18%; one bot play refused as `occupied` (both sides aimed the same spot of an opened lane on one tick; side 0 resolves first).
+**Decisions:** The extension is the whole lane side of the enemy half, as §4 reads, so a fallen Outpost lets troops land beside the Keep; that makes Keep kills common for the random bot. **For the director:** should the opened zone stop short of the Keep (a content number for its depth)? The tiebreak compares standing towers only, as fallen ones would make every star-tied match with lost Outposts a draw. Goldens re-recorded on purpose (seed 42 → `8c4bb8f0`).
+**Left out / noticed:** The shade for an opened lane can't be seen in a deterministic shot (it shows only while a card is selected); the browser review will check it.
+**Status:** complete
+
+### S24 · 2026-10-02 · Buildings
+**Stage:** 2 — Form
+**Cut:** The building card type: static, targetable, its hp decaying over its lifetime (§4 Card types), with the building archetype card, the last Stage 2 card.
+**Done:**
+- Sim: `CardStats` gains `building` (`unit` stats with speed 0, ground, count 1, plus `lifetimeTicks`; `createMatch` enforces it). A building is a `Unit` that never moves: it locks on to what comes within sight and never falls back to walking at a tower. `Unit.age` counts ticks acted; a building loses `maxHp / lifetimeTicks` a tick (remainders spread exactly) with the tick's hits. `canTarget` takes whether the target is a building: `buildings` filters now take towers and buildings in sight. Ground units walk around buildings and are pushed out of them (`Obstacle` = rect + `pad`; a building is its center padded by its radius); buildings aren't pushed. Placement: a building must be on its side's half, clear of standing towers and other buildings, and wholly inside the arena.
+- Steering fixes found by a new stuck-unit probe (units with no target standing still): a unit beside the bank was sent straight across into the water; a unit pressed into a face spent its whole step snapping back; slides could pick an end blocked by another obstacle or the arena edge; corner tangents fought face slides; near head-on pairs (two buildings-only units on a bridge) pushed forever, so pairs in a column now also step aside; a crossing unit now aims a radius past the far bank. Stuck time fell from ~10% of juggernaut ticks to ~0.5% (what remains is a unit walled in by its own building).
+- Content: `bastion`, 4 energy, 1100 hp, a 5.5-tile turret hitting air and ground for 30 s. `STARTER_DECK` is now the 8 cards once each. Client: buildings drawn as squares.
+**Verified:** `pnpm check` green (56 files, 400 tests; 7 new): a building stands, waits its delay, decays 2 a tick and falls at exactly its lifetime; it shoots in range and waits otherwise; a buildings-only unit and a walker both go for a building in sight; a walker gets around a friendly building in its lane while it stands; placement on towers, buildings and the edge refused; troops may still be played on a building; bad building stats refused; plus a head-on step-aside push test. `pnpm sim sweep --matches 1000`: 1000 healthy, 0 violations, 0 mismatches, 67 s. Looked at seed 42 at tick 396 (side 1's bastion, a square with its hp running down).
+**Decisions:** A building is a unit with speed 0 rather than a new entity, so targeting, projectiles, spells and invariants cover it unchanged. Its decay is not damage from anyone, so it never wakes a Keep or scores. Goldens re-recorded on purpose (seed 42 → `c77fa690`); the goldens tests no longer assume names are padded to 7 characters.
+**Left out / noticed:** Draws rose to 15% of random-bot matches: the tiebreak is next.
+**Status:** complete
+
+### S23 · 2026-10-02 · Projectiles and splash
+**Stage:** 2 — Form
+**Cut:** Ranged hits fly as projectiles and hits can splash (§4 unit stats: projectile speed, splash radius), with the splash archetype card, a Stage 2 rule and card.
+**Done:**
+- Sim: `AttackStats.splash` and `projectileSpeed` (towers and units; 0 means a single target, landing at once). `attacks.ts`: towers and units now emit `Strike`s; `resolveStrikes` lands a melee one at once or launches a `Projectile` (ids from the shared sequence); `flyProjectiles`, first thing in `fight`, homes each shot on its target, keeps the last spot once the target falls, and lands it on arrival. A splash hits every enemy tower its circle touches and every enemy unit its attacker's filter reaches (towers' reach both layers), at full damage. `SimState.projectiles` and `splashes` (this tick's, for the client). Invariants for both; `createMatch` checks the new stats.
+- Content: towers shoot 16 tiles/s; slinger 10, harrier 12 tiles/s. `bombardier`, the splash unit: 4 energy, 650 hp, 4.5-tile range, shells at 8 tiles/s that splash 1.2 tiles, ground only.
+- Client: shots as dots in their side's color with a light rim, interpolated by id (splash shells bigger); landed splashes as fading rings, kept by the loop like blasts.
+**Verified:** `pnpm check` green (54 files, 393 tests; 11 new): a shot appears at tick 6 and lands 4 ticks later; it homes on a moved target; a shot whose target fell lands harmlessly, a splash there still hits; a splash hits enemies its filter reaches and towers, not friends or flyers; a melee splash lands at once; a tower's projectile; bad stats refused and a stray projectile breaks an invariant; client scenes for shots and splashes. Fixture towers and troops stay instant, so older scenarios keep their timings. `pnpm sim sweep --matches 1000`: 1000 healthy, 0 violations, 0 mismatches, 36 s. Looked at seed 42 at tick 852 (a bombardier's splash ring on an Outpost, a tower's shot in flight).
+**Decisions:** Strikes resolve after everyone acts and new shots start flying next tick, so order within a tick never decides who hits first. Splash isn't reduced on towers (only spells are, per §4). The golden-test "extra" seed is now any seed that isn't a golden. Goldens re-recorded on purpose (seed 42 → `a98d2a0f`).
+**Left out / noticed:** The client test for the bot now asks for ≥ 2 plays in 20 s (pricier cards in the deck).
+**Status:** complete
+
+### S22 · 2026-10-02 · Swarm: a troop spawns its count of units
+**Stage:** 2 — Form
+**Cut:** A troop play spawns `count` units (§4 Card types, unit stats), with the swarm archetype card, a Stage 2 rule and card.
+**Done:**
+- Sim: `UnitStats.count` (1–30, checked by `createMatch`). `formation` lays a play's units out in rows of up to ⌈√count⌉, a diameter apart, each row centered, the front row toward the enemy (mirrored for side 1), kept inside the arena; the end-of-tick push takes care of towers and the river. Ids are consecutive in formation order. One play still costs and cycles once.
+- Content: `rabble`, the swarm (3 energy, 4 units of 230 hp, radius 300). Every other card has `count: 1`. Purple in the client.
+**Verified:** `pnpm check` green (52 files, 382 tests; 6 new): a 2×2 formation with consecutive ids and one cost paid; side 1's formation mirrors side 0's; a short last row is centered and a count of 1 lands on the aim; swarms aimed at a corner, the riverbank or a bridge's bank stay healthy (on the bank where there's no bridge); swarm units fight and fall one by one; a count of 0 is refused. The sweep test counts one play per side and card a tick, not one per unit. `pnpm sim sweep --matches 1000`: 1000 healthy, 0 violations, 0 mismatches, 36 s. Looked at seed 42 at tick 91 (the rabble's 2×2 by side 0's Keep).
+**Decisions:** Formation offsets are whole radii, so the units of a swarm start touching, not overlapping. Goldens re-recorded on purpose (seed 42 → `164828ef`).
+**Left out / noticed:** Swarm units are small on a 24 px tile (7 px radius); fine for placeholders, a sprite question for Stage 3.
+**Status:** complete
+
+### S21 · 2026-10-02 · Flying units and the `air` target filter
+**Stage:** 2 — Form
+**Cut:** Flying units and the `air` target filter (§4 Card types, Targeting, Movement), with the flyer archetype card, a Stage 2 rule and card.
+**Done:**
+- Sim: `UnitStats.layer` (`ground | air`); `TargetFilter` gains `air`, which reaches both layers (`canTarget`). An `air`-layer unit flies straight at its goal, over towers and the river; acquisition skips units its filter can't reach. `separate` runs per layer (flyers only stay inside the arena). The river invariant applies to ground units only. `createMatch` refuses an unknown layer or filter.
+- Content: `harrier`, the flyer (4 energy, 750 hp, `air` filter). `slinger` now targets `air`, so the ranged unit answers flyers; warden and juggernaut can't. `STARTER_DECK` cycles the catalog to 8 cards.
+- Client: flyers drawn lifted (0.9 radius) over a dark shadow, after ground units; their hp bar rides above them. Harrier is yellow.
+**Verified:** `pnpm check` green (51 files, 376 tests; 7 new): a flyer crosses the river off the bridges and locks on to the nearest Outpost; ground and air units pass through each other while flyers push flyers; a flyer isn't pushed out of a tower or the river; a ground-only unit ignores a flyer 100 away while an `air` unit locks on; a flyer hits ground units and towers shoot flyers; a spell hits flyers; a bad layer or filter is refused. Sweep and card-list tests now read `CARD_IDS`. `pnpm sim sweep --matches 1000`: 1000 healthy, 0 violations, 0 mismatches, 29 s. Looked at a seed-42 frame at tick 432 (harrier over its shadow, zoomed) and `arena.png` (the bot's harrier; the new card in the hand).
+**Decisions:** `air` as a filter means "air and ground", as the ranged and anti-air units need; there's no air-only filter until a card wants one. Goldens re-recorded on purpose (seed 42 → `5b809008`).
+**Left out / noticed:** Nothing.
+**Status:** complete
+
+### S20 · 2026-10-02 · Collision and pushing by mass; no deploys on towers
+**Stage:** 2 — Form
+**Cut:** Units are circles that push each other by mass, walk around towers, and can't be deployed on one (§4 Movement, Next cuts 1), a Stage 2 rule.
+**Done:**
+- Sim: `collision.ts`. `walk` steps a unit toward its goal, sliding along a standing tower's face the shorter way round, or along the tangent at a corner (the tower it is going for doesn't block it). `separate`, at the end of `fight`, pushes overlapping pairs apart in id order by the other's share of the mass (rounded down, so equal masses stay mirror-exact), then out of standing towers, then keeps ground units in the arena (by their radius) and off the river except over a bridge. `UnitStats.mass` (juggernaut 18, warden 6, slinger 4). `footprint` moved to `arena.ts`.
+- Rule: a troop aimed inside a standing tower's footprint is refused as `occupied`; rubble is fine, spells go anywhere. `placementRejection(state, side, stats, x, y)` holds the spot rules; `step` and the bot use it (the bot picks among legal tiles only).
+- Tools: `pnpm sim match` prints the replay path with `/` on every OS (a Windows test failed on `\`).
+**Verified:** `pnpm check` green (50 files, 369 tests; 9 new): a mass-weighted push, a diagonal push between enemies, two units on one point split along x, a crowd of 8 spreads out, pushed toward the river a unit stops on the bank or the bridge's edge, pushed into a tower it's pushed back out, a unit walks around its own Outpost and crosses, a unit going for a tower stops touching it, troops refused on towers but allowed on rubble. Tests that deployed on a footprint moved to open grass; tools tests now derive seed numbers from the goldens and the match instead of literals. `pnpm sim sweep --matches 1000`: 1000 healthy, 0 violations, 0 mismatches, no rejections, 23 s. Shots looked at (`end.png`: Victory 2-1 in overtime; units side by side, none overlapping).
+**Decisions:** One separation pass per tick (a crowd settles over a few ticks) and an overlap of 1 milli-tile is left alone, so melee units that touch stay in range. Goldens re-recorded on purpose; the set is now seeds 0, 42, 54 plus the first seeds covering each kind of ending (`hashes.json` lists them). Seed 42 → `112655d8`.
+**Left out / noticed:** The client doesn't shade tower footprints as no-deploy. Units of every layer push alike until flying units exist.
+**Status:** complete
 
 ### S19 · 2026-09-30 · Keep dormancy
 **Stage:** 2 — Form

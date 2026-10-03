@@ -1,15 +1,16 @@
 // Browser entry. Runs a match live at 20 ticks/s; side 0 plays by tapping a card, then the arena,
 // against a random bot on side 1. `?replay=<url>` (or `?replay=last`) plays a replay back instead,
-// from side 0's seat, with the hand shown but not playable. `?tick=<n>` plays either to tick n with no
-// taps and freezes it there (for `pnpm shots`). When a live match ends, its replay is saved in
-// localStorage; every end screen offers a new live match or the replay as a file.
+// from side 0's seat, with the hand shown but not playable. `?seed=<n>` picks the live match's seed
+// (0 by default). `?tick=<n>` plays either to tick n with no taps and freezes it there (for
+// `pnpm shots`). When a live match ends, its replay is saved in localStorage; every end screen offers
+// a new live match on a fresh seed, or the replay as a file.
 import { createRandomBot } from '@factor/bot';
 import { BOT_TUNING, matchSetup, saveReplay, STARTER_DECKS, type Replay } from '@factor/content';
 import { createMatch } from '@factor/sim';
 import { Application, Graphics } from 'pixi.js';
-import { blastScene, groundScene, hpBarScene, noDeployRect, toScreen, towerScene, unitScene } from './arena-view.ts';
+import { blastScene, groundScene, hpBarScene, noDeployRects, projectileScene, splashScene, toScreen, towerScene, unitScene } from './arena-view.ts';
 import { tap, type Controls } from './controls.ts';
-import { BACKGROUND, drawArena, drawBlasts, drawHpBars, drawNoDeploy, drawUnits } from './draw-arena.ts';
+import { BACKGROUND, drawArena, drawBlasts, drawHpBars, drawNoDeploy, drawProjectiles, drawSplashes, drawUnits } from './draw-arena.ts';
 import { EndView } from './draw-end.ts';
 import { HudView } from './draw-hud.ts';
 import { endScene } from './end-view.ts';
@@ -17,6 +18,7 @@ import { hudScene } from './hud-view.ts';
 import { advance, alpha, BLAST_TICKS, createLoop, runTo } from './match-loop.ts';
 import { loopReplay, readReplay, REPLAY_STORAGE_KEY } from './match-replay.ts';
 import { layoutScreen, type ScreenLayout } from './screen-layout.ts';
+import { freshSeed, parseSeed, parseTick } from './url-params.ts';
 
 const app = new Application();
 await app.init({
@@ -34,7 +36,7 @@ const params = new URLSearchParams(window.location.search);
 const frozenAt = parseTick(params.get('tick'));
 const replayName = params.get('replay');
 const watched: Replay | null = replayName === null ? null : await readReplay(replayName, { stored, fetchText }).catch(showError);
-const SEED = watched?.seed ?? 0;
+const SEED = watched?.seed ?? parseSeed(params.get('seed')) ?? 0;
 const DECKS = watched?.decks ?? STARTER_DECKS;
 const start = createMatch(matchSetup(SEED, DECKS));
 const loop = watched === null ? createLoop(start, [createRandomBot(1, SEED, start, BOT_TUNING)]) : createLoop(start, [], watched.commands);
@@ -59,18 +61,23 @@ function resize(): ScreenLayout {
   return next;
 }
 
-/** Towers, the no-deploy shade while a troop is selected, units, recent spells and hp bars, then the HUD: every frame. */
+/** Towers, the no-deploy shade while a troop is selected, units, shots, recent splashes and spells, and hp bars, then the HUD: every frame. */
 function render(): void {
   const { previous, current } = loop;
   const t = alpha(loop);
   field.clear();
   drawArena(field, towerScene(current, layout.view));
   const selected = controls.selected === null ? undefined : current.players[controls.side].hand[controls.selected];
-  if (selected !== undefined && current.cards[selected]?.type === 'troop') {
-    drawNoDeploy(field, toScreen(layout.view, noDeployRect(current.arena, controls.side)));
+  const selectedType = selected === undefined ? undefined : current.cards[selected]?.type;
+  if (selectedType === 'troop' || selectedType === 'building') {
+    for (const rect of noDeployRects(current, controls.side)) {
+      drawNoDeploy(field, toScreen(layout.view, rect));
+    }
   }
   const units = unitScene(previous, current, t, layout.view);
   drawUnits(field, units);
+  drawProjectiles(field, projectileScene(previous, current, t, layout.view));
+  drawSplashes(field, splashScene(loop.splashes, current, t, BLAST_TICKS, layout.view));
   drawBlasts(field, blastScene(loop.blasts, current, t, BLAST_TICKS, layout.view));
   drawHpBars(field, hpBarScene(current, units, layout.view));
   hud.draw(hudScene(previous, current, t, layout.hud, controls.side, controls.selected));
@@ -88,8 +95,8 @@ if (frozenAt === null) {
   app.canvas.addEventListener('pointerdown', (event) => {
     const action = tap(controls, loop, layout, event.clientX, event.clientY);
     if (action === 'again') {
-      // A fresh live match, even after watching a replay.
-      window.location.assign(window.location.pathname);
+      // A fresh live match on a new seed (new shuffles, a new bot), even after watching a replay.
+      window.location.assign(`${window.location.pathname}?seed=${String(freshSeed(Math.random))}`);
     } else if (action === 'save-replay' && replayText !== null) {
       download(`factor-seed-${String(SEED)}.json`, replayText);
     }
@@ -159,11 +166,4 @@ function download(name: string, text: string): void {
   setTimeout(() => {
     URL.revokeObjectURL(url);
   }, 1000);
-}
-
-function parseTick(value: string | null): number | null {
-  if (value === null || !/^\d+$/.test(value)) {
-    return null;
-  }
-  return Number(value);
 }

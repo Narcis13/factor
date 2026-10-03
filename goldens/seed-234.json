@@ -1,0 +1,665 @@
+{
+  "version": 0,
+  "seed": 234,
+  "decks": [
+    [
+      "juggernaut",
+      "warden",
+      "slinger",
+      "flare",
+      "harrier",
+      "rabble",
+      "bombardier",
+      "bastion"
+    ],
+    [
+      "juggernaut",
+      "warden",
+      "slinger",
+      "flare",
+      "harrier",
+      "rabble",
+      "bombardier",
+      "bastion"
+    ]
+  ],
+  "commands": [
+    {
+      "tick": 61,
+      "side": 0,
+      "handSlot": 2,
+      "x": 2500,
+      "y": 1500
+    },
+    {
+      "tick": 74,
+      "side": 1,
+      "handSlot": 2,
+      "x": 16500,
+      "y": 19500
+    },
+    {
+      "tick": 112,
+      "side": 1,
+      "handSlot": 1,
+      "x": 15500,
+      "y": 23500
+    },
+    {
+      "tick": 168,
+      "side": 0,
+      "handSlot": 0,
+      "x": 12500,
+      "y": 13500
+    },
+    {
+      "tick": 392,
+      "side": 0,
+      "handSlot": 1,
+      "x": 17500,
+      "y": 3500
+    },
+    {
+      "tick": 392,
+      "side": 1,
+      "handSlot": 0,
+      "x": 6500,
+      "y": 18500
+    },
+    {
+      "tick": 560,
+      "side": 1,
+      "handSlot": 3,
+      "x": 16500,
+      "y": 25500
+    },
+    {
+      "tick": 616,
+      "side": 0,
+      "handSlot": 0,
+      "x": 16410,
+      "y": 23350
+    },
+    {
+      "tick": 784,
+      "side": 0,
+      "handSlot": 1,
+      "x": 15500,
+      "y": 14500
+    },
+    {
+      "tick": 784,
+      "side": 1,
+      "handSlot": 1,
+      "x": 17500,
+      "y": 21500
+    },
+    {
+      "tick": 1008,
+      "side": 0,
+      "handSlot": 0,
+      "x": 4500,
+      "y": 2500
+    },
+    {
+      "tick": 1008,
+      "side": 1,
+      "handSlot": 3,
+      "x": 17500,
+      "y": 29500
+    },
+    {
+      "tick": 1232,
+      "side": 0,
+      "handSlot": 0,
+      "x": 10500,
+      "y": 5500
+    },
+    {
+      "tick": 1232,
+      "side": 1,
+      "handSlot": 0,
+      "x": 3500,
+      "y": 19500
+    },
+    {
+      "tick": 1456,
+      "side": 0,
+      "handSlot": 0,
+      "x": 9500,
+      "y": 5500
+    },
+    {
+      "tick": 1456,
+      "side": 1,
+      "handSlot": 2,
+      "x": 12918,
+      "y": 14004
+    },
+    {
+      "tick": 1624,
+      "side": 1,
+      "handSlot": 2,
+      "x": 500,
+      "y": 29500
+    },
+    {
+      "tick": 1736,
+      "side": 0,
+      "handSlot": 2,
+      "x": 1500,
+      "y": 12500
+    },
+    {
+      "tick": 1848,
+      "side": 1,
+      "handSlot": 2,
+      "x": 5500,
+      "y": 22500
+    },
+    {
+      "tick": 1904,
+      "side": 0,
+      "handSlot": 2,
+      "x": 6500,
+      "y": 7500
+    },
+    {
+      "tick": 2072,
+      "side": 0,
+      "handSlot": 3,
+      "x": 14500,
+      "y": 11500
+    },
+    {
+      "tick": 2072,
+      "side": 1,
+      "handSlot": 2,
+      "x": 2500,
+      "y": 30500
+    },
+    {
+      "tick": 2296,
+      "side": 0,
+      "handSlot": 3,
+      "x": 4500,
+      "y": 500
+    },
+    {
+      "tick": 2296,
+      "side": 1,
+      "handSlot": 1,
+      "x": 14500,
+      "y": 22500
+    },
+    {
+      "tick": 2432,
+      "side": 1,
+      "handSlot": 3,
+      "x": 8500,
+      "y": 11500
+    },
+    {
+      "tick": 2460,
+      "side": 0,
+      "handSlot": 3,
+      "x": 17500,
+      "y": 13500
+    },
+    {
+      "tick": 2516,
+      "side": 1,
+      "handSlot": 3,
+      "x": 7500,
+      "y": 12500
+    },
+    {
+      "tick": 2600,
+      "side": 0,
+      "handSlot": 3,
+      "x": 14500,
+      "y": 9500
+    },
+    {
+      "tick": 2656,
+      "side": 1,
+      "handSlot": 0,
+      "x": 11500,
+      "y": 27500
+    },
+    {
+      "tick": 2684,
+      "side": 0,
+      "handSlot": 3,
+      "x": 2500,
+      "y": 5500
+    },
+    {
+      "tick": 2768,
+      "side": 0,
+      "handSlot": 3,
+      "x": 17500,
+      "y": 8500
+    },
+    {
+      "tick": 2768,
+      "side": 1,
+      "handSlot": 2,
+      "x": 5500,
+      "y": 23500
+    },
+    {
+      "tick": 2880,
+      "side": 0,
+      "handSlot": 2,
+      "x": 16500,
+      "y": 12500
+    },
+    {
+      "tick": 2880,
+      "side": 1,
+      "handSlot": 1,
+      "x": 14500,
+      "y": 6500
+    },
+    {
+      "tick": 2992,
+      "side": 0,
+      "handSlot": 0,
+      "x": 5035,
+      "y": 20358
+    },
+    {
+      "tick": 2992,
+      "side": 1,
+      "handSlot": 0,
+      "x": 500,
+      "y": 11500
+    },
+    {
+      "tick": 3104,
+      "side": 0,
+      "handSlot": 1,
+      "x": 7500,
+      "y": 8500
+    },
+    {
+      "tick": 3104,
+      "side": 1,
+      "handSlot": 2,
+      "x": 5500,
+      "y": 3500
+    },
+    {
+      "tick": 3188,
+      "side": 0,
+      "handSlot": 1,
+      "x": 10500,
+      "y": 7500
+    },
+    {
+      "tick": 3188,
+      "side": 1,
+      "handSlot": 0,
+      "x": 6500,
+      "y": 12500
+    },
+    {
+      "tick": 3300,
+      "side": 0,
+      "handSlot": 3,
+      "x": 16500,
+      "y": 9500
+    },
+    {
+      "tick": 3300,
+      "side": 1,
+      "handSlot": 3,
+      "x": 15500,
+      "y": 23500
+    },
+    {
+      "tick": 3384,
+      "side": 0,
+      "handSlot": 1,
+      "x": 12500,
+      "y": 9500
+    },
+    {
+      "tick": 3412,
+      "side": 1,
+      "handSlot": 0,
+      "x": 8500,
+      "y": 8500
+    },
+    {
+      "tick": 3496,
+      "side": 0,
+      "handSlot": 2,
+      "x": 6500,
+      "y": 13500
+    },
+    {
+      "tick": 3524,
+      "side": 1,
+      "handSlot": 3,
+      "x": 4035,
+      "y": 21480
+    },
+    {
+      "tick": 3608,
+      "side": 1,
+      "handSlot": 1,
+      "x": 14500,
+      "y": 30500
+    },
+    {
+      "tick": 3636,
+      "side": 0,
+      "handSlot": 0,
+      "x": 2500,
+      "y": 13500
+    },
+    {
+      "tick": 3720,
+      "side": 1,
+      "handSlot": 3,
+      "x": 6500,
+      "y": 8500
+    },
+    {
+      "tick": 3748,
+      "side": 0,
+      "handSlot": 2,
+      "x": 9500,
+      "y": 11500
+    },
+    {
+      "tick": 3860,
+      "side": 0,
+      "handSlot": 3,
+      "x": 9500,
+      "y": 500
+    },
+    {
+      "tick": 3860,
+      "side": 1,
+      "handSlot": 2,
+      "x": 8500,
+      "y": 14500
+    },
+    {
+      "tick": 3944,
+      "side": 0,
+      "handSlot": 3,
+      "x": 9500,
+      "y": 17500
+    },
+    {
+      "tick": 3944,
+      "side": 1,
+      "handSlot": 1,
+      "x": 5500,
+      "y": 1500
+    },
+    {
+      "tick": 4028,
+      "side": 0,
+      "handSlot": 0,
+      "x": 11500,
+      "y": 17500
+    },
+    {
+      "tick": 4056,
+      "side": 1,
+      "handSlot": 0,
+      "x": 16500,
+      "y": 26500
+    },
+    {
+      "tick": 4140,
+      "side": 0,
+      "handSlot": 3,
+      "x": 15500,
+      "y": 10500
+    },
+    {
+      "tick": 4140,
+      "side": 1,
+      "handSlot": 0,
+      "x": 1500,
+      "y": 13500
+    },
+    {
+      "tick": 4252,
+      "side": 0,
+      "handSlot": 3,
+      "x": 3500,
+      "y": 2500
+    },
+    {
+      "tick": 4252,
+      "side": 1,
+      "handSlot": 3,
+      "x": 5500,
+      "y": 23500
+    },
+    {
+      "tick": 4364,
+      "side": 0,
+      "handSlot": 2,
+      "x": 4500,
+      "y": 13500
+    },
+    {
+      "tick": 4392,
+      "side": 1,
+      "handSlot": 3,
+      "x": 11500,
+      "y": 18500
+    },
+    {
+      "tick": 4476,
+      "side": 0,
+      "handSlot": 1,
+      "x": 3500,
+      "y": 25500
+    },
+    {
+      "tick": 4504,
+      "side": 1,
+      "handSlot": 2,
+      "x": 7500,
+      "y": 24500
+    },
+    {
+      "tick": 4560,
+      "side": 0,
+      "handSlot": 2,
+      "x": 500,
+      "y": 14500
+    },
+    {
+      "tick": 4616,
+      "side": 1,
+      "handSlot": 0,
+      "x": 4500,
+      "y": 28500
+    },
+    {
+      "tick": 4644,
+      "side": 0,
+      "handSlot": 1,
+      "x": 11500,
+      "y": 10500
+    },
+    {
+      "tick": 4700,
+      "side": 1,
+      "handSlot": 0,
+      "x": 5500,
+      "y": 19500
+    },
+    {
+      "tick": 4756,
+      "side": 0,
+      "handSlot": 2,
+      "x": 16500,
+      "y": 18500
+    },
+    {
+      "tick": 4812,
+      "side": 1,
+      "handSlot": 2,
+      "x": 9500,
+      "y": 19500
+    },
+    {
+      "tick": 4868,
+      "side": 0,
+      "handSlot": 2,
+      "x": 2500,
+      "y": 14500
+    },
+    {
+      "tick": 4924,
+      "side": 1,
+      "handSlot": 0,
+      "x": 1500,
+      "y": 25500
+    },
+    {
+      "tick": 4980,
+      "side": 0,
+      "handSlot": 1,
+      "x": 9500,
+      "y": 24500
+    },
+    {
+      "tick": 5036,
+      "side": 1,
+      "handSlot": 0,
+      "x": 7500,
+      "y": 14500
+    },
+    {
+      "tick": 5092,
+      "side": 0,
+      "handSlot": 2,
+      "x": 9000,
+      "y": 29000
+    },
+    {
+      "tick": 5148,
+      "side": 1,
+      "handSlot": 1,
+      "x": 14500,
+      "y": 6500
+    },
+    {
+      "tick": 5204,
+      "side": 0,
+      "handSlot": 3,
+      "x": 13500,
+      "y": 4500
+    },
+    {
+      "tick": 5288,
+      "side": 0,
+      "handSlot": 1,
+      "x": 15500,
+      "y": 500
+    },
+    {
+      "tick": 5288,
+      "side": 1,
+      "handSlot": 2,
+      "x": 11500,
+      "y": 31500
+    },
+    {
+      "tick": 5372,
+      "side": 1,
+      "handSlot": 1,
+      "x": 3500,
+      "y": 4500
+    },
+    {
+      "tick": 5400,
+      "side": 0,
+      "handSlot": 3,
+      "x": 12500,
+      "y": 10500
+    },
+    {
+      "tick": 5484,
+      "side": 1,
+      "handSlot": 1,
+      "x": 6500,
+      "y": 5500
+    },
+    {
+      "tick": 5540,
+      "side": 0,
+      "handSlot": 0,
+      "x": 16500,
+      "y": 1500
+    },
+    {
+      "tick": 5596,
+      "side": 1,
+      "handSlot": 2,
+      "x": 3500,
+      "y": 3500
+    },
+    {
+      "tick": 5652,
+      "side": 0,
+      "handSlot": 3,
+      "x": 13500,
+      "y": 3500
+    },
+    {
+      "tick": 5708,
+      "side": 1,
+      "handSlot": 1,
+      "x": 11500,
+      "y": 31500
+    },
+    {
+      "tick": 5764,
+      "side": 0,
+      "handSlot": 1,
+      "x": 16500,
+      "y": 30500
+    },
+    {
+      "tick": 5792,
+      "side": 1,
+      "handSlot": 3,
+      "x": 13500,
+      "y": 29500
+    },
+    {
+      "tick": 5876,
+      "side": 0,
+      "handSlot": 3,
+      "x": 2500,
+      "y": 12500
+    },
+    {
+      "tick": 5904,
+      "side": 1,
+      "handSlot": 2,
+      "x": 9000,
+      "y": 3000
+    },
+    {
+      "tick": 5988,
+      "side": 0,
+      "handSlot": 3,
+      "x": 6500,
+      "y": 3500
+    }
+  ]
+}

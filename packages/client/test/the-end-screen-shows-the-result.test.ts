@@ -40,6 +40,16 @@ test('each side sees its own outcome, with its own stars on the left', () => {
   expect(endScene(ended(1, [0, 3]), 0, PHONE.end)?.outcome).toBe('defeat');
 });
 
+test('a win on tied stars says it came from the tower-hp tiebreak, between the stars and the buttons', () => {
+  const scene = endScene(ended(1, [1, 1]), 0, PHONE.end);
+  expect(scene?.outcome).toBe('defeat');
+  expect(scene?.note).toBe('Stars tied: decided on tower hp');
+  const star = PHONE.end.stars.left[0];
+  expect(scene && star && scene.noteAt.y > star.y + PHONE.end.starRadius && scene.noteAt.y < PHONE.end.again.y).toBe(true);
+  expect(endScene(ended(0, [2, 1]), 0, PHONE.end)?.note).toBeNull();
+  expect(endScene(ended(null, [1, 1]), 0, PHONE.end)?.note).toBeNull();
+});
+
 test('the panel sits over the arena, with its stars and both buttons inside it and apart', () => {
   for (const { view, end } of [PHONE, DESKTOP]) {
     const arena = { x: view.left, y: view.top, width: 18 * view.tilePx, height: 32 * view.tilePx };

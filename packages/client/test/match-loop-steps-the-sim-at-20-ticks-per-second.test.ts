@@ -53,10 +53,10 @@ test('the loop plays the same match as stepping the sim directly', () => {
 test('a queued play is stamped with the tick it is stepped on, and recorded', () => {
   const loop = createLoop(START);
   advance(loop, 3 * TICK_MS);
-  queuePlay(loop, 0, 2, 4500, 6500);
+  queuePlay(loop, 0, 2, 6500, 6500);
   expect(loop.commands).toEqual([]);
   advance(loop, TICK_MS);
-  expect(loop.commands).toEqual([{ tick: 3, side: 0, handSlot: 2, x: 4500, y: 6500 }]);
+  expect(loop.commands).toEqual([{ tick: 3, side: 0, handSlot: 2, x: 6500, y: 6500 }]);
   expect(loop.queued).toEqual([]);
   expect(loop.current.rejected).toEqual([]);
   const cost = START.cards[START.players[0].hand[2] ?? ''];

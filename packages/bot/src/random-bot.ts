@@ -1,8 +1,9 @@
 import type { BotTuning } from '@factor/content';
 import {
-  deployZone,
+  deployZones,
   MILLI_PER_TILE,
   nextBelow,
+  placementRejection,
   seedRng,
   type CardStats,
   type Command,
@@ -66,16 +67,29 @@ function pickNext(bot: RandomBot, state: SimState, { minWaitTicks, maxWaitTicks 
 }
 
 /**
- * A troop goes on the center of a random tile of its side's deploy zone. A spell goes on a random
+ * A troop or building goes on the center of a random tile of its side's deploy zones where it may go
+ * (not on a standing tower; a building clear of towers and buildings). A spell goes on a random
  * standing enemy tower or deployed enemy unit, so it is never wasted on empty grass.
  */
 function aim(rng: Rng, state: SimState, side: Side, stats: CardStats): [number, number] {
-  if (stats.type === 'troop') {
-    const zone = deployZone(state.arena, side);
+  if (stats.type !== 'spell') {
     const half = MILLI_PER_TILE / 2;
-    const column = nextBelow(rng, Math.floor(zone.width / MILLI_PER_TILE));
-    const row = nextBelow(rng, Math.floor(zone.height / MILLI_PER_TILE));
-    return [zone.x + column * MILLI_PER_TILE + half, zone.y + row * MILLI_PER_TILE + half];
+    const spots: [number, number][] = [];
+    for (const zone of deployZones(state, side)) {
+      for (let row = 0; row < Math.floor(zone.height / MILLI_PER_TILE); row++) {
+        for (let column = 0; column < Math.floor(zone.width / MILLI_PER_TILE); column++) {
+          const [x, y] = [zone.x + column * MILLI_PER_TILE + half, zone.y + row * MILLI_PER_TILE + half];
+          if (placementRejection(state, side, stats, x, y) === null) {
+            spots.push([x, y]);
+          }
+        }
+      }
+    }
+    const spot = spots[nextBelow(rng, spots.length)];
+    if (spot === undefined) {
+      throw new RangeError(`Side ${String(side)} has nowhere to deploy`);
+    }
+    return spot;
   }
   const targets = [
     ...state.towers.filter((tower) => tower.side !== side && tower.hp > 0),

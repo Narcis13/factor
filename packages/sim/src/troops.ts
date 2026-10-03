@@ -1,9 +1,11 @@
-import type { Rect, Terrain, Tower, TowerStats } from './arena.ts';
-import type { CardId, CardStats, UnitStats } from './cards.ts';
-import { clamp, distanceToRect, isqrt, moveToward, type Point } from './geometry.ts';
+import { footprint, type AttackStats, type Rect, type Terrain, type Tower, type TowerStats } from './arena.ts';
+import type { Strike } from './attacks.ts';
+import { canTarget, type CardId, type CardStats, type TargetFilter, type UnitStats } from './cards.ts';
+import { circleObstacle, walk, type Obstacle } from './collision.ts';
+import { clamp, distanceToRect, isqrt, type Point } from './geometry.ts';
 import type { Side } from './state.ts';
 
-/** A troop's unit on the field. Its stats stay on its card (`SimState.cards`). */
+/** A troop's unit, or a building, on the field. Its stats stay on its card (`SimState.cards`). */
 export interface Unit {
   /** Shares one ascending sequence with the towers. */
   id: number;
@@ -16,19 +18,65 @@ export interface Unit {
   maxHp: number;
   /** Ticks left before it acts; it stands still while this is above 0. */
   deployTicks: number;
+  /** Ticks it has acted since its deploy delay ran out. A building decays by it. */
+  age: number;
   /** The tower or unit it's locked on to, or `null`. May name one that fell since; it's dropped on the next act. */
   targetId: number | null;
   /** Ticks until its next hit while locked on. */
   cooldown: number;
 }
 
-/** Where `side` may deploy troops: its own half, up to the river (VISION §4). */
-export function deployZone(arena: Terrain, side: Side): Rect {
+/**
+ * Where `side` may deploy troops and buildings (VISION §4, Deploy zone): its own half, up to the river,
+ * and, for each enemy Outpost it has destroyed, that lane's side of the enemy half (the lanes split
+ * the arena down the middle). Disjoint rectangles: the home half first, then left before right.
+ */
+export function deployZones(state: { arena: Terrain; towers: readonly Tower[] }, side: Side): Rect[] {
+  const { arena } = state;
+  const halves = [homeHalf(arena, 0), homeHalf(arena, 1)] as const;
+  const enemy = halves[side === 0 ? 1 : 0];
+  const middle = Math.floor(arena.width / 2);
+  const zones = [halves[side]];
+  for (const lane of ['left', 'right'] as const) {
+    if (state.towers.some((tower) => tower.side !== side && tower.kind === 'outpost' && tower.lane === lane && tower.hp === 0)) {
+      zones.push(lane === 'left' ? { ...enemy, width: middle } : { ...enemy, x: middle, width: arena.width - middle });
+    }
+  }
+  return zones;
+}
+
+/** A side's own half of the arena, up to the river. */
+function homeHalf(arena: Terrain, side: Side): Rect {
   const { river } = arena;
   const riverEnd = river.y + river.height;
   return side === 0
     ? { x: 0, y: 0, width: arena.width, height: river.y }
     : { x: 0, y: riverEnd, width: arena.width, height: arena.height - riverEnd };
+}
+
+/**
+ * Where a play's `count` units appear (VISION §4, Card types): rows of up to ⌈√count⌉, each row
+ * centered, units a diameter apart, the formation centered on the aim point. Rows run from the
+ * front (toward the enemy) back, so side 1's formation is side 0's mirrored. Kept inside the arena;
+ * the end-of-tick push moves any that landed on a tower or in the river.
+ */
+export function formation(arena: Terrain, aim: { side: Side; x: number; y: number }, count: number, radius: number): Point[] {
+  let columns = 1;
+  while (columns * columns < count) {
+    columns++;
+  }
+  const rows = Math.ceil(count / columns);
+  const forward = aim.side === 0 ? 1 : -1;
+  const points: Point[] = [];
+  for (let i = 0; i < count; i++) {
+    const row = Math.floor(i / columns);
+    const inRow = Math.min(columns, count - row * columns);
+    const column = i % columns;
+    const dx = (column * 2 - (inRow - 1)) * radius;
+    const dy = ((rows - 1) - row * 2) * radius * forward;
+    points.push({ x: clamp(aim.x + dx, 0, arena.width - 1), y: clamp(aim.y + dy, 0, arena.height - 1) });
+  }
+  return points;
 }
 
 export function inRect(rect: Rect, x: number, y: number): boolean {
@@ -55,18 +103,20 @@ type Target = { kind: 'tower'; entity: Tower } | { kind: 'unit'; entity: Unit; r
  * One tick of a deployed unit (VISION §4, Targeting and Movement). It counts down its deploy delay;
  * otherwise, while locked on to a target still in range, it keeps hitting it. Else it acquires the
  * nearest valid enemy in sight (or, with none, the nearest enemy tower), locks on if it's in range,
- * and walks toward it if not: over its lane's bridge when the river is in the way.
+ * and moves toward it if not: a flying unit straight there, a ground unit over its lane's bridge when
+ * the river is in the way.
  */
-export function actUnit(unit: Unit, stats: UnitStats, field: Field, hits: Hit[]): void {
+export function actUnit(unit: Unit, stats: UnitStats, field: Field, strikes: Strike[]): void {
   if (unit.deployTicks > 0) {
     unit.deployTicks -= 1;
     return;
   }
+  unit.age += 1;
   const locked = unit.targetId === null ? null : findTarget(field, unit.targetId);
   if (locked !== null && gapTo(unit, stats, locked) <= stats.range) {
     unit.cooldown -= 1;
     if (unit.cooldown <= 0) {
-      hits.push({ targetId: locked.entity.id, damage: stats.damage });
+      strikes.push(strike(unit, locked.entity.id, stats, stats.targets));
       unit.cooldown = stats.hitTicks;
     }
     return;
@@ -82,13 +132,21 @@ export function actUnit(unit: Unit, stats: UnitStats, field: Field, hits: Hit[])
     unit.cooldown = stats.firstHitTicks;
     return;
   }
-  const { river } = field.arena;
   const goal = target.entity;
+  if (stats.speed === 0) {
+    // A building waits for a target to come in range.
+    return;
+  }
+  if (stats.layer === 'air') {
+    stepToward(unit, stats, field, target, goal, Math.min(stats.speed, gap));
+    return;
+  }
+  const { river } = field.arena;
   // A goal on a bridge is reached over that bridge. A unit on another bridge first leaves it as below.
   const goalBridge = bridgeUnder(field.arena, goal);
   if (goalBridge !== null && (!inBand(river, unit.y) || overBridge(goalBridge, unit.x))) {
     const end = bridgeEnd(unit, stats, river, goalBridge);
-    moveToward(unit, end ?? goal, end === null ? Math.min(stats.speed, gap) : stats.speed);
+    stepToward(unit, stats, field, target, end ?? goal, end === null ? Math.min(stats.speed, gap) : stats.speed);
     return;
   }
   // Which way the unit crosses the river to reach its goal, and the banks on the way.
@@ -96,15 +154,28 @@ export function actUnit(unit: Unit, stats: UnitStats, field: Field, hits: Hit[])
   const [nearBank, farBank] = forward === 1 ? [river.y, river.y + river.height] : [river.y + river.height, river.y];
   const before = (line: number) => (unit.y - line) * forward < 0;
   if (before(farBank)) {
-    moveToward(unit, bridgeWaypoint(unit, stats, field.arena, nearBank, farBank, before(nearBank)), stats.speed);
+    stepToward(unit, stats, field, target, bridgeWaypoint(unit, stats, field.arena, nearBank, farBank, before(nearBank)), stats.speed);
     return;
   }
-  moveToward(unit, goal, Math.min(stats.speed, gap));
+  stepToward(unit, stats, field, target, goal, Math.min(stats.speed, gap));
 }
 
 /**
- * Before the river: the bridge entrance of the unit's lane, straight ahead where it can be.
- * On the bridge: straight across.
+ * Moves `unit` toward `to`: on the ground around every standing tower and building but the one it's
+ * going for, in the air over them.
+ */
+function stepToward(unit: Unit, stats: UnitStats, field: Field, target: Target, to: Point, length: number): void {
+  const obstacles = stats.layer === 'ground' ? groundObstacles(field).filter(({ id }) => id !== target.entity.id) : [];
+  const body = { x: unit.x, y: unit.y, radius: stats.radius, mass: stats.mass };
+  walk(body, to, length, obstacles, field.arena);
+  unit.x = body.x;
+  unit.y = body.y;
+}
+
+/**
+ * Before the river, or on the bank beside the bridge: the bridge entrance of the unit's lane, straight
+ * ahead where it can be. On the bridge: straight across, back within its span if a push moved it aside,
+ * to a radius past the far bank, so a friend pressing back at the bridge's end can't hold it on the line.
  */
 function bridgeWaypoint(unit: Unit, stats: UnitStats, arena: Terrain, nearBank: number, farBank: number, beforeRiver: boolean): Point {
   const lane = unit.x < arena.width / 2 ? 'left' : 'right';
@@ -113,11 +184,12 @@ function bridgeWaypoint(unit: Unit, stats: UnitStats, arena: Terrain, nearBank: 
     throw new RangeError('The arena has no bridge');
   }
   const [minX, maxX] = bridgeSpan(bridge, stats);
-  const onBridgeX = unit.x >= minX && unit.x <= maxX;
-  if (beforeRiver || !onBridgeX) {
+  const besideBridge = !inBand(arena.river, unit.y) && (unit.x < minX || unit.x > maxX);
+  if (beforeRiver || besideBridge) {
     return { x: clamp(unit.x, minX, maxX), y: nearBank };
   }
-  return { x: unit.x, y: farBank };
+  const forward = farBank > nearBank ? 1 : -1;
+  return { x: clamp(unit.x, minX, maxX), y: farBank + forward * stats.radius };
 }
 
 /**
@@ -158,34 +230,49 @@ function overBridge(bridge: Rect, x: number): boolean {
 }
 
 /**
- * The nearest valid enemy whose edge is within sight (towers first on a tie, then the lower id); with
- * none, the nearest standing enemy tower by center. A `buildings` unit only ever takes the latter.
+ * What ground units walk around, with whose they are: every standing tower's footprint and every
+ * building's circle, in id order.
+ */
+export function groundObstacles(field: Field): (Obstacle & { id: number })[] {
+  const towers = field.towers.filter((tower) => tower.hp > 0).map((tower) => ({ id: tower.id, ...footprint(tower), pad: 0 }));
+  const buildings = field.units.filter((other) => other.hp > 0 && isBuilding(field, other));
+  return [...towers, ...buildings.map((building) => ({ id: building.id, ...circleObstacle(building, unitStats(field, building).radius) }))];
+}
+
+/** Whether `unit` is a building rather than a troop's unit. */
+export function isBuilding(field: Pick<Field, 'cards'>, unit: Unit): boolean {
+  return field.cards[unit.card]?.type === 'building';
+}
+
+/**
+ * The nearest valid enemy whose edge is within sight (towers first on a tie, then the lower id): a
+ * tower, or a unit its filter reaches (for `buildings`, a building). With none, the nearest standing
+ * enemy tower by center, unless the unit is a building, which can't go anywhere.
  */
 function acquire(unit: Unit, stats: UnitStats, field: Field): Target | null {
-  if (stats.targets === 'ground') {
-    const candidates: Target[] = [];
-    for (const tower of field.towers) {
-      if (tower.side !== unit.side && tower.hp > 0) {
-        candidates.push({ kind: 'tower', entity: tower });
-      }
+  const candidates: Target[] = [];
+  for (const tower of field.towers) {
+    if (tower.side !== unit.side && tower.hp > 0) {
+      candidates.push({ kind: 'tower', entity: tower });
     }
-    for (const other of field.units) {
-      if (other.side !== unit.side && other.hp > 0) {
-        candidates.push({ kind: 'unit', entity: other, radius: unitStats(field, other).radius });
-      }
+  }
+  for (const other of field.units) {
+    const otherStats = unitStats(field, other);
+    if (other.side !== unit.side && other.hp > 0 && canTarget(stats.targets, otherStats.layer, isBuilding(field, other))) {
+      candidates.push({ kind: 'unit', entity: other, radius: otherStats.radius });
     }
-    let best: Target | null = null;
-    let bestGap = 0;
-    for (const candidate of candidates) {
-      const gap = gapTo(unit, stats, candidate);
-      if (gap <= stats.sight && (best === null || gap < bestGap)) {
-        best = candidate;
-        bestGap = gap;
-      }
+  }
+  let best: Target | null = null;
+  let bestGap = 0;
+  for (const candidate of candidates) {
+    const gap = gapTo(unit, stats, candidate);
+    if (gap <= stats.sight && (best === null || gap < bestGap)) {
+      best = candidate;
+      bestGap = gap;
     }
-    if (best !== null) {
-      return best;
-    }
+  }
+  if (best !== null || stats.speed === 0) {
+    return best;
   }
   const tower = nearestEnemyTower(unit, field.towers);
   return tower === null ? null : { kind: 'tower', entity: tower };
@@ -237,7 +324,7 @@ function nearestEnemyTower(unit: Unit, towers: readonly Tower[]): Tower | null {
  * One tick of a standing tower: keep hitting its target while that stays in range, else lock on to the
  * nearest enemy unit in range (the lower id on a tie).
  */
-export function actTower(tower: Tower, stats: TowerStats, field: Field, hits: Hit[]): void {
+export function actTower(tower: Tower, stats: TowerStats, field: Field, strikes: Strike[]): void {
   if (tower.hp <= 0 || tower.dormant) {
     return;
   }
@@ -247,7 +334,8 @@ export function actTower(tower: Tower, stats: TowerStats, field: Field, hits: Hi
   if (locked !== undefined && gap(locked) <= stats.range) {
     tower.cooldown -= 1;
     if (tower.cooldown <= 0) {
-      hits.push({ targetId: locked.id, damage: stats.damage });
+      // A tower's splash, if it has one, reaches both layers, as its shots do.
+      strikes.push(strike(tower, locked.id, stats, 'air'));
       tower.cooldown = stats.hitTicks;
     }
     return;
@@ -271,16 +359,18 @@ export function actTower(tower: Tower, stats: TowerStats, field: Field, hits: Hi
   }
 }
 
+/** A hit from `from` at `targetId`, with how it lands. */
+function strike(from: Tower | Unit, targetId: number, stats: AttackStats, targets: TargetFilter): Strike {
+  const { side, x, y } = from;
+  const { damage, splash, projectileSpeed } = stats;
+  return { side, x, y, targetId, damage, splash, projectileSpeed, targets };
+}
+
 /** The unit stats behind a unit, from its card. */
 export function unitStats(field: Pick<Field, 'cards'>, unit: Unit): UnitStats {
   const stats = Object.hasOwn(field.cards, unit.card) ? field.cards[unit.card] : undefined;
-  if (stats?.type !== 'troop') {
-    throw new RangeError(`Unit ${String(unit.id)} comes from ${unit.card}, which is not a troop`);
+  if (stats === undefined || stats.type === 'spell') {
+    throw new RangeError(`Unit ${String(unit.id)} comes from ${unit.card}, which is not a troop or building`);
   }
   return stats.unit;
-}
-
-export function footprint({ x, y, size }: Pick<Tower, 'x' | 'y' | 'size'>): Rect {
-  const half = Math.floor(size / 2);
-  return { x: x - half, y: y - half, width: size, height: size };
 }

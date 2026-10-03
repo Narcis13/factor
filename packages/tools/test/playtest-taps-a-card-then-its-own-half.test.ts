@@ -1,10 +1,11 @@
 import { layoutScreen, toArena } from '@factor/client';
-import { ARENA, MATCH_RULES } from '@factor/content';
-import { deployZone } from '@factor/sim';
+import { ARENA, MATCH_RULES, matchSetup } from '@factor/content';
+import { createMatch, deployZones } from '@factor/sim';
 import { expect, test } from 'vitest';
 import { CLIENT_VIEWPORT } from '../src/browser.ts';
 import { playtestTaps } from '../src/playtest.ts';
 
+const START = createMatch(matchSetup(0));
 const layout = layoutScreen(ARENA, MATCH_RULES.handSize, CLIENT_VIEWPORT.width, CLIENT_VIEWPORT.height);
 
 function inside(rect: { x: number; y: number; width: number; height: number }, point: { x: number; y: number }): boolean {
@@ -19,7 +20,7 @@ test("each play taps the hand slots in turn, then a spot on side 0's half in lin
     if (point === null) {
       throw new Error(`play ${String(i)} taps off the arena`);
     }
-    expect(inside(deployZone(ARENA, 0), point)).toBe(true);
+    expect(deployZones(START, 0).some((zone) => inside(zone, point))).toBe(true);
     const bridge = ARENA.bridges[i % 2];
     expect(bridge !== undefined && point.x >= bridge.x && point.x < bridge.x + bridge.width).toBe(true);
   });

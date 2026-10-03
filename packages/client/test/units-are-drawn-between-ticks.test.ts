@@ -1,7 +1,7 @@
 import { ARENA, matchSetup } from '@factor/content';
 import { createMatch, step, type Command, type SimState } from '@factor/sim';
 import { expect, test } from 'vitest';
-import { fitView, noDeployRect, unitScene } from '../src/index.ts';
+import { fitView, noDeployRects, unitScene } from '../src/index.ts';
 import { stepTo } from '../src/match-loop.ts';
 
 // 540 × 960 fits the arena at 30 px per tile, so 1 tile = 30 px and the arena's top edge is y = 0.
@@ -13,7 +13,7 @@ function withTroop(ticks: number): { state: SimState; card: string } {
   const full = stepTo(START, 200);
   const slot = full.players[0].hand.findIndex((card) => full.cards[card]?.type === 'troop');
   const card = full.players[0].hand[slot] ?? '';
-  const command: Command = { tick: full.tick, side: 0, handSlot: slot, x: 3500, y: 8000 };
+  const command: Command = { tick: full.tick, side: 0, handSlot: slot, x: 3500, y: 10_000 };
   let state = step(full, [command]);
   expect(state.rejected).toEqual([]);
   for (let i = 0; i < ticks; i++) {
@@ -28,7 +28,7 @@ test('a unit is drawn at its position, as a circle of its radius, faint while it
   const radius = stats?.type === 'troop' ? stats.unit.radius : 0;
   const hp = stats?.type === 'troop' ? stats.unit.hp : 0;
   expect(unitScene(state, state, 0, VIEW)).toEqual([
-    { id: 6, side: 0, card, x: 3.5 * 30, y: (32 - 8) * 30, radius: (radius * 30) / 1000, deploying: true, hp, maxHp: hp },
+    { id: 6, side: 0, card, x: 3.5 * 30, y: (32 - 10) * 30, radius: (radius * 30) / 1000, deploying: true, flying: false, building: false, hp, maxHp: hp },
   ]);
   const later = stepTo(state, state.tick + 40);
   expect(unitScene(later, later, 0, VIEW)[0]?.deploying).toBe(false);
@@ -51,7 +51,24 @@ test('a unit that is new this tick is drawn where it stands', () => {
   expect(unitScene(before, state, 0.3, VIEW)).toEqual(unitScene(state, state, 0, VIEW));
 });
 
-test('the shade for a selected troop covers everything but the side’s own half', () => {
-  expect(noDeployRect(ARENA, 0)).toEqual({ x: 0, y: ARENA.river.y, width: ARENA.width, height: ARENA.height - ARENA.river.y });
-  expect(noDeployRect(ARENA, 1)).toEqual({ x: 0, y: 0, width: ARENA.width, height: ARENA.river.y + ARENA.river.height });
+test('the shade for a selected troop covers the river and both lanes of the enemy half', () => {
+  const riverEnd = ARENA.river.y + ARENA.river.height;
+  expect(noDeployRects(START, 0)).toEqual([
+    ARENA.river,
+    { x: 0, y: riverEnd, width: 9000, height: ARENA.height - riverEnd },
+    { x: 9000, y: riverEnd, width: 9000, height: ARENA.height - riverEnd },
+  ]);
+  expect(noDeployRects(START, 1)).toEqual([
+    ARENA.river,
+    { x: 0, y: 0, width: 9000, height: ARENA.river.y },
+    { x: 9000, y: 0, width: 9000, height: ARENA.river.y },
+  ]);
+});
+
+test('once an enemy Outpost falls, its lane of the enemy half is no longer shaded', () => {
+  // Side 1's right Outpost is tower 5.
+  const fallen = { ...START, towers: START.towers.map((tower) => (tower.id === 5 ? { ...tower, hp: 0 } : tower)) };
+  const riverEnd = ARENA.river.y + ARENA.river.height;
+  expect(noDeployRects(fallen, 0)).toEqual([ARENA.river, { x: 0, y: riverEnd, width: 9000, height: ARENA.height - riverEnd }]);
+  expect(noDeployRects(fallen, 1)).toEqual(noDeployRects(START, 1));
 });

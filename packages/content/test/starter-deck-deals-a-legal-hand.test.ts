@@ -2,18 +2,19 @@ import { createMatch } from '@factor/sim';
 import { expect, test } from 'vitest';
 import { CARD_IDS, CARDS, MATCH_RULES, matchSetup, STARTER_DECK } from '../src/index.ts';
 
-test('the 4 Stage 1 cards each cost something playable', () => {
-  expect(CARD_IDS).toEqual(['juggernaut', 'warden', 'slinger', 'flare']);
+test('the cards each cost something playable', () => {
+  expect(CARD_IDS).toEqual(['juggernaut', 'warden', 'slinger', 'flare', 'harrier', 'rabble', 'bombardier', 'bastion']);
   for (const id of CARD_IDS) {
     expect(CARDS[id].cost).toBeGreaterThan(0);
     expect(CARDS[id].cost).toBeLessThanOrEqual(MATCH_RULES.energy.max);
   }
 });
 
-test('the starter deck is a full deck holding each card twice', () => {
+test('the starter deck is a full deck holding every card, as evenly as it can', () => {
   expect(STARTER_DECK).toHaveLength(MATCH_RULES.deckSize);
+  const fewest = Math.floor(MATCH_RULES.deckSize / CARD_IDS.length);
   for (const id of CARD_IDS) {
-    expect(STARTER_DECK.filter((card) => card === id)).toHaveLength(2);
+    expect([fewest, fewest + 1]).toContain(STARTER_DECK.filter((card) => card === id).length);
   }
 });
 
