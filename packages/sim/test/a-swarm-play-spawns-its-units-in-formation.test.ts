@@ -4,7 +4,7 @@ import { matchSetup, TROOPS } from './fixtures.ts';
 
 // The fixture arena: 10 × 20 tiles, the river at y 9000–11000. Towers hold ids 0–5.
 
-const PACK = { hp: 100, speed: 50, radius: 300, mass: 2, range: 0, sight: 4000, damage: 10, hitTicks: 10, firstHitTicks: 5, targets: 'ground', layer: 'ground' } as const;
+const PACK = { hp: 100, speed: 50, radius: 300, mass: 2, range: 0, sight: 4000, damage: 10, splash: 0, projectileSpeed: 0, hitTicks: 10, firstHitTicks: 5, targets: 'ground', layer: 'ground' } as const;
 
 function swarmMatch(count: number): SimState {
   const cards: Record<CardId, CardStats> = { ...TROOPS, pack: { cost: 1, type: 'troop', unit: { ...PACK, count } } };

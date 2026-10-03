@@ -48,8 +48,11 @@ export const CARDS: Record<CardId, CardStats> = {
   c8: dud(8),
 };
 
-/** Both hit every 10 ticks, the first time 5 ticks after locking on, and notice enemies 4 tiles off. */
-const FIGHT = { hitTicks: 10, firstHitTicks: 5, sight: 4000, targets: 'ground', layer: 'ground', count: 1 } as const;
+/**
+ * Both hit every 10 ticks, the first time 5 ticks after locking on, and notice enemies 4 tiles off.
+ * Their hits land at once, on their target alone.
+ */
+const FIGHT = { hitTicks: 10, firstHitTicks: 5, sight: 4000, targets: 'ground', layer: 'ground', count: 1, splash: 0, projectileSpeed: 0 } as const;
 
 export const TROOPS: Record<CardId, CardStats> = {
   walker: { cost: 1, type: 'troop', unit: { hp: 500, speed: 50, radius: 500, mass: 5, range: 0, damage: 50, ...FIGHT } },
@@ -117,8 +120,11 @@ export const ARENA: ArenaLayout = {
   ],
 };
 
-/** Towers reach 2 tiles past their footprint and hit for 10 every 10 ticks, the first time 5 ticks after locking on. */
-const TOWER_ATTACK = { damage: 10, hitTicks: 10, firstHitTicks: 5, range: 2000 };
+/**
+ * Towers reach 2 tiles past their footprint and hit for 10 every 10 ticks, the first time 5 ticks
+ * after locking on. Their hits land at once.
+ */
+const TOWER_ATTACK = { damage: 10, hitTicks: 10, firstHitTicks: 5, range: 2000, splash: 0, projectileSpeed: 0 };
 
 export const TOWER_STATS: Record<TowerKind, TowerStats> = {
   keep: { hp: 300, ...TOWER_ATTACK },

@@ -1,4 +1,5 @@
 import { footprint } from './arena.ts';
+import { flyProjectiles, resolveStrikes, type Strike } from './attacks.ts';
 import { copyPlayer, playCard, regenerate } from './cards.ts';
 import { separate } from './collision.ts';
 import { placementRejection } from './placement.ts';
@@ -24,6 +25,7 @@ export function step(state: SimState, commands: readonly Command[]): SimState {
     towers: state.towers.map((tower) => ({ ...tower })),
     towerStats: copyTowerStats(state.towerStats),
     units: state.units.map((unit) => ({ ...unit })),
+    projectiles: state.projectiles.map((shot) => ({ ...shot })),
     nextId: state.nextId,
     cards: copyCards(state.cards),
     players: [copyPlayer(state.players[0]), copyPlayer(state.players[1])],
@@ -31,6 +33,7 @@ export function step(state: SimState, commands: readonly Command[]): SimState {
     result: null,
     rejected: [],
     blasts: [],
+    splashes: [],
   };
   // Side 0 resolves first, whatever order the commands arrived in; order within a side is kept.
   // Each command sees the energy and hand the ones before it left. A spell picks its victims from the
@@ -70,20 +73,25 @@ export function step(state: SimState, commands: readonly Command[]): SimState {
 }
 
 /**
- * Towers, then units, act in id order; a new unit starts its deploy delay this very tick. Their hits
- * join the spells' `hits` and land together afterwards, so a unit that dies this tick still lands its own hit. Then the dead leave
+ * Projectiles fired before this tick fly, and those that arrive land. Then towers, then units, act in
+ * id order; a new unit starts its deploy delay this very tick. Their strikes land at once or start
+ * flying. All the tick's hits, the spells' included, land together afterwards, so a unit that dies
+ * this tick still lands its own hit. Then the dead leave
  * the field and fallen towers score (VISION §4, Winning): an Outpost earns its destroyer 1 star, the
  * Keep brings them to 3. A dormant Keep that has taken damage or lost an Outpost wakes; it acts
  * from the next tick on. Last, the units left standing push each other apart, each layer on its own:
  * ground units also out of standing towers and the river, flying units only within the arena.
  */
 function fight(state: SimState, hits: Hit[]): void {
+  flyProjectiles(state, hits);
+  const strikes: Strike[] = [];
   for (const tower of state.towers) {
-    actTower(tower, state.towerStats[tower.kind], state, hits);
+    actTower(tower, state.towerStats[tower.kind], state, strikes);
   }
   for (const unit of state.units) {
-    actUnit(unit, unitStats(state, unit), state, hits);
+    actUnit(unit, unitStats(state, unit), state, strikes);
   }
+  resolveStrikes(state, strikes, hits);
   const standing = state.towers.filter((tower) => tower.hp > 0);
   for (const { targetId, damage } of hits) {
     const target = state.towers.find((tower) => tower.id === targetId) ?? state.units.find((unit) => unit.id === targetId);

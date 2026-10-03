@@ -1,5 +1,5 @@
 import type { Graphics } from 'pixi.js';
-import { FLY_LIFT, type BlastShape, type GroundKind, type HpBar, type ScreenRect, type Shape, type UnitShape } from './arena-view.ts';
+import { FLY_LIFT, type BlastShape, type GroundKind, type HpBar, type ProjectileShape, type ScreenRect, type Shape, type SplashShape, type UnitShape } from './arena-view.ts';
 import { cardColor, SIDE_COLOR } from './palette.ts';
 
 export { BACKGROUND } from './palette.ts';
@@ -15,6 +15,8 @@ const RUBBLE = 0x6b6f75;
 const HP_TRACK = 0x1d2733;
 const NO_DEPLOY = 0x000000;
 const SHADOW = 0x000000;
+const SHOT_CORE = 0xffffff;
+const SPLASH_FILL = 0xffd27a;
 
 export function drawArena(graphics: Graphics, shapes: Shape[]): void {
   for (const shape of shapes) {
@@ -58,6 +60,23 @@ export function drawHpBars(graphics: Graphics, bars: HpBar[]): void {
   for (const { side, rect, fraction } of bars) {
     graphics.rect(rect.x, rect.y, rect.width, rect.height).fill({ color: HP_TRACK });
     graphics.rect(rect.x, rect.y, rect.width * fraction, rect.height).fill({ color: SIDE_COLOR[side] });
+  }
+}
+
+/** A shot in flight: its side's color with a light core, so it reads against any ground. */
+export function drawProjectiles(graphics: Graphics, shots: ProjectileShape[]): void {
+  for (const shot of shots) {
+    graphics.circle(shot.x, shot.y, shot.radius).fill({ color: SIDE_COLOR[shot.side] }).stroke({ color: SHOT_CORE, width: 1 });
+  }
+}
+
+/** A splash that landed: a ring of its reach in its attacker's color, over a faint fill, fading out. */
+export function drawSplashes(graphics: Graphics, splashes: SplashShape[]): void {
+  for (const splash of splashes) {
+    graphics
+      .circle(splash.x, splash.y, splash.radius)
+      .fill({ color: SPLASH_FILL, alpha: 0.25 * splash.fade })
+      .stroke({ color: SIDE_COLOR[splash.side], width: 2, alpha: splash.fade });
   }
 }
 

@@ -48,9 +48,13 @@ export interface ArenaLayout extends Terrain {
   towers: TowerSite[];
 }
 
-/** How something hits (VISION §4). Every hit lands instantly for now; projectiles come later. */
+/** How something hits (VISION §4). */
 export interface AttackStats {
   damage: number;
+  /** Milli-tiles around where a hit lands that it also hits; 0 hits the target alone. */
+  splash: number;
+  /** Milli-tiles per tick a hit flies before it lands; 0 lands at once (melee). */
+  projectileSpeed: number;
   /** Ticks between hits once it's attacking. */
   hitTicks: number;
   /** Ticks from locking on to the first hit. At least 1. */

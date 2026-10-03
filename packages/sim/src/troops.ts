@@ -1,5 +1,6 @@
-import { footprint, type Rect, type Terrain, type Tower, type TowerStats } from './arena.ts';
-import { canTarget, type CardId, type CardStats, type UnitStats } from './cards.ts';
+import { footprint, type AttackStats, type Rect, type Terrain, type Tower, type TowerStats } from './arena.ts';
+import type { Strike } from './attacks.ts';
+import { canTarget, type CardId, type CardStats, type TargetFilter, type UnitStats } from './cards.ts';
 import { walk } from './collision.ts';
 import { clamp, distanceToRect, isqrt, type Point } from './geometry.ts';
 import type { Side } from './state.ts';
@@ -84,7 +85,7 @@ type Target = { kind: 'tower'; entity: Tower } | { kind: 'unit'; entity: Unit; r
  * and moves toward it if not: a flying unit straight there, a ground unit over its lane's bridge when
  * the river is in the way.
  */
-export function actUnit(unit: Unit, stats: UnitStats, field: Field, hits: Hit[]): void {
+export function actUnit(unit: Unit, stats: UnitStats, field: Field, strikes: Strike[]): void {
   if (unit.deployTicks > 0) {
     unit.deployTicks -= 1;
     return;
@@ -93,7 +94,7 @@ export function actUnit(unit: Unit, stats: UnitStats, field: Field, hits: Hit[])
   if (locked !== null && gapTo(unit, stats, locked) <= stats.range) {
     unit.cooldown -= 1;
     if (unit.cooldown <= 0) {
-      hits.push({ targetId: locked.entity.id, damage: stats.damage });
+      strikes.push(strike(unit, locked.entity.id, stats, stats.targets));
       unit.cooldown = stats.hitTicks;
     }
     return;
@@ -280,7 +281,7 @@ function nearestEnemyTower(unit: Unit, towers: readonly Tower[]): Tower | null {
  * One tick of a standing tower: keep hitting its target while that stays in range, else lock on to the
  * nearest enemy unit in range (the lower id on a tie).
  */
-export function actTower(tower: Tower, stats: TowerStats, field: Field, hits: Hit[]): void {
+export function actTower(tower: Tower, stats: TowerStats, field: Field, strikes: Strike[]): void {
   if (tower.hp <= 0 || tower.dormant) {
     return;
   }
@@ -290,7 +291,8 @@ export function actTower(tower: Tower, stats: TowerStats, field: Field, hits: Hi
   if (locked !== undefined && gap(locked) <= stats.range) {
     tower.cooldown -= 1;
     if (tower.cooldown <= 0) {
-      hits.push({ targetId: locked.id, damage: stats.damage });
+      // A tower's splash, if it has one, reaches both layers, as its shots do.
+      strikes.push(strike(tower, locked.id, stats, 'air'));
       tower.cooldown = stats.hitTicks;
     }
     return;
@@ -312,6 +314,13 @@ export function actTower(tower: Tower, stats: TowerStats, field: Field, hits: Hi
     tower.targetId = best.id;
     tower.cooldown = stats.firstHitTicks;
   }
+}
+
+/** A hit from `from` at `targetId`, with how it lands. */
+function strike(from: Tower | Unit, targetId: number, stats: AttackStats, targets: TargetFilter): Strike {
+  const { side, x, y } = from;
+  const { damage, splash, projectileSpeed } = stats;
+  return { side, x, y, targetId, damage, splash, projectileSpeed, targets };
 }
 
 /** The unit stats behind a unit, from its card. */

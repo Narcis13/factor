@@ -3,6 +3,7 @@ import { dealPlayer, pickCards, type CardId, type CardStats, type EnergyRules, t
 import { hashJson } from './hash.ts';
 import { seedRng, type Rng } from './rng.ts';
 import { BASIS_POINTS } from './units.ts';
+import type { Projectile, Splash } from './attacks.ts';
 import type { Blast } from './spells.ts';
 import type { Unit } from './troops.ts';
 
@@ -68,7 +69,9 @@ export interface SimState {
   towerStats: Record<TowerKind, TowerStats>;
   /** Troops on the field, ascending by id. Their ids follow the towers'. */
   units: Unit[];
-  /** The id the next unit gets. */
+  /** Shots in flight, ascending by id. They share the units' id sequence. */
+  projectiles: Projectile[];
+  /** The id the next unit or projectile gets. */
   nextId: number;
   /** The stats of every card in either deck, by id. Never changes during a match. */
   cards: Record<CardId, CardStats>;
@@ -82,6 +85,8 @@ export interface SimState {
   rejected: RejectedCommand[];
   /** Spells that landed in the step that produced this state, in resolution order. */
   blasts: Blast[];
+  /** Splash hits that landed in the step that produced this state, in resolution order. */
+  splashes: Splash[];
 }
 
 /** Everything a match starts from. The numbers come from `content` (D7). */
@@ -163,6 +168,7 @@ export function createMatch(setup: MatchSetup): SimState {
     towers,
     towerStats,
     units: [],
+    projectiles: [],
     nextId: towers.length,
     cards,
     players,
@@ -170,6 +176,7 @@ export function createMatch(setup: MatchSetup): SimState {
     result: null,
     rejected: [],
     blasts: [],
+    splashes: [],
   };
 }
 
@@ -200,12 +207,22 @@ export function copyRules({ regulationTicks, overtimeTicks, deckSize, handSize, 
 }
 
 export function copyTowerStats(stats: Readonly<Record<TowerKind, TowerStats>>): Record<TowerKind, TowerStats> {
-  const copy = ({ hp, damage, hitTicks, firstHitTicks, range }: TowerStats): TowerStats => ({ hp, damage, hitTicks, firstHitTicks, range });
+  const copy = ({ hp, damage, splash, projectileSpeed, hitTicks, firstHitTicks, range }: TowerStats): TowerStats => ({
+    hp,
+    damage,
+    splash,
+    projectileSpeed,
+    hitTicks,
+    firstHitTicks,
+    range,
+  });
   return { keep: copy(stats.keep), outpost: copy(stats.outpost) };
 }
 
-function requireAttack(name: string, { damage, hitTicks, firstHitTicks, range }: AttackStats): void {
+function requireAttack(name: string, { damage, splash, projectileSpeed, hitTicks, firstHitTicks, range }: AttackStats): void {
   requireInteger(`${name} damage`, damage, 0);
+  requireInteger(`${name} splash`, splash, 0);
+  requireInteger(`${name} projectileSpeed`, projectileSpeed, 0);
   requireInteger(`${name} hitTicks`, hitTicks, 1);
   requireInteger(`${name} firstHitTicks`, firstHitTicks, 1);
   requireInteger(`${name} range`, range, 0);

@@ -39,6 +39,10 @@ const NAMES = Object.keys(readGoldenHashes(GOLDENS));
 /** A golden that isn't one of the three always kept, to remove from a copy. */
 const SPARE = NAMES.find((name) => !['seed-0', 'seed-42', 'seed-54'].includes(name)) ?? 'none';
 
+/** A bot-vs-bot seed that isn't a golden, to add to a copy. */
+const EXTRA_SEED = [9, 10, 11, 12, 13, 14].find((seed) => !NAMES.includes(`seed-${String(seed)}`)) ?? 999;
+const EXTRA = `seed-${String(EXTRA_SEED)}`;
+
 /** A copy of the real goldens to tamper with. */
 function copyGoldens(): string {
   const dir = mkdtempSync(join(tmpdir(), 'factor-goldens-'));
@@ -110,26 +114,26 @@ test('a match that now ends at another tick fails at the first checkpoint it mis
 
 test('a replay with no stored hashes, hashes with no replay, and a replay that no longer plays all fail', () => {
   const dir = copyGoldens();
-  writeFileSync(join(dir, 'seed-9.json'), saveReplay(botReplay(9)));
+  writeFileSync(join(dir, `${EXTRA}.json`), saveReplay(botReplay(EXTRA_SEED)));
   rmSync(join(dir, `${SPARE}.json`));
   const { lastTick } = stored('seed-42');
   const extra = { tick: lastTick + 100, side: 0 as const, handSlot: 0, x: 0, y: 0 };
   writeFileSync(join(dir, 'seed-42.json'), saveReplay({ ...botReplay(42), commands: [...botReplay(42).commands, extra] }));
   const problems = Object.fromEntries(checkGoldens(dir).map((check) => [check.name, check.problem]));
-  expect(problems['seed-9']).toBe('no stored hashes in hashes.json');
+  expect(problems[EXTRA]).toBe('no stored hashes in hashes.json');
   expect(problems[SPARE]).toBe('stored hashes but no replay');
   expect(problems['seed-42']).toBe(`The match ended at tick ${String(lastTick)} with 1 commands unplayed`);
 });
 
 test('--update stores fresh hashes for every replay and drops hashes with no replay', () => {
   const dir = copyGoldens();
-  writeFileSync(join(dir, 'seed-9.json'), saveReplay(botReplay(9)));
+  writeFileSync(join(dir, `${EXTRA}.json`), saveReplay(botReplay(EXTRA_SEED)));
   rmSync(join(dir, `${SPARE}.json`));
   writeFileSync(join(dir, GOLDEN_HASHES_FILE), '{}');
   expect(updateGoldens(dir).every((check) => check.problem === null)).toBe(true);
   const hashes = readGoldenHashes(dir);
-  expect(Object.keys(hashes)).toEqual([...NAMES.filter((name) => name !== SPARE), 'seed-9'].sort());
-  expect(hashes['seed-9']).toEqual(goldenHashes(botReplay(9)));
+  expect(Object.keys(hashes)).toEqual([...NAMES.filter((name) => name !== SPARE), EXTRA].sort());
+  expect(hashes[EXTRA]).toEqual(goldenHashes(botReplay(EXTRA_SEED)));
   expect(hashes['seed-42']).toEqual(readGoldenHashes(GOLDENS)['seed-42']);
   expect(readFileSync(join(dir, GOLDEN_HASHES_FILE), 'utf8')).toBe(readFileSync(join(dir, GOLDEN_HASHES_FILE), 'utf8').trimEnd() + '\n');
 });

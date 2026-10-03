@@ -16,6 +16,7 @@ export {
   type Side,
   type SimState,
 } from './state.ts';
+export type { Projectile, Splash } from './attacks.ts';
 export type { Blast } from './spells.ts';
 export { step } from './step.ts';
 export { placementRejection } from './placement.ts';

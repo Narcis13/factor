@@ -11,6 +11,7 @@ const CARD_COLOR: Record<CardId, number> = {
   flare: 0xc2562b,
   harrier: 0xd4b13a,
   rabble: 0x9c4fb8,
+  bombardier: 0x5c5f66,
 };
 
 export function cardColor(card: CardId): number {

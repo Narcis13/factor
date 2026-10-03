@@ -135,10 +135,10 @@ function copyCard(stats: CardStats): CardStats {
     const { radius, damage, towerDamageBp } = stats.spell;
     return { cost: stats.cost, type: 'spell', spell: { radius, damage, towerDamageBp } };
   }
-  const { hp, speed, radius, mass, range, sight, targets, layer, count, damage, hitTicks, firstHitTicks } = stats.unit;
+  const { hp, speed, radius, mass, range, sight, targets, layer, count, damage, splash, projectileSpeed, hitTicks, firstHitTicks } = stats.unit;
   return {
     cost: stats.cost,
     type: 'troop',
-    unit: { hp, speed, radius, mass, range, sight, targets, layer, count, damage, hitTicks, firstHitTicks },
+    unit: { hp, speed, radius, mass, range, sight, targets, layer, count, damage, splash, projectileSpeed, hitTicks, firstHitTicks },
   };
 }

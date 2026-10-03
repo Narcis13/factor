@@ -1,5 +1,5 @@
 import { towerFootprint } from '@factor/content';
-import { deployZone, MILLI_PER_TILE, type Blast, type CardId, type Rect, type Side, type SimState, type Terrain } from '@factor/sim';
+import { deployZone, MILLI_PER_TILE, type Blast, type CardId, type Rect, type Side, type SimState, type Splash, type Terrain } from '@factor/sim';
 
 /**
  * How the arena sits on the screen: a whole number of pixels per tile, centered, with side 0 at the
@@ -60,6 +60,23 @@ export interface UnitShape {
 export interface BlastShape {
   side: Side;
   card: CardId;
+  x: number;
+  y: number;
+  radius: number;
+  fade: number;
+}
+
+/** A shot in flight on the screen: a dot in its side's color, bigger for a splash shell. */
+export interface ProjectileShape {
+  side: Side;
+  x: number;
+  y: number;
+  radius: number;
+}
+
+/** A splash that landed: a ring of its radius, fading out as `fade` falls from 1 toward 0. */
+export interface SplashShape {
+  side: Side;
   x: number;
   y: number;
   radius: number;
@@ -193,6 +210,34 @@ export function blastScene(
     const fade = 1 - (current.tick - tick + alpha) / lifeTicks;
     if (stats?.type === 'spell' && fade > 0) {
       shapes.push({ side, card, ...pointToScreen(view, x, y), radius: stats.spell.radius * scale, fade: Math.min(1, fade) });
+    }
+  }
+  return shapes;
+}
+
+/**
+ * Shots in flight, `alpha` of the way from where they were in `previous` to where they are in
+ * `current`. A shot new in `current` shows where it is. A dot is a sixth of a tile across, a splash
+ * shell's a quarter.
+ */
+export function projectileScene(previous: Pick<SimState, 'projectiles'>, current: Pick<SimState, 'projectiles'>, alpha: number, view: View): ProjectileShape[] {
+  const before = new Map(previous.projectiles.map((shot) => [shot.id, shot]));
+  return current.projectiles.map((shot) => {
+    const from = before.get(shot.id) ?? shot;
+    const x = from.x + (shot.x - from.x) * alpha;
+    const y = from.y + (shot.y - from.y) * alpha;
+    return { side: shot.side, ...pointToScreen(view, x, y), radius: view.tilePx * (shot.splash > 0 ? 0.25 : 1 / 6) };
+  });
+}
+
+/** Recent splash hits as rings of their radius, each fading out like a blast over `lifeTicks`. */
+export function splashScene(splashes: readonly (Splash & { tick: number })[], current: Pick<SimState, 'tick'>, alpha: number, lifeTicks: number, view: View): SplashShape[] {
+  const scale = view.tilePx / MILLI_PER_TILE;
+  const shapes: SplashShape[] = [];
+  for (const { side, x, y, radius, tick } of splashes) {
+    const fade = 1 - (current.tick - tick + alpha) / lifeTicks;
+    if (fade > 0) {
+      shapes.push({ side, ...pointToScreen(view, x, y), radius: radius * scale, fade: Math.min(1, fade) });
     }
   }
   return shapes;

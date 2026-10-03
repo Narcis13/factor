@@ -76,6 +76,28 @@ export function checkInvariants(state: SimState): string[] {
       violations.push(`${name} comes from ${card}, which is not a known troop`);
     }
   }
+  let previousShot = -1;
+  for (const shot of state.projectiles) {
+    const { id, side, x, y, toX, toY, speed, damage, splash, targetId } = shot;
+    const name = `projectile ${String(id)}`;
+    if (!Number.isSafeInteger(id) || id <= previousShot || id >= nextId || towers.some((tower) => tower.id === id) || units.some((unit) => unit.id === id)) {
+      violations.push(`${name} breaks unique ascending ids (after ${String(previousShot)}, next ${String(nextId)})`);
+    }
+    previousShot = id;
+    const inside = (px: number, py: number) => isIntegerIn(px, 0, arena.width - 1) && isIntegerIn(py, 0, arena.height - 1);
+    if (!inside(x, y) || !inside(toX, toY)) {
+      violations.push(`${name} at (${String(x)}, ${String(y)}) toward (${String(toX)}, ${String(toY)}) is outside the arena`);
+    }
+    const bad = !isIntegerIn(speed, 1, Number.MAX_SAFE_INTEGER) || !isIntegerIn(damage, 0, Number.MAX_SAFE_INTEGER) || !isIntegerIn(splash, 0, Number.MAX_SAFE_INTEGER);
+    if (bad || !isIntegerIn(targetId, 0, nextId - 1)) {
+      violations.push(`${name} has side ${String(side)}, target ${String(targetId)}, speed ${String(speed)}, damage ${String(damage)}, splash ${String(splash)}`);
+    }
+  }
+  for (const { x, y, radius } of state.splashes) {
+    if (!isIntegerIn(x, 0, arena.width - 1) || !isIntegerIn(y, 0, arena.height - 1) || !isIntegerIn(radius, 1, Number.MAX_SAFE_INTEGER)) {
+      violations.push(`a splash at (${String(x)}, ${String(y)}) of radius ${String(radius)} is not inside the arena`);
+    }
+  }
   const { max, ticksPerEnergy } = rules.energy;
   for (const side of [0, 1] as const) {
     const { energy, energyProgress, hand, queue } = players[side];
