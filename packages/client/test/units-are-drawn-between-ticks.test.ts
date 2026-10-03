@@ -1,7 +1,7 @@
 import { ARENA, matchSetup } from '@factor/content';
 import { createMatch, step, type Command, type SimState } from '@factor/sim';
 import { expect, test } from 'vitest';
-import { fitView, noDeployRect, unitScene } from '../src/index.ts';
+import { fitView, noDeployRects, unitScene } from '../src/index.ts';
 import { stepTo } from '../src/match-loop.ts';
 
 // 540 × 960 fits the arena at 30 px per tile, so 1 tile = 30 px and the arena's top edge is y = 0.
@@ -51,7 +51,24 @@ test('a unit that is new this tick is drawn where it stands', () => {
   expect(unitScene(before, state, 0.3, VIEW)).toEqual(unitScene(state, state, 0, VIEW));
 });
 
-test('the shade for a selected troop covers everything but the side’s own half', () => {
-  expect(noDeployRect(ARENA, 0)).toEqual({ x: 0, y: ARENA.river.y, width: ARENA.width, height: ARENA.height - ARENA.river.y });
-  expect(noDeployRect(ARENA, 1)).toEqual({ x: 0, y: 0, width: ARENA.width, height: ARENA.river.y + ARENA.river.height });
+test('the shade for a selected troop covers the river and both lanes of the enemy half', () => {
+  const riverEnd = ARENA.river.y + ARENA.river.height;
+  expect(noDeployRects(START, 0)).toEqual([
+    ARENA.river,
+    { x: 0, y: riverEnd, width: 9000, height: ARENA.height - riverEnd },
+    { x: 9000, y: riverEnd, width: 9000, height: ARENA.height - riverEnd },
+  ]);
+  expect(noDeployRects(START, 1)).toEqual([
+    ARENA.river,
+    { x: 0, y: 0, width: 9000, height: ARENA.river.y },
+    { x: 9000, y: 0, width: 9000, height: ARENA.river.y },
+  ]);
+});
+
+test('once an enemy Outpost falls, its lane of the enemy half is no longer shaded', () => {
+  // Side 1's right Outpost is tower 5.
+  const fallen = { ...START, towers: START.towers.map((tower) => (tower.id === 5 ? { ...tower, hp: 0 } : tower)) };
+  const riverEnd = ARENA.river.y + ARENA.river.height;
+  expect(noDeployRects(fallen, 0)).toEqual([ARENA.river, { x: 0, y: riverEnd, width: 9000, height: ARENA.height - riverEnd }]);
+  expect(noDeployRects(fallen, 1)).toEqual(noDeployRects(START, 1));
 });

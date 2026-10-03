@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { checkInvariants, deployZone, hashState, step, type Command, type SimState, type Unit } from '../src/index.ts';
+import { checkInvariants, deployZones, hashState, step, type Command, type SimState, type Unit } from '../src/index.ts';
 import { ARENA, idle, newMatch, troopMatch, walkMatch } from './fixtures.ts';
 
 // The fixture arena: 10 × 20 tiles, the river at y 9000–11000, bridges at x 1000–3000 (left) and
@@ -72,8 +72,9 @@ test('units share one id sequence with the towers, side 0 first within a tick', 
 });
 
 test('a troop deploys only on its own half; the river and the enemy half are rejected', () => {
-  expect(deployZone(ARENA, 0)).toEqual({ x: 0, y: 0, width: 10_000, height: 9000 });
-  expect(deployZone(ARENA, 1)).toEqual({ x: 0, y: 11_000, width: 10_000, height: 9000 });
+  expect(ARENA.width).toBe(10_000);
+  expect(deployZones(START, 0)).toEqual([{ x: 0, y: 0, width: 10_000, height: 9000 }]);
+  expect(deployZones(START, 1)).toEqual([{ x: 0, y: 11_000, width: 10_000, height: 9000 }]);
   const cases: [0 | 1, number, number, 'ok' | 'outside-deploy-zone'][] = [
     [0, 0, 0, 'ok'],
     [0, 9999, 8999, 'ok'],

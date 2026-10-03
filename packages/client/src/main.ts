@@ -7,7 +7,7 @@ import { createRandomBot } from '@factor/bot';
 import { BOT_TUNING, matchSetup, saveReplay, STARTER_DECKS, type Replay } from '@factor/content';
 import { createMatch } from '@factor/sim';
 import { Application, Graphics } from 'pixi.js';
-import { blastScene, groundScene, hpBarScene, noDeployRect, projectileScene, splashScene, toScreen, towerScene, unitScene } from './arena-view.ts';
+import { blastScene, groundScene, hpBarScene, noDeployRects, projectileScene, splashScene, toScreen, towerScene, unitScene } from './arena-view.ts';
 import { tap, type Controls } from './controls.ts';
 import { BACKGROUND, drawArena, drawBlasts, drawHpBars, drawNoDeploy, drawProjectiles, drawSplashes, drawUnits } from './draw-arena.ts';
 import { EndView } from './draw-end.ts';
@@ -68,7 +68,9 @@ function render(): void {
   const selected = controls.selected === null ? undefined : current.players[controls.side].hand[controls.selected];
   const selectedType = selected === undefined ? undefined : current.cards[selected]?.type;
   if (selectedType === 'troop' || selectedType === 'building') {
-    drawNoDeploy(field, toScreen(layout.view, noDeployRect(current.arena, controls.side)));
+    for (const rect of noDeployRects(current, controls.side)) {
+      drawNoDeploy(field, toScreen(layout.view, rect));
+    }
   }
   const units = unitScene(previous, current, t, layout.view);
   drawUnits(field, units);

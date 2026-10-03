@@ -2,12 +2,12 @@ import { footprint } from './arena.ts';
 import type { CardStats } from './cards.ts';
 import { squaredDistanceToRect } from './geometry.ts';
 import type { RejectReason, Side, SimState } from './state.ts';
-import { deployZone, inRect, isBuilding, unitStats } from './troops.ts';
+import { deployZones, inRect, isBuilding, unitStats } from './troops.ts';
 
 /**
  * Why `side` can't play a card with these stats at (x, y) on this field, or `null` if it can (VISION §4,
- * Deploy zone): the point must be inside the arena; a troop or building also inside its side's deploy
- * zone and off every standing tower, and a building's circle clear of every standing tower's footprint
+ * Deploy zone): the point must be inside the arena; a troop or building also inside one of its side's
+ * deploy zones (its half, and lanes opened by fallen enemy Outposts) and off every standing tower, and a building's circle clear of every standing tower's footprint
  * and every other building's circle. Energy and the hand are the command's business; this is only
  * about the spot.
  */
@@ -25,7 +25,7 @@ export function placementRejection(
   if (stats.type === 'spell') {
     return null;
   }
-  if (!inRect(deployZone(arena, side), x, y)) {
+  if (!deployZones(state, side).some((zone) => inRect(zone, x, y))) {
     return 'outside-deploy-zone';
   }
   if (state.towers.some((tower) => tower.hp > 0 && inRect(footprint(tower), x, y))) {

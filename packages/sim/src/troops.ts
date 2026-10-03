@@ -26,8 +26,27 @@ export interface Unit {
   cooldown: number;
 }
 
-/** Where `side` may deploy troops: its own half, up to the river (VISION §4). */
-export function deployZone(arena: Terrain, side: Side): Rect {
+/**
+ * Where `side` may deploy troops and buildings (VISION §4, Deploy zone): its own half, up to the river,
+ * and, for each enemy Outpost it has destroyed, that lane's side of the enemy half (the lanes split
+ * the arena down the middle). Disjoint rectangles: the home half first, then left before right.
+ */
+export function deployZones(state: { arena: Terrain; towers: readonly Tower[] }, side: Side): Rect[] {
+  const { arena } = state;
+  const halves = [homeHalf(arena, 0), homeHalf(arena, 1)] as const;
+  const enemy = halves[side === 0 ? 1 : 0];
+  const middle = Math.floor(arena.width / 2);
+  const zones = [halves[side]];
+  for (const lane of ['left', 'right'] as const) {
+    if (state.towers.some((tower) => tower.side !== side && tower.kind === 'outpost' && tower.lane === lane && tower.hp === 0)) {
+      zones.push(lane === 'left' ? { ...enemy, width: middle } : { ...enemy, x: middle, width: arena.width - middle });
+    }
+  }
+  return zones;
+}
+
+/** A side's own half of the arena, up to the river. */
+function homeHalf(arena: Terrain, side: Side): Rect {
   const { river } = arena;
   const riverEnd = river.y + river.height;
   return side === 0

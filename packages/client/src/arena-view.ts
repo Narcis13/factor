@@ -1,5 +1,5 @@
 import { towerFootprint } from '@factor/content';
-import { deployZone, MILLI_PER_TILE, type Blast, type CardId, type Rect, type Side, type SimState, type Splash, type Terrain } from '@factor/sim';
+import { deployZones, MILLI_PER_TILE, type Blast, type CardId, type Rect, type Side, type SimState, type Splash, type Terrain } from '@factor/sim';
 
 /**
  * How the arena sits on the screen: a whole number of pixels per tile, centered, with side 0 at the
@@ -247,10 +247,18 @@ export function splashScene(splashes: readonly (Splash & { tick: number })[], cu
   return shapes;
 }
 
-/** Where `side` may not deploy a troop, to shade while one is selected: the rest of the arena. */
-export function noDeployRect(arena: Terrain, side: Side): Rect {
-  const zone = deployZone(arena, side);
-  return zone.y === 0
-    ? { x: 0, y: zone.height, width: arena.width, height: arena.height - zone.height }
-    : { x: 0, y: 0, width: arena.width, height: zone.y };
+/**
+ * Where `side` may not deploy a troop or building, to shade while one is selected: the river, and each
+ * lane's side of the enemy half that a fallen enemy Outpost hasn't opened.
+ */
+export function noDeployRects(state: Pick<SimState, 'arena' | 'towers'>, side: Side): Rect[] {
+  const { arena } = state;
+  const zones = deployZones(state, side);
+  const home = zones[0];
+  const riverEnd = arena.river.y + arena.river.height;
+  const enemy = home?.y === 0 ? { x: 0, y: riverEnd, width: arena.width, height: arena.height - riverEnd } : { x: 0, y: 0, width: arena.width, height: arena.river.y };
+  const middle = Math.floor(arena.width / 2);
+  const lanes = [{ ...enemy, width: middle }, { ...enemy, x: middle, width: arena.width - middle }];
+  const open = (lane: Rect) => zones.some((zone) => zone.x === lane.x && zone.y === lane.y && zone.width === lane.width && zone.height === lane.height);
+  return [{ ...arena.river }, ...lanes.filter((lane) => !open(lane))];
 }

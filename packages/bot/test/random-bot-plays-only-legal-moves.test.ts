@@ -1,5 +1,5 @@
-import { BOT_TUNING, matchSetup, STARTER_DECK } from '@factor/content';
-import { createMatch, deployZone, MILLI_PER_TILE } from '@factor/sim';
+import { BOT_TUNING, STARTER_DECK } from '@factor/content';
+import { deployZones, MILLI_PER_TILE } from '@factor/sim';
 import { expect, test } from 'vitest';
 import { playBotMatch } from '../src/index.ts';
 import { replayChecked } from './fixtures.ts';
@@ -18,25 +18,22 @@ test.each(SEEDS)('seed %i: a bot-vs-bot match ends with invariants held and no c
   }
 });
 
-test('troops land on tile centers of their own side’s deploy zone', () => {
+test('troops and buildings land on tile centers of their own side’s deploy zones', () => {
   const { commands } = playBotMatch(7);
-  const arena = createMatch(matchSetup(7)).arena;
   const { states } = replayChecked(7, commands);
   let troops = 0;
   for (const command of commands) {
     const before = states[command.tick];
     const card = before?.players[command.side].hand[command.handSlot];
-    if (card === undefined || before?.cards[card]?.type !== 'troop') {
+    const type = card === undefined ? undefined : before?.cards[card]?.type;
+    if (before === undefined || type === undefined || type === 'spell') {
       continue;
     }
     troops++;
-    const zone = deployZone(arena, command.side);
     expect(command.x % MILLI_PER_TILE).toBe(MILLI_PER_TILE / 2);
     expect(command.y % MILLI_PER_TILE).toBe(MILLI_PER_TILE / 2);
-    expect(command.x).toBeGreaterThan(zone.x);
-    expect(command.x).toBeLessThan(zone.x + zone.width);
-    expect(command.y).toBeGreaterThan(zone.y);
-    expect(command.y).toBeLessThan(zone.y + zone.height);
+    const inZone = deployZones(before, command.side).some((zone) => command.x > zone.x && command.x < zone.x + zone.width && command.y > zone.y && command.y < zone.y + zone.height);
+    expect(inZone).toBe(true);
   }
   expect(troops).toBeGreaterThan(10);
 });

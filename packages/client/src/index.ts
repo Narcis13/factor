@@ -5,7 +5,7 @@ export {
   fitView,
   groundScene,
   hpBarScene,
-  noDeployRect,
+  noDeployRects,
   pointToScreen,
   projectileScene,
   splashScene,
