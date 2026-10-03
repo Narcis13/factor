@@ -67,12 +67,12 @@ function pickNext(bot: RandomBot, state: SimState, { minWaitTicks, maxWaitTicks 
 }
 
 /**
- * A troop goes on the center of a random tile of its side's deploy zone where it may go (not on a
- * standing tower). A spell goes on a random
+ * A troop or building goes on the center of a random tile of its side's deploy zone where it may go
+ * (not on a standing tower; a building clear of towers and buildings). A spell goes on a random
  * standing enemy tower or deployed enemy unit, so it is never wasted on empty grass.
  */
 function aim(rng: Rng, state: SimState, side: Side, stats: CardStats): [number, number] {
-  if (stats.type === 'troop') {
+  if (stats.type !== 'spell') {
     const zone = deployZone(state.arena, side);
     const half = MILLI_PER_TILE / 2;
     const spots: [number, number][] = [];

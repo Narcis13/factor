@@ -154,8 +154,8 @@ export type Placement = Pick<Unit, 'side' | 'card' | 'x' | 'y'> & Partial<Unit>;
 export function place(state: SimState, ...placements: Placement[]): SimState {
   const units = placements.map((placement, i): Unit => {
     const card = state.cards[placement.card];
-    const hp = card?.type === 'troop' ? card.unit.hp : 1;
-    return { id: state.nextId + i, hp, maxHp: hp, deployTicks: 0, targetId: null, cooldown: 0, ...placement };
+    const hp = card === undefined || card.type === 'spell' ? 1 : card.unit.hp;
+    return { id: state.nextId + i, hp, maxHp: hp, deployTicks: 0, age: 0, targetId: null, cooldown: 0, ...placement };
   });
   return { ...state, units: [...state.units, ...units], nextId: state.nextId + units.length };
 }

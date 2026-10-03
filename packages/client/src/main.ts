@@ -66,7 +66,8 @@ function render(): void {
   field.clear();
   drawArena(field, towerScene(current, layout.view));
   const selected = controls.selected === null ? undefined : current.players[controls.side].hand[controls.selected];
-  if (selected !== undefined && current.cards[selected]?.type === 'troop') {
+  const selectedType = selected === undefined ? undefined : current.cards[selected]?.type;
+  if (selectedType === 'troop' || selectedType === 'building') {
     drawNoDeploy(field, toScreen(layout.view, noDeployRect(current.arena, controls.side)));
   }
   const units = unitScene(previous, current, t, layout.view);

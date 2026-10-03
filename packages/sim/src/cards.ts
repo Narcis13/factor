@@ -5,17 +5,20 @@ import { shuffle, type Rng } from './rng.ts';
 export type CardId = string;
 
 /**
- * What a unit may lock on to (VISION §4): `ground` means ground units and towers; `air` reaches flying
- * units too (air and ground units, and towers); `buildings` means towers only.
+ * What a unit may lock on to (VISION §4): `ground` means ground units (buildings included) and towers;
+ * `air` reaches flying units too; `buildings` means towers and buildings only.
  */
 export type TargetFilter = 'ground' | 'air' | 'buildings';
 
 /** Where a unit moves (VISION §4): `ground` units walk and cross the river on bridges; `air` units fly over everything. */
 export type Layer = 'ground' | 'air';
 
-/** Whether a unit with this filter may lock on to a unit on this layer. */
-export function canTarget(filter: TargetFilter, layer: Layer): boolean {
-  return filter === 'air' || (filter === 'ground' && layer === 'ground');
+/** Whether a unit with this filter may lock on to a unit on this layer, or to a building (on the ground). */
+export function canTarget(filter: TargetFilter, layer: Layer, building: boolean): boolean {
+  if (filter === 'buildings') {
+    return building;
+  }
+  return filter === 'air' || layer === 'ground';
 }
 
 /** What a troop's unit is made of (VISION §4). `range` is how close its edge gets to its target's edge. */
@@ -48,10 +51,14 @@ export interface SpellStats {
 }
 
 /**
- * What the sim needs to know about a card. A troop deploys `unit.count` units on its side's half; a
- * spell lands anywhere. Energy spent to play it is `cost`.
+ * What the sim needs to know about a card (VISION §4, Card types). A troop deploys `unit.count` units
+ * on its side's half. A building deploys one static unit there (speed 0, on the ground) that loses its
+ * hp evenly over `lifetimeTicks` once deployed. A spell lands anywhere. Energy spent to play it is `cost`.
  */
-export type CardStats = { cost: number; type: 'troop'; unit: UnitStats } | { cost: number; type: 'spell'; spell: SpellStats };
+export type CardStats =
+  | { cost: number; type: 'troop'; unit: UnitStats }
+  | { cost: number; type: 'building'; unit: UnitStats; lifetimeTicks: number }
+  | { cost: number; type: 'spell'; spell: SpellStats };
 
 /** Energy (VISION §4). The numbers come from `content`. */
 export interface EnergyRules {
@@ -136,9 +143,6 @@ function copyCard(stats: CardStats): CardStats {
     return { cost: stats.cost, type: 'spell', spell: { radius, damage, towerDamageBp } };
   }
   const { hp, speed, radius, mass, range, sight, targets, layer, count, damage, splash, projectileSpeed, hitTicks, firstHitTicks } = stats.unit;
-  return {
-    cost: stats.cost,
-    type: 'troop',
-    unit: { hp, speed, radius, mass, range, sight, targets, layer, count, damage, splash, projectileSpeed, hitTicks, firstHitTicks },
-  };
+  const unit = { hp, speed, radius, mass, range, sight, targets, layer, count, damage, splash, projectileSpeed, hitTicks, firstHitTicks };
+  return stats.type === 'troop' ? { cost: stats.cost, type: 'troop', unit } : { cost: stats.cost, type: 'building', unit, lifetimeTicks: stats.lifetimeTicks };
 }

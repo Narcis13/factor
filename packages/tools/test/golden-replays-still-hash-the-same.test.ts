@@ -142,7 +142,8 @@ test('goldens prints one line per golden and exits 0 when all match', () => {
   const { status, stdout } = sim('goldens', '--dir', GOLDENS);
   expect(status).toBe(0);
   const { checkpoints, lastTick } = stored('seed-42');
-  expect(stdout).toContain(`seed-42  ok      ${String(checkpoints)} checkpoints to tick ${String(lastTick)}`);
+  // Names are padded to the longest one.
+  expect(stdout).toMatch(new RegExp(`^seed-42 +ok +${String(checkpoints)} checkpoints to tick ${String(lastTick)}$`, 'm'));
   expect(stdout.trimEnd().split('\n')).toHaveLength(NAMES.length);
 });
 
@@ -153,11 +154,11 @@ test('goldens exits 1 and names the tick when a golden changed; --update fixes i
   writeFileSync(join(dir, GOLDEN_HASHES_FILE), JSON.stringify(hashes));
   const failed = sim('goldens', '--dir', dir);
   expect(failed.status).toBe(1);
-  expect(failed.stdout).toMatch(/^seed-54 {2}FAIL {4}tick 200: expected ffffffff, got [0-9a-f]{8}$/m);
+  expect(failed.stdout).toMatch(/^seed-54 +FAIL {4}tick 200: expected ffffffff, got [0-9a-f]{8}$/m);
   const updated = sim('goldens', '--dir', dir, '--update');
   expect(updated.status).toBe(0);
   const { checkpoints, lastTick } = stored('seed-54');
-  expect(updated.stdout).toContain(`seed-54  stored  ${String(checkpoints)} checkpoints to tick ${String(lastTick)}`);
+  expect(updated.stdout).toMatch(new RegExp(`^seed-54 +stored +${String(checkpoints)} checkpoints to tick ${String(lastTick)}$`, 'm'));
   expect(readGoldenHashes(dir)).toEqual(readGoldenHashes(GOLDENS));
 });
 

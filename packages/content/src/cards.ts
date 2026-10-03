@@ -7,8 +7,9 @@ const TICKS = TICKS_PER_SECOND;
  * The cards (VISION §8), one per archetype. `juggernaut` is the tank that only targets buildings,
  * `warden` the melee unit, `slinger` the ranged unit (it reaches flying units too), `flare` the damage
  * spell (a 2.5-tile burst that hits towers for 30%), `harrier` the flyer, which only `air` units,
- * towers and spells can hit, `rabble` the swarm (four small fighters from one play), and
- * `bombardier` the splash unit, lobbing slow shells that hit every ground enemy within 1.2 tiles.
+ * towers and spells can hit, `rabble` the swarm (four small fighters from one play),
+ * `bombardier` the splash unit, lobbing slow shells that hit every ground enemy within 1.2 tiles, and
+ * `bastion` the building: a turret that shoots ground and air for 30 s, losing its hp as it goes.
  * Ranged hits fly as projectiles. Speeds (projectiles' too) are milli-tiles per tick (50 = 1 tile/s);
  * radius, range, sight and splash are milli-tiles, edge to edge. Hit times are in ticks.
  */
@@ -43,6 +44,12 @@ export const CARDS = {
     cost: 4,
     type: 'troop',
     unit: { hp: 650, speed: 45, radius: 500, mass: 6, range: 4500, sight: 5500, targets: 'ground', layer: 'ground', count: 1, damage: 130, splash: 1200, projectileSpeed: 400, hitTicks: (9 * TICKS) / 5, firstHitTicks: TICKS / 2 },
+  },
+  bastion: {
+    cost: 4,
+    type: 'building',
+    lifetimeTicks: 30 * TICKS,
+    unit: { hp: 1100, speed: 0, radius: 600, mass: 1, range: 5500, sight: 5500, targets: 'air', layer: 'ground', count: 1, damage: 75, splash: 0, projectileSpeed: 700, hitTicks: (4 * TICKS) / 5, firstHitTicks: TICKS / 2 },
   },
 } as const satisfies Record<CardId, CardStats>;
 

@@ -12,7 +12,7 @@ const REPLAY: Replay = {
     { tick: 50, side: 1, handSlot: 2, x: 3000, y: 28_000 },
     { tick: 50, side: 0, handSlot: 1, x: 15_000, y: 9000 },
     { tick: 50, side: 0, handSlot: 3, x: 1000, y: 1000 },
-    { tick: 5999, side: 1, handSlot: 0, x: 500, y: 31_500 },
+    { tick: 5999, side: 1, handSlot: 0, x: 1500, y: 31_000 },
   ],
 };
 

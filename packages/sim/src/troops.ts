@@ -1,11 +1,11 @@
 import { footprint, type AttackStats, type Rect, type Terrain, type Tower, type TowerStats } from './arena.ts';
 import type { Strike } from './attacks.ts';
 import { canTarget, type CardId, type CardStats, type TargetFilter, type UnitStats } from './cards.ts';
-import { walk } from './collision.ts';
+import { circleObstacle, walk, type Obstacle } from './collision.ts';
 import { clamp, distanceToRect, isqrt, type Point } from './geometry.ts';
 import type { Side } from './state.ts';
 
-/** A troop's unit on the field. Its stats stay on its card (`SimState.cards`). */
+/** A troop's unit, or a building, on the field. Its stats stay on its card (`SimState.cards`). */
 export interface Unit {
   /** Shares one ascending sequence with the towers. */
   id: number;
@@ -18,6 +18,8 @@ export interface Unit {
   maxHp: number;
   /** Ticks left before it acts; it stands still while this is above 0. */
   deployTicks: number;
+  /** Ticks it has acted since its deploy delay ran out. A building decays by it. */
+  age: number;
   /** The tower or unit it's locked on to, or `null`. May name one that fell since; it's dropped on the next act. */
   targetId: number | null;
   /** Ticks until its next hit while locked on. */
@@ -90,6 +92,7 @@ export function actUnit(unit: Unit, stats: UnitStats, field: Field, strikes: Str
     unit.deployTicks -= 1;
     return;
   }
+  unit.age += 1;
   const locked = unit.targetId === null ? null : findTarget(field, unit.targetId);
   if (locked !== null && gapTo(unit, stats, locked) <= stats.range) {
     unit.cooldown -= 1;
@@ -111,6 +114,10 @@ export function actUnit(unit: Unit, stats: UnitStats, field: Field, strikes: Str
     return;
   }
   const goal = target.entity;
+  if (stats.speed === 0) {
+    // A building waits for a target to come in range.
+    return;
+  }
   if (stats.layer === 'air') {
     stepToward(unit, stats, field, target, goal, Math.min(stats.speed, gap));
     return;
@@ -134,10 +141,12 @@ export function actUnit(unit: Unit, stats: UnitStats, field: Field, strikes: Str
   stepToward(unit, stats, field, target, goal, Math.min(stats.speed, gap));
 }
 
-/** Moves `unit` toward `to`: on the ground around every standing tower but the one it's going for, in the air over them. */
+/**
+ * Moves `unit` toward `to`: on the ground around every standing tower and building but the one it's
+ * going for, in the air over them.
+ */
 function stepToward(unit: Unit, stats: UnitStats, field: Field, target: Target, to: Point, length: number): void {
-  const blocking = stats.layer === 'ground' ? field.towers.filter((tower) => tower.hp > 0 && tower.id !== target.entity.id) : [];
-  const obstacles = blocking.map(footprint);
+  const obstacles = stats.layer === 'ground' ? groundObstacles(field).filter(({ id }) => id !== target.entity.id) : [];
   const body = { x: unit.x, y: unit.y, radius: stats.radius, mass: stats.mass };
   walk(body, to, length, obstacles, field.arena);
   unit.x = body.x;
@@ -145,8 +154,9 @@ function stepToward(unit: Unit, stats: UnitStats, field: Field, target: Target, 
 }
 
 /**
- * Before the river: the bridge entrance of the unit's lane, straight ahead where it can be.
- * On the bridge: straight across.
+ * Before the river, or on the bank beside the bridge: the bridge entrance of the unit's lane, straight
+ * ahead where it can be. On the bridge: straight across, back within its span if a push moved it aside,
+ * to a radius past the far bank, so a friend pressing back at the bridge's end can't hold it on the line.
  */
 function bridgeWaypoint(unit: Unit, stats: UnitStats, arena: Terrain, nearBank: number, farBank: number, beforeRiver: boolean): Point {
   const lane = unit.x < arena.width / 2 ? 'left' : 'right';
@@ -155,11 +165,12 @@ function bridgeWaypoint(unit: Unit, stats: UnitStats, arena: Terrain, nearBank: 
     throw new RangeError('The arena has no bridge');
   }
   const [minX, maxX] = bridgeSpan(bridge, stats);
-  const onBridgeX = unit.x >= minX && unit.x <= maxX;
-  if (beforeRiver || !onBridgeX) {
+  const besideBridge = !inBand(arena.river, unit.y) && (unit.x < minX || unit.x > maxX);
+  if (beforeRiver || besideBridge) {
     return { x: clamp(unit.x, minX, maxX), y: nearBank };
   }
-  return { x: unit.x, y: farBank };
+  const forward = farBank > nearBank ? 1 : -1;
+  return { x: clamp(unit.x, minX, maxX), y: farBank + forward * stats.radius };
 }
 
 /**
@@ -200,36 +211,49 @@ function overBridge(bridge: Rect, x: number): boolean {
 }
 
 /**
+ * What ground units walk around, with whose they are: every standing tower's footprint and every
+ * building's circle, in id order.
+ */
+export function groundObstacles(field: Field): (Obstacle & { id: number })[] {
+  const towers = field.towers.filter((tower) => tower.hp > 0).map((tower) => ({ id: tower.id, ...footprint(tower), pad: 0 }));
+  const buildings = field.units.filter((other) => other.hp > 0 && isBuilding(field, other));
+  return [...towers, ...buildings.map((building) => ({ id: building.id, ...circleObstacle(building, unitStats(field, building).radius) }))];
+}
+
+/** Whether `unit` is a building rather than a troop's unit. */
+export function isBuilding(field: Pick<Field, 'cards'>, unit: Unit): boolean {
+  return field.cards[unit.card]?.type === 'building';
+}
+
+/**
  * The nearest valid enemy whose edge is within sight (towers first on a tie, then the lower id): a
- * tower, or a unit on a layer its filter reaches. With none, the nearest standing enemy tower by
- * center. A `buildings` unit only ever takes the latter.
+ * tower, or a unit its filter reaches (for `buildings`, a building). With none, the nearest standing
+ * enemy tower by center, unless the unit is a building, which can't go anywhere.
  */
 function acquire(unit: Unit, stats: UnitStats, field: Field): Target | null {
-  if (stats.targets !== 'buildings') {
-    const candidates: Target[] = [];
-    for (const tower of field.towers) {
-      if (tower.side !== unit.side && tower.hp > 0) {
-        candidates.push({ kind: 'tower', entity: tower });
-      }
+  const candidates: Target[] = [];
+  for (const tower of field.towers) {
+    if (tower.side !== unit.side && tower.hp > 0) {
+      candidates.push({ kind: 'tower', entity: tower });
     }
-    for (const other of field.units) {
-      const otherStats = unitStats(field, other);
-      if (other.side !== unit.side && other.hp > 0 && canTarget(stats.targets, otherStats.layer)) {
-        candidates.push({ kind: 'unit', entity: other, radius: otherStats.radius });
-      }
+  }
+  for (const other of field.units) {
+    const otherStats = unitStats(field, other);
+    if (other.side !== unit.side && other.hp > 0 && canTarget(stats.targets, otherStats.layer, isBuilding(field, other))) {
+      candidates.push({ kind: 'unit', entity: other, radius: otherStats.radius });
     }
-    let best: Target | null = null;
-    let bestGap = 0;
-    for (const candidate of candidates) {
-      const gap = gapTo(unit, stats, candidate);
-      if (gap <= stats.sight && (best === null || gap < bestGap)) {
-        best = candidate;
-        bestGap = gap;
-      }
+  }
+  let best: Target | null = null;
+  let bestGap = 0;
+  for (const candidate of candidates) {
+    const gap = gapTo(unit, stats, candidate);
+    if (gap <= stats.sight && (best === null || gap < bestGap)) {
+      best = candidate;
+      bestGap = gap;
     }
-    if (best !== null) {
-      return best;
-    }
+  }
+  if (best !== null || stats.speed === 0) {
+    return best;
   }
   const tower = nearestEnemyTower(unit, field.towers);
   return tower === null ? null : { kind: 'tower', entity: tower };
@@ -326,8 +350,8 @@ function strike(from: Tower | Unit, targetId: number, stats: AttackStats, target
 /** The unit stats behind a unit, from its card. */
 export function unitStats(field: Pick<Field, 'cards'>, unit: Unit): UnitStats {
   const stats = Object.hasOwn(field.cards, unit.card) ? field.cards[unit.card] : undefined;
-  if (stats?.type !== 'troop') {
-    throw new RangeError(`Unit ${String(unit.id)} comes from ${unit.card}, which is not a troop`);
+  if (stats === undefined || stats.type === 'spell') {
+    throw new RangeError(`Unit ${String(unit.id)} comes from ${unit.card}, which is not a troop or building`);
   }
   return stats.unit;
 }

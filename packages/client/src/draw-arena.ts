@@ -39,7 +39,7 @@ export function drawNoDeploy(graphics: Graphics, rect: ScreenRect): void {
 
 /**
  * A unit is its card's color ringed in its side's; faint while it deploys. A flying unit casts a dark
- * shadow where it is and is drawn lifted above it, so it reads as off the ground.
+ * shadow where it is and is drawn lifted above it, so it reads as off the ground. A building is a square.
  */
 export function drawUnits(graphics: Graphics, units: UnitShape[]): void {
   for (const unit of units) {
@@ -47,6 +47,15 @@ export function drawUnits(graphics: Graphics, units: UnitShape[]): void {
     const lift = unit.flying ? unit.radius * FLY_LIFT : 0;
     if (unit.flying) {
       graphics.ellipse(unit.x, unit.y + unit.radius * 0.3, unit.radius * 0.85, unit.radius * 0.4).fill({ color: SHADOW, alpha: 0.45 * alpha });
+    }
+    if (unit.building) {
+      // A building is a block, inside its circle, ringed in its side's color.
+      const half = unit.radius * 0.8;
+      graphics
+        .rect(unit.x - half, unit.y - half, half * 2, half * 2)
+        .fill({ color: cardColor(unit.card), alpha })
+        .stroke({ color: SIDE_COLOR[unit.side], width: 3, alpha });
+      continue;
     }
     graphics
       .circle(unit.x, unit.y - lift, unit.radius)

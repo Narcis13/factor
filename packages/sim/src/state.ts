@@ -127,10 +127,18 @@ export function createMatch(setup: MatchSetup): SimState {
   const cards = pickCards(setup.cards, [...setup.decks[0], ...setup.decks[1]]);
   for (const [id, card] of Object.entries(cards)) {
     requireInteger(`${id} cost`, card.cost, 0, energy.max);
-    if (card.type === 'troop') {
+    if (card.type !== 'spell') {
       const { hp, speed, radius, mass, sight, targets, layer, count } = card.unit;
       requireInteger(`${id} hp`, hp, 1);
-      requireInteger(`${id} speed`, speed, 1);
+      if (card.type === 'building') {
+        requireInteger(`${id} lifetimeTicks`, card.lifetimeTicks, 1);
+        // A building stands still on the ground, one per play.
+        if (speed !== 0 || layer !== 'ground' || count !== 1) {
+          throw new RangeError(`${id} is a building: speed 0, layer ground and count 1, got ${String(speed)}, ${layer}, ${String(count)}`);
+        }
+      } else {
+        requireInteger(`${id} speed`, speed, 1);
+      }
       requireInteger(`${id} radius`, radius, 1);
       requireInteger(`${id} mass`, mass, 1);
       requireInteger(`${id} count`, count, 1, MAX_COUNT);

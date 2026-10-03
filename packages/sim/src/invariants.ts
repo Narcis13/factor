@@ -66,14 +66,14 @@ export function checkInvariants(state: SimState): string[] {
       violations.push(`${name} has ${String(deployTicks)} deploy ticks left`);
     }
     const stats = Object.hasOwn(cards, card) ? cards[card] : undefined;
-    const flying = stats?.type === 'troop' && stats.unit.layer === 'air';
+    const flying = stats !== undefined && stats.type !== 'spell' && stats.unit.layer === 'air';
     if (!isIntegerIn(x, 0, arena.width - 1) || !isIntegerIn(y, 0, arena.height - 1)) {
       violations.push(`${name} (${String(x)}, ${String(y)}) is outside the arena`);
     } else if (!flying && inRiver(arena, x, y) && !arena.bridges.some((bridge) => x >= bridge.x && x <= bridge.x + bridge.width)) {
       violations.push(`${name} (${String(x)}, ${String(y)}) is in the river off any bridge`);
     }
-    if (stats?.type !== 'troop') {
-      violations.push(`${name} comes from ${card}, which is not a known troop`);
+    if (stats === undefined || stats.type === 'spell') {
+      violations.push(`${name} comes from ${card}, which is not a known troop or building`);
     }
   }
   let previousShot = -1;

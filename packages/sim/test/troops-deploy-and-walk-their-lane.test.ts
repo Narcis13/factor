@@ -53,6 +53,7 @@ test('a troop play puts one unit where it was aimed, at full hp, waiting out its
     hp: 500,
     maxHp: 500,
     deployTicks: 19,
+    age: 0,
     targetId: null,
     cooldown: 0,
   }]);
@@ -212,10 +213,10 @@ test('a match full of troops plays until a Keep falls, with invariants holding e
     return { state, deaths };
   };
   const first = playOut();
-  // The fixture's towers are weak, so a Keep falls long before the timer: side 0 takes all three at tick 1790, side 1 two Outposts.
+  // The fixture's towers are weak, so a Keep falls long before the timer: side 0 takes all three at tick 2462.
   expect(first.state.result).toEqual({ winner: 0 });
-  expect(first.state.tick).toBe(1790);
-  expect(first.state.stars).toEqual([3, 2]);
+  expect(first.state.tick).toBe(2462);
+  expect(first.state.stars).toEqual([3, 0]);
   expect(first.deaths).toBeGreaterThan(10);
   expect(hashState(playOut().state)).toBe(hashState(first.state));
 });

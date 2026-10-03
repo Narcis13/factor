@@ -8,7 +8,7 @@ const VIEW = fitView(ARENA, 540, 960);
 const START = createMatch(matchSetup(0));
 
 function unit(hp: number, maxHp: number): UnitShape {
-  return { id: 6, side: 1, card: 'warden', x: 100, y: 200, radius: 15, deploying: false, flying: false, hp, maxHp };
+  return { id: 6, side: 1, card: 'warden', x: 100, y: 200, radius: 15, deploying: false, flying: false, building: false, hp, maxHp };
 }
 
 test('every standing tower has a full bar just above its footprint, as wide as it is', () => {

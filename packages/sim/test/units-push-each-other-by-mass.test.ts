@@ -22,11 +22,25 @@ function gap(a: Unit, b: Unit, reach: number): number {
 }
 
 test('two overlapping units move apart along the line between them, the lighter one further', () => {
-  // 400 apart with radii 500 + 400: 500 of overlap. The walker moves 3/8 of it, the archer 5/8 (rounded down).
-  const start = place(START, { side: 0, card: 'walker', x: 5000, y: 7000, deployTicks: 20 }, { side: 0, card: 'archer', x: 5000, y: 7400, deployTicks: 20 });
+  // 500 apart with radii 500 + 400: 400 of overlap. The walker moves 3/8 of it (150), the archer 5/8
+  // (250), along (300, 400) / 500.
+  const start = place(START, { side: 0, card: 'walker', x: 5000, y: 7300, deployTicks: 20 }, { side: 0, card: 'archer', x: 5300, y: 7700, deployTicks: 20 });
   const after = step(start, []);
-  expect(unit(after, 6)).toMatchObject({ x: 5000, y: 7000 - 187 });
-  expect(unit(after, 7)).toMatchObject({ x: 5000, y: 7400 + 312 });
+  expect(unit(after, 6)).toMatchObject({ x: 5000 - 90, y: 7300 - 120 });
+  expect(unit(after, 7)).toMatchObject({ x: 5300 + 150, y: 7700 + 200 });
+});
+
+test('two units nearly in line, one behind the other, also step aside so neither blocks the other for good', () => {
+  // In line along y with 500 of overlap: besides the push, each steps a quarter of the overlap aside.
+  const start = place(START, { side: 0, card: 'walker', x: 5000, y: 7000, deployTicks: 20 }, { side: 1, card: 'walker', x: 5000, y: 7500, deployTicks: 20 });
+  const after = step(start, []);
+  expect(unit(after, 6)).toMatchObject({ x: 5000 - 125, y: 7000 - 250 });
+  expect(unit(after, 7)).toMatchObject({ x: 5000 + 125, y: 7500 + 250 });
+  // Off line a little, they step aside away from each other.
+  const skew = place(START, { side: 0, card: 'walker', x: 5100, y: 7000, deployTicks: 20 }, { side: 1, card: 'walker', x: 5000, y: 7500, deployTicks: 20 });
+  const apart = step(skew, []);
+  expect(unit(apart, 6).x).toBeGreaterThan(5100);
+  expect(unit(apart, 7).x).toBeLessThan(5000);
 });
 
 test('enemies push each other as friends do, diagonally too', () => {
@@ -58,9 +72,10 @@ test('a crowd dropped on one point spreads out until no two overlap by more than
 });
 
 test('a unit pushed toward the river stops on the bank; on a bridge it stays over the bridge', () => {
-  // The walker at y 8900 is pushed 300 up, into the river where there is no bridge: it stays on the bank.
+  // The walker at y 8900 is pushed 300 up (and 150 aside), into the river where there is no bridge: it
+  // stays on the bank.
   const bank = place(START, { side: 0, card: 'walker', x: 5000, y: 8900, deployTicks: 20 }, { side: 0, card: 'walker', x: 5000, y: 8500, deployTicks: 20 });
-  expect(unit(run(bank, 1)[1], 6)).toMatchObject({ x: 5000, y: 8999 });
+  expect(unit(run(bank, 1)[1], 6)).toMatchObject({ x: 4850, y: 8999 });
   // Pushed sideways off the left bridge (x 1000–3000) mid-river, it stays on the bridge's edge.
   const bridge = place(START, { side: 0, card: 'walker', x: 2900, y: 10_000, deployTicks: 20 }, { side: 0, card: 'walker', x: 2500, y: 10_000, deployTicks: 20 });
   expect(unit(run(bridge, 1)[1], 6)).toMatchObject({ x: 3000, y: 10_000 });

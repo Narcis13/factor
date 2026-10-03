@@ -1,6 +1,19 @@
 import type { Rect, Terrain } from './arena.ts';
 import { clamp, divRound, isqrt, moveToward, squaredDistanceToRect, type Point } from './geometry.ts';
 
+/**
+ * Something ground units can't walk through: a rectangle, kept `pad` clear of. A tower is its footprint
+ * with no pad; a building, a circle, is the point at its center padded by its radius.
+ */
+export interface Obstacle extends Rect {
+  pad: number;
+}
+
+/** A building's circle as an obstacle. */
+export function circleObstacle({ x, y }: Point, radius: number): Obstacle {
+  return { x, y, width: 0, height: 0, pad: radius };
+}
+
 /** A circle that collides: a unit's position with its radius and mass. */
 export interface Body extends Point {
   radius: number;
@@ -10,61 +23,71 @@ export interface Body extends Point {
 
 /**
  * Walks `body` up to `length` toward `to` (VISION §4, Movement), around any of `obstacles` in the way.
- * A step that would run into an obstacle's face stops at the face and spends the rest sliding along
- * it, around whichever end of the face makes the shorter way to the goal. At a corner it steps along
- * the tangent of its circle around the corner instead, the way that leans toward the goal; `separate`
- * then pushes it back out to touch the corner, so it rounds it.
+ * A step that would run into an obstacle stops at the face it is in front of (the one it is further out
+ * from, at a corner) and spends the rest sliding along it, around whichever end makes the shorter way
+ * to the goal, until it is clear of that end. Already pressed into the face (pushed there, or squeezed
+ * against the arena's edge), it spends the whole step sliding. `separate` then pushes it back out to
+ * touch the obstacle, so it rounds corners.
  */
-export function walk(body: Body, to: Point, length: number, obstacles: readonly Rect[], arena: Terrain): void {
+export function walk(body: Body, to: Point, length: number, obstacles: readonly Obstacle[], arena: Terrain): void {
   const start = { x: body.x, y: body.y };
   moveToward(body, to, length);
-  const r = body.radius;
   for (const rect of obstacles) {
+    const r = body.radius + rect.pad;
     if (squaredDistanceToRect(body, rect) >= r * r) {
       continue;
     }
-    const withinX = start.x >= rect.x && start.x <= rect.x + rect.width;
-    const withinY = start.y >= rect.y && start.y <= rect.y + rect.height;
-    if (withinX && withinY) {
+    const outX = Math.max(rect.x - start.x, 0, start.x - (rect.x + rect.width));
+    const outY = Math.max(rect.y - start.y, 0, start.y - (rect.y + rect.height));
+    if (outX === 0 && outY === 0) {
       // Already inside: `separate` pushes it out.
       continue;
     }
-    if (!withinX && !withinY) {
-      const corner = { x: clamp(start.x, rect.x, rect.x + rect.width), y: clamp(start.y, rect.y, rect.y + rect.height) };
-      // The tangent, a quarter turn from the way out of the corner; flipped to lean toward the goal.
-      let [tx, ty] = [corner.y - start.y, start.x - corner.x];
-      if (tx * (to.x - start.x) + ty * (to.y - start.y) < 0) {
-        [tx, ty] = [0 - tx, 0 - ty];
-      }
-      const span = Math.max(1, isqrt(tx * tx + ty * ty));
-      body.x = start.x + divRound(tx * length, span);
-      body.y = start.y + divRound(ty * length, span);
-      continue;
-    }
-    if (withinX) {
-      const faceY = start.y < rect.y ? rect.y - r : rect.y + rect.height + r;
-      const rest = Math.max(0, length - Math.abs(faceY - start.y));
+    if (outY >= outX) {
+      const below = start.y < rect.y;
+      const faceY = below ? rect.y - r : rect.y + rect.height + r;
+      const approach = below ? faceY - start.y : start.y - faceY;
+      const rest = Math.max(0, length - Math.max(0, approach));
+      const y = approach >= 0 ? faceY : start.y;
       const ends: [number, number] = [rect.x - r, rect.x + rect.width + r];
-      const [dir, clearX] = slide(start.x, to.x, ends, arena.width);
+      const fits = ends.map((x) => x >= body.radius && x <= arena.width - 1 - body.radius && clear({ ...body, x, y }, rect, obstacles)) as [boolean, boolean];
+      const [dir, clearX] = slide(start.x, to.x, ends, fits, arena.width);
       body.x = start.x + dir * Math.min(rest, Math.abs(clearX - start.x));
-      body.y = faceY;
+      body.y = y;
     } else {
-      const faceX = start.x < rect.x ? rect.x - r : rect.x + rect.width + r;
-      const rest = Math.max(0, length - Math.abs(faceX - start.x));
+      const left = start.x < rect.x;
+      const faceX = left ? rect.x - r : rect.x + rect.width + r;
+      const approach = left ? faceX - start.x : start.x - faceX;
+      const rest = Math.max(0, length - Math.max(0, approach));
+      const x = approach >= 0 ? faceX : start.x;
       const ends: [number, number] = [rect.y - r, rect.y + rect.height + r];
-      const [dir, clearY] = slide(start.y, to.y, ends, arena.height);
-      body.x = faceX;
+      const fits = ends.map((y) => y >= body.radius && y <= arena.height - 1 - body.radius && clear({ ...body, x, y }, rect, obstacles)) as [boolean, boolean];
+      const [dir, clearY] = slide(start.y, to.y, ends, fits, arena.height);
+      body.x = x;
       body.y = start.y + dir * Math.min(rest, Math.abs(clearY - start.y));
     }
   }
 }
 
+/** Whether `body` stands clear of every obstacle but `except`. */
+function clear(body: Body, except: Obstacle, obstacles: readonly Obstacle[]): boolean {
+  return obstacles.every((other) => {
+    const reach = body.radius + other.pad;
+    return other === except || squaredDistanceToRect(body, other) >= reach * reach;
+  });
+}
+
 /**
- * Which way to slide along a face, on one axis, and the end to clear: the one with the shorter way from
- * `position` past it to `goal`; on a tie, the one toward the middle of the arena (else the high one).
- * The same spot always slides the same way, so a body never turns back halfway along a face.
+ * Which way to slide along a face, on one axis, and the end to clear. An end the body can't stand at
+ * (`fits` false: past the arena's edge, or on another obstacle) is out while the other fits; then the
+ * one with the shorter way from `position` past it to `goal`; on a tie, the one toward the middle of
+ * the arena (else the high one). None of this depends on how far along the face the body is, so it
+ * never turns back halfway.
  */
-function slide(position: number, goal: number, [low, high]: [number, number], arenaSize: number): [1 | -1, number] {
+function slide(position: number, goal: number, [low, high]: [number, number], [lowFits, highFits]: [boolean, boolean], arenaSize: number): [1 | -1, number] {
+  if (lowFits !== highFits) {
+    return lowFits ? [-1, low] : [1, high];
+  }
   const viaLow = position - low + Math.abs(goal - low);
   const viaHigh = high - position + Math.abs(high - goal);
   if (viaLow !== viaHigh) {
@@ -81,7 +104,7 @@ function slide(position: number, goal: number, [low, high]: [number, number], ar
  * Then each body is pushed out of the obstacles it overlaps and kept inside the arena (by its radius,
  * where the arena is wide enough); on the `ground`, also off the river except over a bridge. One pass a tick, so a crowd settles over a few ticks.
  */
-export function separate(bodies: readonly Body[], obstacles: readonly Rect[], arena: Terrain, ground: boolean): void {
+export function separate(bodies: readonly Body[], obstacles: readonly Obstacle[], arena: Terrain, ground: boolean): void {
   for (let i = 0; i < bodies.length; i++) {
     const a = bodies[i];
     for (let j = i + 1; j < bodies.length && a !== undefined; j++) {
@@ -116,11 +139,18 @@ function pushApart(a: Body, b: Body): void {
   a.y -= divRound(ny * aShare, length);
   b.x += divRound(nx * bShare, length);
   b.y += divRound(ny * bShare, length);
+  if (Math.abs(dx) * 4 < Math.abs(dy)) {
+    // Nearly head-on in a column, neither would ever get past: they also step aside along x, away from
+    // each other (the first toward −x when exactly in line).
+    const aside = Math.floor(overlap / 4) * (dx < 0 ? -1 : 1);
+    a.x -= aside;
+    b.x += aside;
+  }
 }
 
 /** Out of `rect` to touch it: away from its nearest point, or, from inside, through the nearest face. */
-function pushOut(body: Body, rect: Rect): void {
-  const r = body.radius;
+function pushOut(body: Body, rect: Obstacle): void {
+  const r = body.radius + rect.pad;
   const squared = squaredDistanceToRect(body, rect);
   if (squared >= r * r) {
     return;

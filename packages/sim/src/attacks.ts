@@ -2,7 +2,7 @@ import { footprint, type Tower } from './arena.ts';
 import { canTarget, type TargetFilter } from './cards.ts';
 import { moveToward, squaredDistanceToRect, type Point } from './geometry.ts';
 import type { Side } from './state.ts';
-import { unitStats, type Field, type Hit, type Unit } from './troops.ts';
+import { isBuilding, unitStats, type Field, type Hit, type Unit } from './troops.ts';
 
 /**
  * An attack decided this tick (VISION §4, unit stats): a tower or unit at (x, y) hitting `targetId`.
@@ -132,7 +132,7 @@ function land(battle: Battle, attack: Pick<Strike, 'side' | 'targetId' | 'damage
     const stats = unitStats(battle, unit);
     const reach = splash + stats.radius;
     const [dx, dy] = [unit.x - point.x, unit.y - point.y];
-    if (unit.side !== side && unit.hp > 0 && canTarget(targets, stats.layer) && dx * dx + dy * dy <= reach * reach) {
+    if (unit.side !== side && unit.hp > 0 && canTarget(targets, stats.layer, isBuilding(battle, unit)) && dx * dx + dy * dy <= reach * reach) {
       hits.push({ targetId: unit.id, damage });
     }
   }

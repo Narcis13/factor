@@ -52,6 +52,8 @@ export interface UnitShape {
   deploying: boolean;
   /** A flying unit: drawn over the ground units, lifted above its shadow. */
   flying: boolean;
+  /** A building: drawn as a square block rather than a disc. */
+  building: boolean;
   hp: number;
   maxHp: number;
 }
@@ -184,10 +186,12 @@ export function unitScene(previous: SimState, current: SimState, alpha: number, 
     const x = from.x + (unit.x - from.x) * alpha;
     const y = from.y + (unit.y - from.y) * alpha;
     const stats = current.cards[unit.card];
-    const radius = stats?.type === 'troop' ? stats.unit.radius * scale : scale * MILLI_PER_TILE / 2;
-    const flying = stats?.type === 'troop' && stats.unit.layer === 'air';
+    const known = stats !== undefined && stats.type !== 'spell' ? stats : undefined;
+    const radius = known === undefined ? (scale * MILLI_PER_TILE) / 2 : known.unit.radius * scale;
+    const flying = known?.unit.layer === 'air';
+    const building = known?.type === 'building';
     const { id, side, card, hp, maxHp } = unit;
-    return { id, side, card, ...pointToScreen(view, x, y), radius, deploying: unit.deployTicks > 0, flying, hp, maxHp };
+    return { id, side, card, ...pointToScreen(view, x, y), radius, deploying: unit.deployTicks > 0, flying, building, hp, maxHp };
   });
   return [...shapes.filter((shape) => !shape.flying), ...shapes.filter((shape) => shape.flying)];
 }
