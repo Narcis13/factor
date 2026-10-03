@@ -78,10 +78,10 @@ function slide(position: number, goal: number, [low, high]: [number, number], ar
  * in list order, is moved apart along the line between their centers, each by the other's share of
  * the overlap, rounded down: equal masses move equally, so mirrored pairs stay mirrored, and an
  * overlap of 1 stays. Two bodies on the same point split along x, the first toward −x.
- * Then each body is pushed out of the obstacles it overlaps, and kept on the ground: inside the arena
- * and, when `ground`, out of the river except on a bridge. One pass a tick, so a crowd settles over a few ticks.
+ * Then each body is pushed out of the obstacles it overlaps and kept inside the arena (by its radius,
+ * where the arena is wide enough); on the `ground`, also off the river except over a bridge. One pass a tick, so a crowd settles over a few ticks.
  */
-export function separate(bodies: readonly Body[], obstacles: readonly Rect[], arena: Terrain): void {
+export function separate(bodies: readonly Body[], obstacles: readonly Rect[], arena: Terrain, ground: boolean): void {
   for (let i = 0; i < bodies.length; i++) {
     const a = bodies[i];
     for (let j = i + 1; j < bodies.length && a !== undefined; j++) {
@@ -95,7 +95,7 @@ export function separate(bodies: readonly Body[], obstacles: readonly Rect[], ar
     for (const rect of obstacles) {
       pushOut(body, rect);
     }
-    keepOnGround(body, arena);
+    keepInArena(body, arena, ground);
   }
 }
 
@@ -152,16 +152,16 @@ function pushOut(body: Body, rect: Rect): void {
 }
 
 /**
- * Inside the arena by at least the body's radius (where the arena is wide enough), and off the
- * river except over a bridge: to whichever is nearer, the closest bank or the closest bridge edge.
+ * Inside the arena by at least the body's radius (where the arena is wide enough). On the ground, off
+ * the river except over a bridge too: to whichever is nearer, the closest bank or the closest bridge edge.
  */
-function keepOnGround(body: Body, arena: Terrain): void {
+function keepInArena(body: Body, arena: Terrain, ground: boolean): void {
   const { river, bridges } = arena;
   const marginX = Math.min(body.radius, Math.floor((arena.width - 1) / 2));
   const marginY = Math.min(body.radius, Math.floor((arena.height - 1) / 2));
   body.x = clamp(body.x, marginX, arena.width - 1 - marginX);
   body.y = clamp(body.y, marginY, arena.height - 1 - marginY);
-  if (body.y < river.y || body.y >= river.y + river.height || bridges.some((bridge) => body.x >= bridge.x && body.x <= bridge.x + bridge.width)) {
+  if (!ground || body.y < river.y || body.y >= river.y + river.height || bridges.some((bridge) => body.x >= bridge.x && body.x <= bridge.x + bridge.width)) {
     return;
   }
   const below = body.y - (river.y - 1);

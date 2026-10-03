@@ -72,7 +72,8 @@ export function step(state: SimState, commands: readonly Command[]): SimState {
  * join the spells' `hits` and land together afterwards, so a unit that dies this tick still lands its own hit. Then the dead leave
  * the field and fallen towers score (VISION §4, Winning): an Outpost earns its destroyer 1 star, the
  * Keep brings them to 3. A dormant Keep that has taken damage or lost an Outpost wakes; it acts
- * from the next tick on. Last, the units left standing push each other apart and out of standing towers.
+ * from the next tick on. Last, the units left standing push each other apart, each layer on its own:
+ * ground units also out of standing towers and the river, flying units only within the arena.
  */
 function fight(state: SimState, hits: Hit[]): void {
   for (const tower of state.towers) {
@@ -100,18 +101,22 @@ function fight(state: SimState, hits: Hit[]): void {
       keep.dormant = false;
     }
   }
-  const bodies = state.units.map((unit) => {
-    const { radius, mass } = unitStats(state, unit);
-    return { x: unit.x, y: unit.y, radius, mass };
-  });
-  separate(bodies, state.towers.filter((tower) => tower.hp > 0).map(footprint), state.arena);
-  state.units.forEach((unit, i) => {
-    const body = bodies[i];
-    if (body !== undefined) {
-      unit.x = body.x;
-      unit.y = body.y;
-    }
-  });
+  const towers = state.towers.filter((tower) => tower.hp > 0).map(footprint);
+  for (const layer of ['ground', 'air'] as const) {
+    const units = state.units.filter((unit) => unitStats(state, unit).layer === layer);
+    const bodies = units.map((unit) => {
+      const { radius, mass } = unitStats(state, unit);
+      return { x: unit.x, y: unit.y, radius, mass };
+    });
+    separate(bodies, layer === 'ground' ? towers : [], state.arena, layer === 'ground');
+    units.forEach((unit, i) => {
+      const body = bodies[i];
+      if (body !== undefined) {
+        unit.x = body.x;
+        unit.y = body.y;
+      }
+    });
+  }
 }
 
 function outpostFallen(state: SimState, side: Side): boolean {

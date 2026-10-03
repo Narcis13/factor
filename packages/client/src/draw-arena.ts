@@ -1,5 +1,5 @@
 import type { Graphics } from 'pixi.js';
-import type { BlastShape, GroundKind, HpBar, ScreenRect, Shape, UnitShape } from './arena-view.ts';
+import { FLY_LIFT, type BlastShape, type GroundKind, type HpBar, type ScreenRect, type Shape, type UnitShape } from './arena-view.ts';
 import { cardColor, SIDE_COLOR } from './palette.ts';
 
 export { BACKGROUND } from './palette.ts';
@@ -14,6 +14,7 @@ const TOWER_EDGE = 0x1d2733;
 const RUBBLE = 0x6b6f75;
 const HP_TRACK = 0x1d2733;
 const NO_DEPLOY = 0x000000;
+const SHADOW = 0x000000;
 
 export function drawArena(graphics: Graphics, shapes: Shape[]): void {
   for (const shape of shapes) {
@@ -34,12 +35,19 @@ export function drawNoDeploy(graphics: Graphics, rect: ScreenRect): void {
   graphics.rect(rect.x, rect.y, rect.width, rect.height).fill({ color: NO_DEPLOY, alpha: 0.35 });
 }
 
-/** A unit is its card's color ringed in its side's; faint while it deploys. */
+/**
+ * A unit is its card's color ringed in its side's; faint while it deploys. A flying unit casts a dark
+ * shadow where it is and is drawn lifted above it, so it reads as off the ground.
+ */
 export function drawUnits(graphics: Graphics, units: UnitShape[]): void {
   for (const unit of units) {
     const alpha = unit.deploying ? 0.45 : 1;
+    const lift = unit.flying ? unit.radius * FLY_LIFT : 0;
+    if (unit.flying) {
+      graphics.ellipse(unit.x, unit.y + unit.radius * 0.3, unit.radius * 0.85, unit.radius * 0.4).fill({ color: SHADOW, alpha: 0.45 * alpha });
+    }
     graphics
-      .circle(unit.x, unit.y, unit.radius)
+      .circle(unit.x, unit.y - lift, unit.radius)
       .fill({ color: cardColor(unit.card), alpha })
       .stroke({ color: SIDE_COLOR[unit.side], width: 3, alpha });
   }

@@ -1,5 +1,5 @@
 import { footprint, type Rect, type Terrain, type Tower, type TowerStats } from './arena.ts';
-import type { CardId, CardStats, UnitStats } from './cards.ts';
+import { canTarget, type CardId, type CardStats, type UnitStats } from './cards.ts';
 import { walk } from './collision.ts';
 import { clamp, distanceToRect, isqrt, type Point } from './geometry.ts';
 import type { Side } from './state.ts';
@@ -56,7 +56,8 @@ type Target = { kind: 'tower'; entity: Tower } | { kind: 'unit'; entity: Unit; r
  * One tick of a deployed unit (VISION §4, Targeting and Movement). It counts down its deploy delay;
  * otherwise, while locked on to a target still in range, it keeps hitting it. Else it acquires the
  * nearest valid enemy in sight (or, with none, the nearest enemy tower), locks on if it's in range,
- * and walks toward it if not: over its lane's bridge when the river is in the way.
+ * and moves toward it if not: a flying unit straight there, a ground unit over its lane's bridge when
+ * the river is in the way.
  */
 export function actUnit(unit: Unit, stats: UnitStats, field: Field, hits: Hit[]): void {
   if (unit.deployTicks > 0) {
@@ -83,8 +84,12 @@ export function actUnit(unit: Unit, stats: UnitStats, field: Field, hits: Hit[])
     unit.cooldown = stats.firstHitTicks;
     return;
   }
-  const { river } = field.arena;
   const goal = target.entity;
+  if (stats.layer === 'air') {
+    stepToward(unit, stats, field, target, goal, Math.min(stats.speed, gap));
+    return;
+  }
+  const { river } = field.arena;
   // A goal on a bridge is reached over that bridge. A unit on another bridge first leaves it as below.
   const goalBridge = bridgeUnder(field.arena, goal);
   if (goalBridge !== null && (!inBand(river, unit.y) || overBridge(goalBridge, unit.x))) {
@@ -103,9 +108,10 @@ export function actUnit(unit: Unit, stats: UnitStats, field: Field, hits: Hit[])
   stepToward(unit, stats, field, target, goal, Math.min(stats.speed, gap));
 }
 
-/** Walks `unit` toward `to`, around every standing tower but the one it's going for. */
+/** Moves `unit` toward `to`: on the ground around every standing tower but the one it's going for, in the air over them. */
 function stepToward(unit: Unit, stats: UnitStats, field: Field, target: Target, to: Point, length: number): void {
-  const obstacles = field.towers.filter((tower) => tower.hp > 0 && tower.id !== target.entity.id).map(footprint);
+  const blocking = stats.layer === 'ground' ? field.towers.filter((tower) => tower.hp > 0 && tower.id !== target.entity.id) : [];
+  const obstacles = blocking.map(footprint);
   const body = { x: unit.x, y: unit.y, radius: stats.radius, mass: stats.mass };
   walk(body, to, length, obstacles, field.arena);
   unit.x = body.x;
@@ -168,11 +174,12 @@ function overBridge(bridge: Rect, x: number): boolean {
 }
 
 /**
- * The nearest valid enemy whose edge is within sight (towers first on a tie, then the lower id); with
- * none, the nearest standing enemy tower by center. A `buildings` unit only ever takes the latter.
+ * The nearest valid enemy whose edge is within sight (towers first on a tie, then the lower id): a
+ * tower, or a unit on a layer its filter reaches. With none, the nearest standing enemy tower by
+ * center. A `buildings` unit only ever takes the latter.
  */
 function acquire(unit: Unit, stats: UnitStats, field: Field): Target | null {
-  if (stats.targets === 'ground') {
+  if (stats.targets !== 'buildings') {
     const candidates: Target[] = [];
     for (const tower of field.towers) {
       if (tower.side !== unit.side && tower.hp > 0) {
@@ -180,8 +187,9 @@ function acquire(unit: Unit, stats: UnitStats, field: Field): Target | null {
       }
     }
     for (const other of field.units) {
-      if (other.side !== unit.side && other.hp > 0) {
-        candidates.push({ kind: 'unit', entity: other, radius: unitStats(field, other).radius });
+      const otherStats = unitStats(field, other);
+      if (other.side !== unit.side && other.hp > 0 && canTarget(stats.targets, otherStats.layer)) {
+        candidates.push({ kind: 'unit', entity: other, radius: otherStats.radius });
       }
     }
     let best: Target | null = null;

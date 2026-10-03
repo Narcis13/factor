@@ -49,12 +49,30 @@ export const CARDS: Record<CardId, CardStats> = {
 };
 
 /** Both hit every 10 ticks, the first time 5 ticks after locking on, and notice enemies 4 tiles off. */
-const FIGHT = { hitTicks: 10, firstHitTicks: 5, sight: 4000, targets: 'ground' } as const;
+const FIGHT = { hitTicks: 10, firstHitTicks: 5, sight: 4000, targets: 'ground', layer: 'ground' } as const;
 
 export const TROOPS: Record<CardId, CardStats> = {
   walker: { cost: 1, type: 'troop', unit: { hp: 500, speed: 50, radius: 500, mass: 5, range: 0, damage: 50, ...FIGHT } },
   archer: { cost: 1, type: 'troop', unit: { hp: 200, speed: 40, radius: 400, mass: 3, range: 3000, damage: 20, ...FIGHT } },
 };
+
+/**
+ * Flying units and who can reach them: `flyer` (radius 400, speed 50, range 1000, `air`: hits air and
+ * ground), `gunner` (a ground archer whose filter is `air`), plus the walker and archer from `TROOPS`.
+ */
+export const AIR_TROOPS: Record<CardId, CardStats> = {
+  ...TROOPS,
+  flyer: { cost: 1, type: 'troop', unit: { hp: 300, speed: 50, radius: 400, mass: 3, range: 1000, damage: 30, ...FIGHT, targets: 'air', layer: 'air' } },
+  gunner: { cost: 1, type: 'troop', unit: { hp: 200, speed: 40, radius: 400, mass: 3, range: 3000, damage: 20, ...FIGHT, targets: 'air' } },
+};
+
+export const AIR_DECK: CardId[] = ['walker', 'archer', 'flyer', 'gunner', 'walker', 'archer', 'flyer', 'gunner'];
+
+/** A match where both sides play `AIR_DECK`, towers at full strength unless `harmless`. */
+export function airMatch(seed: number, harmless = false): SimState {
+  const towerStats = harmless ? { keep: { ...TOWER_STATS.keep, damage: 0 }, outpost: { ...TOWER_STATS.outpost, damage: 0 } } : TOWER_STATS;
+  return createMatch({ ...matchSetup(seed), towerStats, cards: AIR_TROOPS, decks: [AIR_DECK, AIR_DECK] });
+}
 
 export const DECK: CardId[] = ['c1', 'c2', 'c3', 'c4', 'c5', 'c6', 'c7', 'c8'];
 

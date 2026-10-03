@@ -37,6 +37,9 @@ export interface HpBar {
   fraction: number;
 }
 
+/** How far above its shadow a flying unit is drawn, in its radii. */
+export const FLY_LIFT = 0.9;
+
 /** A unit on the screen: a circle, in CSS pixels. */
 export interface UnitShape {
   id: number;
@@ -47,6 +50,8 @@ export interface UnitShape {
   radius: number;
   /** Still waiting out its deploy delay. */
   deploying: boolean;
+  /** A flying unit: drawn over the ground units, lifted above its shadow. */
+  flying: boolean;
   hp: number;
   maxHp: number;
 }
@@ -141,7 +146,8 @@ export function hpBarScene(state: Pick<SimState, 'towers'>, units: readonly Unit
   }
   for (const unit of units) {
     if (unit.hp < unit.maxHp) {
-      const rect = { x: unit.x - unit.radius, y: unit.y - unit.radius - gap - height, width: unit.radius * 2, height };
+      const top = unit.y - unit.radius - (unit.flying ? unit.radius * FLY_LIFT : 0);
+      const rect = { x: unit.x - unit.radius, y: top - gap - height, width: unit.radius * 2, height };
       bars.push({ side: unit.side, rect, fraction: unit.hp / unit.maxHp });
     }
   }
@@ -150,20 +156,23 @@ export function hpBarScene(state: Pick<SimState, 'towers'>, units: readonly Unit
 
 /**
  * Units, `alpha` of the way from where they stood in `previous` to where they stand in `current`
- * (VISION §5). A unit new in `current` shows where it is.
+ * (VISION §5). A unit new in `current` shows where it is. Ground units come first, then flying ones,
+ * so flyers are drawn on top.
  */
 export function unitScene(previous: SimState, current: SimState, alpha: number, view: View): UnitShape[] {
   const before = new Map(previous.units.map((unit) => [unit.id, unit]));
   const scale = view.tilePx / MILLI_PER_TILE;
-  return current.units.map((unit) => {
+  const shapes = current.units.map((unit): UnitShape => {
     const from = before.get(unit.id) ?? unit;
     const x = from.x + (unit.x - from.x) * alpha;
     const y = from.y + (unit.y - from.y) * alpha;
     const stats = current.cards[unit.card];
     const radius = stats?.type === 'troop' ? stats.unit.radius * scale : scale * MILLI_PER_TILE / 2;
+    const flying = stats?.type === 'troop' && stats.unit.layer === 'air';
     const { id, side, card, hp, maxHp } = unit;
-    return { id, side, card, ...pointToScreen(view, x, y), radius, deploying: unit.deployTicks > 0, hp, maxHp };
+    return { id, side, card, ...pointToScreen(view, x, y), radius, deploying: unit.deployTicks > 0, flying, hp, maxHp };
   });
+  return [...shapes.filter((shape) => !shape.flying), ...shapes.filter((shape) => shape.flying)];
 }
 
 /**

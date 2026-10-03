@@ -5,10 +5,18 @@ import { shuffle, type Rng } from './rng.ts';
 export type CardId = string;
 
 /**
- * What a unit may lock on to (VISION §4): `ground` means ground units and buildings; `buildings` means
- * towers only. Air comes with flying units.
+ * What a unit may lock on to (VISION §4): `ground` means ground units and towers; `air` reaches flying
+ * units too (air and ground units, and towers); `buildings` means towers only.
  */
-export type TargetFilter = 'ground' | 'buildings';
+export type TargetFilter = 'ground' | 'air' | 'buildings';
+
+/** Where a unit moves (VISION §4): `ground` units walk and cross the river on bridges; `air` units fly over everything. */
+export type Layer = 'ground' | 'air';
+
+/** Whether a unit with this filter may lock on to a unit on this layer. */
+export function canTarget(filter: TargetFilter, layer: Layer): boolean {
+  return filter === 'air' || (filter === 'ground' && layer === 'ground');
+}
 
 /** What a troop's unit is made of (VISION §4). `range` is how close its edge gets to its target's edge. */
 export interface UnitStats extends AttackStats {
@@ -22,6 +30,7 @@ export interface UnitStats extends AttackStats {
   /** Edge to edge, in milli-tiles: how far it notices enemies. */
   sight: number;
   targets: TargetFilter;
+  layer: Layer;
 }
 
 /**
@@ -124,10 +133,10 @@ function copyCard(stats: CardStats): CardStats {
     const { radius, damage, towerDamageBp } = stats.spell;
     return { cost: stats.cost, type: 'spell', spell: { radius, damage, towerDamageBp } };
   }
-  const { hp, speed, radius, mass, range, sight, targets, damage, hitTicks, firstHitTicks } = stats.unit;
+  const { hp, speed, radius, mass, range, sight, targets, layer, damage, hitTicks, firstHitTicks } = stats.unit;
   return {
     cost: stats.cost,
     type: 'troop',
-    unit: { hp, speed, radius, mass, range, sight, targets, damage, hitTicks, firstHitTicks },
+    unit: { hp, speed, radius, mass, range, sight, targets, layer, damage, hitTicks, firstHitTicks },
   };
 }

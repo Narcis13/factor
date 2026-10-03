@@ -120,7 +120,7 @@ export function createMatch(setup: MatchSetup): SimState {
   for (const [id, card] of Object.entries(cards)) {
     requireInteger(`${id} cost`, card.cost, 0, energy.max);
     if (card.type === 'troop') {
-      const { hp, speed, radius, mass, sight, targets } = card.unit;
+      const { hp, speed, radius, mass, sight, targets, layer } = card.unit;
       requireInteger(`${id} hp`, hp, 1);
       requireInteger(`${id} speed`, speed, 1);
       requireInteger(`${id} radius`, radius, 1);
@@ -128,8 +128,11 @@ export function createMatch(setup: MatchSetup): SimState {
       requireAttack(id, card.unit);
       requireInteger(`${id} sight`, sight, card.unit.range);
       // Setups come from outside the type system too (hand-edited content), so check the string.
-      if (!(['ground', 'buildings'] as readonly string[]).includes(targets)) {
-        throw new RangeError(`${id} targets must be ground or buildings, got ${targets}`);
+      if (!(['ground', 'air', 'buildings'] as readonly string[]).includes(targets)) {
+        throw new RangeError(`${id} targets must be ground, air or buildings, got ${targets}`);
+      }
+      if (!(['ground', 'air'] as readonly string[]).includes(layer)) {
+        throw new RangeError(`${id} layer must be ground or air, got ${layer}`);
       }
     } else {
       const { radius, damage, towerDamageBp } = card.spell;

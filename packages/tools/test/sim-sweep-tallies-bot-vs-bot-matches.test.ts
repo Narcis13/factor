@@ -1,5 +1,6 @@
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { CARD_IDS } from '@factor/content';
 import type { CardId, SimState } from '@factor/sim';
 import { expect, test } from 'vitest';
 import { botReplay, describeSweep, playReplay, sweep } from '../src/index.ts';
@@ -55,7 +56,7 @@ test('plays per card match the troops that deployed and the spells that landed',
     });
   }
   expect(report.plays).toEqual(landed);
-  expect(Object.keys(report.plays).sort()).toEqual(['flare', 'juggernaut', 'slinger', 'warden']);
+  expect(Object.keys(report.plays).sort()).toEqual([...CARD_IDS].sort());
 });
 
 test('the sweep is deterministic', () => {
@@ -66,7 +67,8 @@ test('the report prints one fact per line, with the seed range', () => {
   const text = describeSweep(report);
   expect(text).toContain(`seeds       40..45 (6 matches, 6 healthy)`);
   expect(text).toMatch(/^results {5}side 0 \d+ · side 1 \d+ · draw \d+$/m);
-  expect(text).toMatch(/^plays {7}flare \d+ · juggernaut \d+ · slinger \d+ · warden \d+$/m);
+  const plays = [...CARD_IDS].sort().map((id) => `${id} \\d+`).join(' · ');
+  expect(text).toMatch(new RegExp(`^plays {7}${plays}$`, 'm'));
   expect(text).toContain('violations  0\nmismatches  0');
 });
 
