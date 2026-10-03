@@ -65,12 +65,12 @@ test('tapping a card and then the arena queues a play for side 0 there', () => {
   tap(controls, loop, PHONE, ...center(PHONE.hud.slots[1] ?? PHONE.hud.next));
   expect(controls.selected).toBe(1);
   const { view } = PHONE;
-  tap(controls, loop, PHONE, view.left + 4 * 24 + 12, view.top + 25 * 24 + 12);
-  expect(loop.queued).toEqual([{ side: 0, handSlot: 1, x: 4500, y: 6499 }]);
+  tap(controls, loop, PHONE, view.left + 6 * 24 + 12, view.top + 25 * 24 + 12);
+  expect(loop.queued).toEqual([{ side: 0, handSlot: 1, x: 6500, y: 6499 }]);
   expect(controls.selected).toBeNull();
 
   advance(loop, TICK_MS);
-  expect(loop.commands).toEqual([{ tick: 0, side: 0, handSlot: 1, x: 4500, y: 6499 }]);
+  expect(loop.commands).toEqual([{ tick: 0, side: 0, handSlot: 1, x: 6500, y: 6499 }]);
   expect(loop.current.rejected).toEqual([]);
   expect(loop.current.players[0].hand[1]).toBe(START.players[0].queue[0]);
 });

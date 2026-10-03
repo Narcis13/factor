@@ -8,9 +8,9 @@ const REPLAY: Replay = {
   seed: 1234,
   decks: STARTER_DECKS,
   commands: [
-    { tick: 0, side: 0, handSlot: 0, x: 9000, y: 4000 },
+    { tick: 0, side: 0, handSlot: 0, x: 9000, y: 6000 },
     { tick: 50, side: 1, handSlot: 2, x: 3000, y: 28_000 },
-    { tick: 50, side: 0, handSlot: 1, x: 15_000, y: 5000 },
+    { tick: 50, side: 0, handSlot: 1, x: 15_000, y: 9000 },
     { tick: 50, side: 0, handSlot: 3, x: 1000, y: 1000 },
     { tick: 5999, side: 1, handSlot: 0, x: 0, y: 0 },
   ],

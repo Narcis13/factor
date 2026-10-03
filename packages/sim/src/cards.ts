@@ -17,6 +17,8 @@ export interface UnitStats extends AttackStats {
   speed: number;
   /** The unit is a circle of this radius, in milli-tiles. */
   radius: number;
+  /** How hard it is to push: of two overlapping units, each moves by the other's share of the total mass. At least 1. */
+  mass: number;
   /** Edge to edge, in milli-tiles: how far it notices enemies. */
   sight: number;
   targets: TargetFilter;
@@ -122,10 +124,10 @@ function copyCard(stats: CardStats): CardStats {
     const { radius, damage, towerDamageBp } = stats.spell;
     return { cost: stats.cost, type: 'spell', spell: { radius, damage, towerDamageBp } };
   }
-  const { hp, speed, radius, range, sight, targets, damage, hitTicks, firstHitTicks } = stats.unit;
+  const { hp, speed, radius, mass, range, sight, targets, damage, hitTicks, firstHitTicks } = stats.unit;
   return {
     cost: stats.cost,
     type: 'troop',
-    unit: { hp, speed, radius, range, sight, targets, damage, hitTicks, firstHitTicks },
+    unit: { hp, speed, radius, mass, range, sight, targets, damage, hitTicks, firstHitTicks },
   };
 }

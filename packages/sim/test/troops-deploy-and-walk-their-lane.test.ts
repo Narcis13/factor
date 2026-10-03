@@ -41,7 +41,7 @@ function run(state: SimState, ticks: number): SimState[] {
 
 test('a troop play puts one unit where it was aimed, at full hp, waiting out its deploy delay', () => {
   const slot = START.players[0].hand.indexOf('walker');
-  const after = step(START, [play(START, 0, 2000, 4000, slot)]);
+  const after = step(START, [play(START, 0, 2000, 7000, slot)]);
   expect(after.rejected).toEqual([]);
   // Towers hold ids 0–5, so the first unit is 6. Its delay already counted down once this tick.
   expect(after.units).toEqual([{
@@ -49,7 +49,7 @@ test('a troop play puts one unit where it was aimed, at full hp, waiting out its
     side: 0,
     card: 'walker',
     x: 2000,
-    y: 4000,
+    y: 7000,
     hp: 500,
     maxHp: 500,
     deployTicks: 19,
@@ -97,7 +97,20 @@ test('a troop deploys only on its own half; the river and the enemy half are rej
   }
 });
 
-test('a spell can be aimed anywhere and puts nothing on the field', () => {
+test('a troop is refused on a standing tower, edges included, but may stand on its rubble', () => {
+  // Side 0's left Outpost (id 1) stands on 1000–3000 × 4000–6000; its Keep on 4000–6000 × 1000–3000.
+  for (const [x, y] of [[2000, 5000], [1000, 4000], [2999, 5999], [5000, 2000]] as const) {
+    const command = play(START, 0, x, y);
+    expect(step(START, [command]).rejected).toEqual([{ command, reason: 'occupied' }]);
+  }
+  expect(step(START, [play(START, 0, 2000, 6000)]).rejected).toEqual([]);
+  const fallen: SimState = { ...START, towers: START.towers.map((tower) => (tower.id === 1 ? { ...tower, hp: 0 } : tower)) };
+  const after = step(fallen, [play(fallen, 0, 2000, 5000)]);
+  expect(after.rejected).toEqual([]);
+  expect(after.units).toHaveLength(1);
+});
+
+test('a spell can be aimed anywhere, on a tower too, and puts nothing on the field', () => {
   // Full energy, so any hand slot can be played.
   const spells = idle(newMatch(5), 600);
   const after = step(spells, [play(spells, 0, 5000, 18_000, 3), play(spells, 1, 5000, 1000, 3)]);
@@ -111,29 +124,29 @@ test('an aim that is not a whole milli-tile is out of bounds', () => {
 });
 
 test('a unit stands still for 1 s after it appears, then walks', () => {
-  const states = [step(START, [play(START, 0, 2000, 4000)]), ...run(step(START, [play(START, 0, 2000, 4000)]), 25)];
+  const states = [step(START, [play(START, 0, 2000, 7000)]), ...run(step(START, [play(START, 0, 2000, 7000)]), 25)];
   // It appears in the state for tick 1; states 1–20 hold it still; it moves in the one for tick 21.
   for (const state of states.filter((s) => s.tick <= 20)) {
-    expect(unit(state, 6)).toMatchObject({ x: 2000, y: 4000, deployTicks: 20 - state.tick });
+    expect(unit(state, 6)).toMatchObject({ x: 2000, y: 7000, deployTicks: 20 - state.tick });
   }
   const moved = states.find((s) => s.tick === 21);
-  expect(moved && unit(moved, 6).y).toBeGreaterThan(4000);
+  expect(moved && unit(moved, 6).y).toBeGreaterThan(7000);
 });
 
 test('a melee unit walks up its lane, crosses the bridge, and stops touching the enemy Outpost', () => {
-  const walker = step(START, [play(START, 0, 2000, 4000, START.players[0].hand.indexOf('walker'))]);
+  const walker = step(START, [play(START, 0, 2000, 7000, START.players[0].hand.indexOf('walker'))]);
   const states = run(walker, 300);
   const path = states.map((s) => unit(s, 6));
-  // Straight up at 50 per tick: 9500 milli-tiles from y 4000 to 13500 (the footprint's edge minus its radius).
+  // Straight up at 50 per tick: 6500 milli-tiles from y 7000 to 13500 (the footprint's edge minus its radius).
   const arrival = states.findIndex((s) => unit(s, 6).y === 13_500);
-  // It first moves in the state for tick 21, so its 190th step lands in the one for tick 210.
-  expect(states[arrival]?.tick).toBe(20 + 190);
+  // It first moves in the state for tick 21, so its 130th step lands in the one for tick 150.
+  expect(states[arrival]?.tick).toBe(20 + 130);
   expect(path.every((u) => u.x === 2000)).toBe(true);
   expect(path.slice(arrival).every((u) => u.y === 13_500)).toBe(true);
 });
 
 test('a unit off its lane heads for its bridge, never touching the river beside it', () => {
-  const walker = step(START, [play(START, 0, 4900, 1000, START.players[0].hand.indexOf('walker'))]);
+  const walker = step(START, [play(START, 0, 4900, 7000, START.players[0].hand.indexOf('walker'))]);
   const path = run(walker, 400).map((s) => unit(s, 6));
   // x 4900 is the left lane; the bridge admits its center in x 1500–2500 (1000–3000 less its radius).
   const inRiver = path.filter((u) => u.y >= 9000 && u.y < 11_000);
@@ -153,7 +166,7 @@ test('the middle column belongs to the right lane', () => {
 });
 
 test('a ranged unit stops as soon as it is within range, even on the bridge', () => {
-  const archer = step(START, [play(START, 0, 2000, 4000, START.players[0].hand.indexOf('archer'))]);
+  const archer = step(START, [play(START, 0, 2000, 7000, START.players[0].hand.indexOf('archer'))]);
   const last = run(archer, 400).at(-1);
   // 3400 from the footprint (range + radius) is y 10600, on the bridge: it stops there and locks on.
   expect(last && unit(last, 6)).toMatchObject({ x: 2000, y: 10_600, targetId: 4 });
@@ -161,7 +174,7 @@ test('a ranged unit stops as soon as it is within range, even on the bridge', ()
 
 test('both sides walk and fight the mirror image of each other, tick for tick, and die on the same tick', () => {
   const fighting = troopMatch(5);
-  const both = step(fighting, [play(fighting, 0, 4200, 2500), play(fighting, 1, 4200, 20_000 - 2500)]);
+  const both = step(fighting, [play(fighting, 0, 4200, 7500), play(fighting, 1, 4200, 20_000 - 7500)]);
   expect(unit(both, 6).card).toBe(unit(both, 7).card);
   let died = false;
   for (const state of run(both, 800)) {
@@ -180,7 +193,7 @@ test('both sides walk and fight the mirror image of each other, tick for tick, a
 
 test('a match full of troops plays until a Keep falls, with invariants holding every tick, the same every time', () => {
   const playOut = () => {
-    let state = troopMatch(77);
+    let state = troopMatch(70);
     let deaths = 0;
     let turn = 0;
     while (state.result === null) {
@@ -199,10 +212,10 @@ test('a match full of troops plays until a Keep falls, with invariants holding e
     return { state, deaths };
   };
   const first = playOut();
-  // The fixture's towers are weak, so a Keep falls long before the timer: side 0 takes all three at tick 774.
+  // The fixture's towers are weak, so a Keep falls long before the timer: side 0 takes all three at tick 1790, side 1 two Outposts.
   expect(first.state.result).toEqual({ winner: 0 });
-  expect(first.state.tick).toBe(774);
-  expect(first.state.stars).toEqual([3, 0]);
+  expect(first.state.tick).toBe(1790);
+  expect(first.state.stars).toEqual([3, 2]);
   expect(first.deaths).toBeGreaterThan(10);
   expect(hashState(playOut().state)).toBe(hashState(first.state));
 });

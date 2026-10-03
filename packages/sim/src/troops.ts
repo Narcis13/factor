@@ -1,6 +1,7 @@
-import type { Rect, Terrain, Tower, TowerStats } from './arena.ts';
+import { footprint, type Rect, type Terrain, type Tower, type TowerStats } from './arena.ts';
 import type { CardId, CardStats, UnitStats } from './cards.ts';
-import { clamp, distanceToRect, isqrt, moveToward, type Point } from './geometry.ts';
+import { walk } from './collision.ts';
+import { clamp, distanceToRect, isqrt, type Point } from './geometry.ts';
 import type { Side } from './state.ts';
 
 /** A troop's unit on the field. Its stats stay on its card (`SimState.cards`). */
@@ -88,7 +89,7 @@ export function actUnit(unit: Unit, stats: UnitStats, field: Field, hits: Hit[])
   const goalBridge = bridgeUnder(field.arena, goal);
   if (goalBridge !== null && (!inBand(river, unit.y) || overBridge(goalBridge, unit.x))) {
     const end = bridgeEnd(unit, stats, river, goalBridge);
-    moveToward(unit, end ?? goal, end === null ? Math.min(stats.speed, gap) : stats.speed);
+    stepToward(unit, stats, field, target, end ?? goal, end === null ? Math.min(stats.speed, gap) : stats.speed);
     return;
   }
   // Which way the unit crosses the river to reach its goal, and the banks on the way.
@@ -96,10 +97,19 @@ export function actUnit(unit: Unit, stats: UnitStats, field: Field, hits: Hit[])
   const [nearBank, farBank] = forward === 1 ? [river.y, river.y + river.height] : [river.y + river.height, river.y];
   const before = (line: number) => (unit.y - line) * forward < 0;
   if (before(farBank)) {
-    moveToward(unit, bridgeWaypoint(unit, stats, field.arena, nearBank, farBank, before(nearBank)), stats.speed);
+    stepToward(unit, stats, field, target, bridgeWaypoint(unit, stats, field.arena, nearBank, farBank, before(nearBank)), stats.speed);
     return;
   }
-  moveToward(unit, goal, Math.min(stats.speed, gap));
+  stepToward(unit, stats, field, target, goal, Math.min(stats.speed, gap));
+}
+
+/** Walks `unit` toward `to`, around every standing tower but the one it's going for. */
+function stepToward(unit: Unit, stats: UnitStats, field: Field, target: Target, to: Point, length: number): void {
+  const obstacles = field.towers.filter((tower) => tower.hp > 0 && tower.id !== target.entity.id).map(footprint);
+  const body = { x: unit.x, y: unit.y, radius: stats.radius, mass: stats.mass };
+  walk(body, to, length, obstacles, field.arena);
+  unit.x = body.x;
+  unit.y = body.y;
 }
 
 /**
@@ -278,9 +288,4 @@ export function unitStats(field: Pick<Field, 'cards'>, unit: Unit): UnitStats {
     throw new RangeError(`Unit ${String(unit.id)} comes from ${unit.card}, which is not a troop`);
   }
   return stats.unit;
-}
-
-export function footprint({ x, y, size }: Pick<Tower, 'x' | 'y' | 'size'>): Rect {
-  const half = Math.floor(size / 2);
-  return { x: x - half, y: y - half, width: size, height: size };
 }

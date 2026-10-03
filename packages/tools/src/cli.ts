@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
-import { basename, dirname, extname, join } from 'node:path';
+import { basename, dirname, extname, join, posix } from 'node:path';
 import { parseArgs } from 'node:util';
 import { loadReplay, saveReplay, type Replay } from '@factor/content';
 import { TICKS_PER_SECOND } from '@factor/sim';
@@ -75,7 +75,8 @@ function match(args: string[]): void {
     return;
   }
   const state = playReplay(replay);
-  const file = values.replay ?? join('replays', `seed-${String(replay.seed)}.json`);
+  // Forward slashes on every OS, so the printed path reads (and tests) the same everywhere.
+  const file = values.replay ?? posix.join('replays', `seed-${String(replay.seed)}.json`);
   mkdirSync(dirname(file), { recursive: true });
   writeFileSync(file, saveReplay(replay));
   console.log(`${describeResult(replay.seed, state)}\nreplay  ${file}`);

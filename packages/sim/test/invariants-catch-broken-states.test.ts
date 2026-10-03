@@ -153,7 +153,7 @@ test.each<{ label: string; broken: SimState; message: RegExp }>([
 
 // One walker (id 6) of side 0, deployed at (2000, 4000) and still waiting out its delay.
 const troops = troopMatch(3);
-const withUnit = step(troops, [{ tick: 0, side: 0, handSlot: troops.players[0].hand.indexOf('walker'), x: 2000, y: 4000 }]);
+const withUnit = step(troops, [{ tick: 0, side: 0, handSlot: troops.players[0].hand.indexOf('walker'), x: 2000, y: 7000 }]);
 
 function unitWith(change: Partial<Unit>): SimState {
   return { ...withUnit, units: withUnit.units.map((unit) => ({ ...unit, ...change })) };
@@ -170,7 +170,7 @@ test.each<{ label: string; broken: SimState; message: RegExp }>([
   { label: 'a unit sharing a tower id', broken: unitWith({ id: 5 }), message: /unit 5 breaks unique ascending ids/ },
   { label: 'a unit id not yet handed out', broken: unitWith({ id: 7 }), message: /unit 7 breaks unique ascending ids/ },
   { label: 'a deploy delay longer than the rule', broken: unitWith({ deployTicks: 21 }), message: /unit 6 has 21 deploy ticks/ },
-  { label: 'a unit off the arena', broken: unitWith({ x: 10_000 }), message: /unit 6 \(10000, 4000\) is outside the arena/ },
+  { label: 'a unit off the arena', broken: unitWith({ x: 10_000 }), message: /unit 6 \(10000, 7000\) is outside the arena/ },
   { label: 'a unit at a fractional spot', broken: unitWith({ y: 8001 / 2 }), message: /unit 6 .* is outside the arena/ },
   { label: 'a unit in the river off the bridges', broken: unitWith({ x: 5000, y: 9500 }), message: /unit 6 .* is in the river off any bridge/ },
   { label: 'a unit from a card not in the match', broken: unitWith({ card: 'c1' }), message: /unit 6 comes from c1/ },

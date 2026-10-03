@@ -1,7 +1,8 @@
 import type { CardId, SpellStats } from './cards.ts';
 import { divRound, squaredDistanceToRect } from './geometry.ts';
 import type { Side } from './state.ts';
-import { footprint, unitStats, type Field, type Hit } from './troops.ts';
+import { footprint } from './arena.ts';
+import { unitStats, type Field, type Hit } from './troops.ts';
 import { BASIS_POINTS } from './units.ts';
 
 /** A spell that landed this tick, where it was aimed: kept in the state so the client can show it. */

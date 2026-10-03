@@ -20,9 +20,9 @@ export interface Command {
 /**
  * Why a command did nothing: `wrong-tick` (stamped for another tick), `bad-slot` (no such hand slot),
  * `out-of-bounds` (the point is outside the arena), `outside-deploy-zone` (a troop aimed outside its
- * side's half) or `not-enough-energy` (less energy than the card costs).
+ * side's half), `occupied` (a troop aimed on a standing tower) or `not-enough-energy` (less energy than the card costs).
  */
-export type RejectReason = 'wrong-tick' | 'bad-slot' | 'out-of-bounds' | 'outside-deploy-zone' | 'not-enough-energy';
+export type RejectReason = 'wrong-tick' | 'bad-slot' | 'out-of-bounds' | 'outside-deploy-zone' | 'occupied' | 'not-enough-energy';
 
 export interface RejectedCommand {
   command: Command;
@@ -120,10 +120,11 @@ export function createMatch(setup: MatchSetup): SimState {
   for (const [id, card] of Object.entries(cards)) {
     requireInteger(`${id} cost`, card.cost, 0, energy.max);
     if (card.type === 'troop') {
-      const { hp, speed, radius, sight, targets } = card.unit;
+      const { hp, speed, radius, mass, sight, targets } = card.unit;
       requireInteger(`${id} hp`, hp, 1);
       requireInteger(`${id} speed`, speed, 1);
       requireInteger(`${id} radius`, radius, 1);
+      requireInteger(`${id} mass`, mass, 1);
       requireAttack(id, card.unit);
       requireInteger(`${id} sight`, sight, card.unit.range);
       // Setups come from outside the type system too (hand-edited content), so check the string.

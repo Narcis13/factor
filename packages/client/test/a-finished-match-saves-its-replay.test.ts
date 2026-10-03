@@ -42,7 +42,7 @@ test("a live match's replay, saved and loaded back, ends the same way on the sam
 test('the replay is a copy: the loop and the saved replay never share commands or decks', () => {
   const start = createMatch(matchSetup(SEED));
   const loop = createLoop(start);
-  queuePlay(loop, 0, 0, 9000, 4500);
+  queuePlay(loop, 0, 0, 9000, 6500);
   advance(loop, TICK_MS);
   const replay = loopReplay(SEED, STARTER_DECKS, loop);
   const first = replay.commands[0];

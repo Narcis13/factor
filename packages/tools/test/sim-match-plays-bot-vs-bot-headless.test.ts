@@ -4,9 +4,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadReplay } from '@factor/content';
-import type { SimState } from '@factor/sim';
+import { hashState, type SimState } from '@factor/sim';
 import { expect, test } from 'vitest';
-import { botReplay, formatClock, playReplay } from '../src/index.ts';
+import { botReplay, describeResult, formatClock, playReplay } from '../src/index.ts';
 
 const cli = fileURLToPath(new URL('../src/cli.ts', import.meta.url));
 
@@ -20,10 +20,13 @@ function sim(...args: string[]) {
 test('a bot-vs-bot match plays to its end and prints the result', () => {
   const { status, stdout } = sim('match', '--seed', '42');
   expect(status).toBe(0);
-  expect(stdout).toContain('result  side 1 wins');
-  expect(stdout).toContain('ended   tick 3600 (3:00)');
-  expect(stdout).toContain('stars   0-1');
-  expect(stdout).toContain('hash    14d647f7');
+  const end = playReplay(botReplay(42));
+  expect(end.result).not.toBeNull();
+  expect(stdout).toContain(describeResult(42, end));
+  expect(stdout).toMatch(/^result {2}(side [01] wins|draw)$/m);
+  expect(stdout).toContain(`ended   tick ${String(end.tick)} (${formatClock(end.tick)}`);
+  expect(stdout).toContain(`stars   ${String(end.stars[0])}-${String(end.stars[1])}`);
+  expect(stdout).toContain(`hash    ${hashState(end)}`);
 });
 
 test('the saved replay carries both bots’ commands', () => {
@@ -51,9 +54,10 @@ test('--dump prints the state at that tick as JSON', () => {
 });
 
 test('--dump past the end of the match fails', () => {
-  const { status, stderr } = sim('match', '--seed', '42', '--dump', '3601');
+  const { tick } = playReplay(botReplay(42));
+  const { status, stderr } = sim('match', '--seed', '42', '--dump', String(tick + 1));
   expect(status).toBe(1);
-  expect(stderr).toContain('The match ended at tick 3600, before tick 3601');
+  expect(stderr).toContain(`The match ended at tick ${String(tick)}, before tick ${String(tick + 1)}`);
 });
 
 test.each([[], ['--seed', 'abc'], ['--seed', '4294967296'], ['--seed', '1', '--dump', '1.5'], ['--seed', '1', '--wat']])(

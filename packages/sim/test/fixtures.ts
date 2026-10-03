@@ -52,8 +52,8 @@ export const CARDS: Record<CardId, CardStats> = {
 const FIGHT = { hitTicks: 10, firstHitTicks: 5, sight: 4000, targets: 'ground' } as const;
 
 export const TROOPS: Record<CardId, CardStats> = {
-  walker: { cost: 1, type: 'troop', unit: { hp: 500, speed: 50, radius: 500, range: 0, damage: 50, ...FIGHT } },
-  archer: { cost: 1, type: 'troop', unit: { hp: 200, speed: 40, radius: 400, range: 3000, damage: 20, ...FIGHT } },
+  walker: { cost: 1, type: 'troop', unit: { hp: 500, speed: 50, radius: 500, mass: 5, range: 0, damage: 50, ...FIGHT } },
+  archer: { cost: 1, type: 'troop', unit: { hp: 200, speed: 40, radius: 400, mass: 3, range: 3000, damage: 20, ...FIGHT } },
 };
 
 export const DECK: CardId[] = ['c1', 'c2', 'c3', 'c4', 'c5', 'c6', 'c7', 'c8'];

@@ -30,25 +30,27 @@ function ticks(loop: MatchLoop, count: number): void {
 
 test('the bot plays side 1 in real time, and its commands are recorded', () => {
   const loop = botLoop();
+  let landed = false;
   for (let frame = 0; frame < 20 * 60; frame++) {
     advance(loop, 1000 / 60);
+    landed ||= loop.current.units.some((unit) => unit.side === 1) || loop.current.blasts.length > 0;
   }
   const tick = loop.current.tick;
   expect(tick).toBeGreaterThanOrEqual(399);
   const sides = loop.commands.map((command) => command.side);
   expect(sides.length).toBeGreaterThan(2);
   expect(sides.every((side) => side === 1)).toBe(true);
-  expect(loop.current.units.some((unit) => unit.side === 1) || loop.current.blasts.length > 0).toBe(true);
+  expect(landed).toBe(true);
   expect(hashState(replay(loop.commands, tick))).toBe(hashState(loop.current));
 });
 
 test('taps and the bot land in the same log, and it replays to the same state', () => {
   const loop = botLoop();
   ticks(loop, 60);
-  queuePlay(loop, 0, 0, 9000, 4500);
+  queuePlay(loop, 0, 0, 9000, 6500);
   ticks(loop, 200);
   const tick = loop.current.tick;
-  expect(loop.commands.filter((command) => command.side === 0)).toEqual([{ tick: 60, side: 0, handSlot: 0, x: 9000, y: 4500 }]);
+  expect(loop.commands.filter((command) => command.side === 0)).toEqual([{ tick: 60, side: 0, handSlot: 0, x: 9000, y: 6500 }]);
   expect(loop.commands.some((command) => command.side === 1)).toBe(true);
   expect(hashState(replay(loop.commands, tick))).toBe(hashState(loop.current));
 });

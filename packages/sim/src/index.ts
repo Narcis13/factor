@@ -18,5 +18,6 @@ export {
 } from './state.ts';
 export type { Blast } from './spells.ts';
 export { step } from './step.ts';
+export { placementRejection } from './placement.ts';
 export { deployZone, type Unit } from './troops.ts';
 export { BASIS_POINTS, MILLI_PER_TILE, TICKS_PER_SECOND } from './units.ts';

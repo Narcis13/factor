@@ -66,7 +66,7 @@ test('in real time, playback matches jumping straight to a tick', () => {
 });
 
 test('the loop copies the feed, so the replay it came from is left alone', () => {
-  const commands: Command[] = [{ tick: 0, side: 0, handSlot: 0, x: 9000, y: 4500 }];
+  const commands: Command[] = [{ tick: 0, side: 0, handSlot: 0, x: 9000, y: 6500 }];
   const loop = createLoop(START, [], commands);
   runTo(loop, 5);
   expect(commands).toHaveLength(1);

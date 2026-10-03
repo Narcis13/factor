@@ -80,3 +80,9 @@ export interface Tower extends TowerSite {
    */
   dormant: boolean;
 }
+
+/** The square of ground a tower stands on. */
+export function footprint({ x, y, size }: Pick<TowerSite, 'x' | 'y' | 'size'>): Rect {
+  const half = Math.floor(size / 2);
+  return { x: x - half, y: y - half, width: size, height: size };
+}
