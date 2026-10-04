@@ -1,4 +1,4 @@
-import { botTurn, type RandomBot } from '@factor/bot';
+import { botTurn, type Bot } from '@factor/bot';
 import { BOT_TUNING } from '@factor/content';
 import { step, TICKS_PER_SECOND, type Blast, type Command, type Side, type SimState, type Splash } from '@factor/sim';
 
@@ -39,7 +39,7 @@ export interface MatchLoop {
   /** Plays waiting for the next tick. */
   queued: Play[];
   /** Bots playing sides the human doesn't, asked for their commands every tick. */
-  bots: RandomBot[];
+  bots: Bot[];
   /** A replay's commands still to come, in tick order, each sent on its own tick. Empty in live play. */
   feed: Command[];
   /** Every command sent to the sim, in order: what a replay needs. */
@@ -50,7 +50,7 @@ export interface MatchLoop {
   splashes: RecentSplash[];
 }
 
-export function createLoop(state: SimState, bots: RandomBot[] = [], feed: readonly Command[] = []): MatchLoop {
+export function createLoop(state: SimState, bots: Bot[] = [], feed: readonly Command[] = []): MatchLoop {
   return { previous: state, current: state, pendingMs: 0, queued: [], bots, feed: [...feed], commands: [], blasts: [], splashes: [] };
 }
 

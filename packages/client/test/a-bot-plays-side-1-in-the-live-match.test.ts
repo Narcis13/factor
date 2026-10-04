@@ -1,4 +1,4 @@
-import { createRandomBot, type RandomBot } from '@factor/bot';
+import { createRandomBot, type Bot } from '@factor/bot';
 import { BOT_TUNING, matchSetup } from '@factor/content';
 import { createMatch, hashState, step, type Command, type SimState } from '@factor/sim';
 import { expect, test } from 'vitest';
@@ -70,7 +70,7 @@ test('runTo stops at the end of the match, and the bot has nothing left to say',
   const loop = botLoop();
   runTo(loop, Number.MAX_SAFE_INTEGER);
   expect(loop.current.result).not.toBeNull();
-  const before = loop.bots.map((bot: RandomBot) => ({ ...bot }));
+  const before = loop.bots.map((bot: Bot) => ({ ...bot }));
   expect(advance(loop, 10 * TICK_MS)).toBe(0);
   expect(loop.bots).toEqual(before);
 });

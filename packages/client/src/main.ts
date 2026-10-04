@@ -1,10 +1,10 @@
 // Browser entry. Runs a match live at 20 ticks/s; side 0 plays by tapping a card, then the arena,
-// against a random bot on side 1. `?replay=<url>` (or `?replay=last`) plays a replay back instead,
+// against the heuristic bot on side 1 (`?bot=random` for the random one). `?replay=<url>` (or `?replay=last`) plays a replay back instead,
 // from side 0's seat, with the hand shown but not playable. `?seed=<n>` picks the live match's seed
 // (0 by default). `?tick=<n>` plays either to tick n with no taps and freezes it there (for
 // `pnpm shots`). When a live match ends, its replay is saved in localStorage; every end screen offers
 // a new live match on a fresh seed, or the replay as a file.
-import { createRandomBot } from '@factor/bot';
+import { createBot, type BotKind } from '@factor/bot';
 import { BOT_TUNING, matchSetup, saveReplay, STARTER_DECKS, type Replay } from '@factor/content';
 import { createMatch } from '@factor/sim';
 import { Application, Graphics } from 'pixi.js';
@@ -39,7 +39,8 @@ const watched: Replay | null = replayName === null ? null : await readReplay(rep
 const SEED = watched?.seed ?? parseSeed(params.get('seed')) ?? 0;
 const DECKS = watched?.decks ?? STARTER_DECKS;
 const start = createMatch(matchSetup(SEED, DECKS));
-const loop = watched === null ? createLoop(start, [createRandomBot(1, SEED, start, BOT_TUNING)]) : createLoop(start, [], watched.commands);
+const BOT: BotKind = params.get('bot') === 'random' ? 'random' : 'heuristic';
+const loop = watched === null ? createLoop(start, [createBot(BOT, 1, SEED, start, BOT_TUNING)]) : createLoop(start, [], watched.commands);
 if (frozenAt !== null) {
   runTo(loop, frozenAt);
 }

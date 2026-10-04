@@ -1,4 +1,4 @@
-import { botTurn, createRandomBot, playBotMatch } from '@factor/bot';
+import { botTurn, createBot, playBotMatch } from '@factor/bot';
 import { BOT_TUNING, matchSetup, REPLAY_VERSION, STARTER_DECKS, type Replay } from '@factor/content';
 import { createMatch, step, type Command } from '@factor/sim';
 import { expect, test } from 'vitest';
@@ -19,7 +19,7 @@ function pngSize(png: Buffer) {
  */
 function liveReplay(): Replay {
   let state = createMatch(matchSetup(0));
-  let bot = createRandomBot(1, 0, state, BOT_TUNING);
+  let bot = createBot('heuristic', 1, 0, state, BOT_TUNING);
   const commands: Command[] = [];
   while (state.tick < SHOT_TICK) {
     const turn = botTurn(bot, state, BOT_TUNING);
@@ -31,9 +31,9 @@ function liveReplay(): Replay {
   return { version: REPLAY_VERSION, seed: 0, decks: [[...STARTER_DECKS[0]], [...STARTER_DECKS[1]]], commands };
 }
 
-test('the default shots are the live arena at tick 90 and the end of a bot-vs-bot replay', () => {
+test('the default shots are the live arena at tick 200 and the end of a bot-vs-bot replay', () => {
   const [arena, end] = defaultShots();
-  expect(shotQuery(arena ?? { name: '', tick: 0 })).toBe('tick=90');
+  expect(shotQuery(arena ?? { name: '', tick: 0 })).toBe('tick=200');
   expect(end?.tick).toBe(END_TICK);
   expect(end?.replay?.commands).toEqual(playBotMatch(0).commands);
   expect(shotQuery(end ?? { name: '', tick: 0 })).toBe(`replay=shot-replay.json&tick=${String(END_TICK)}`);

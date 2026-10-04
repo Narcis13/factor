@@ -40,7 +40,7 @@ Commands:
 
   shots [--out <dir>] [--replay <file>] [--tick <n>]
       Open the client frozen in headless Chromium and save PNGs in <dir> (default: shots). With no
-      options: arena.png (live against the bot at tick 90) and end.png (the end of bot-vs-bot seed 0,
+      options: arena.png (live against the bot at tick 200) and end.png (the end of bot-vs-bot seed 0,
       played back with ?replay=). --tick <n> shoots the live match at tick n as arena-<n>.png.
       --replay <file> plays that replay back to --tick (default: its end) as <file name>-<n|end>.png.
       Also runs as pnpm shots.

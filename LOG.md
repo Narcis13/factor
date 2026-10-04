@@ -40,6 +40,17 @@ Sculpt log. The **Current state** block is rewritten at the end of every session
 
 ## Sessions
 
+### S28 · 2026-10-04 · A heuristic bot
+**Stage:** 3 — Detail
+**Cut:** The Stage 3 bot that defends, counter-pushes and manages energy, reading cards by their stats so it plays any deck; the client now plays against it. Rebased port of `stage-3`'s S26.
+**Done:**
+- Bot: `heuristic-bot.ts` (`HeuristicBot`, plain JSON, own rng; thinks every 0.5 s, plays at most once a second). Threats are enemies within 2 tiles of the river or over it; it answers when they're worth ≥ 2 energy (or are building-hunters) and outweigh what already stands against them (its units within 5 tiles that can hit them, 1.5 energy per tower in reach). Answers: the spell destroying the most value at one point (≥ 110% of its cost), else the card that can hit the most threat value (bonuses for splash or swarms against a swarm, a building against hunters, less 0.3 per energy); buildings go in front of the Keep, ranged troops by the towers, the rest two tiles in front of the threat. When quiet it finishes a tower a spell can drop, spells clusters worth it, backs up its own pushing units, saves to 8 and pushes the weaker lane with its toughest troop, and never sits at 10. Spots are tile centers checked with the sim's `placementRejection` (plus energy), searched in each side's own frame so both sides choose alike.
+- `Bot = RandomBot | HeuristicBot` (`kind`), `createBot`, `botTurn` for either (`randomTurn`, `heuristicTurn`); `playBotMatch(..., kinds)` (random by default, so goldens and sweeps are unchanged). Content: `BotTuning.heuristic`. Client: side 1 is the heuristic bot (`?bot=random` for the old one); the arena shot moved to tick 200, after its first push.
+**Verified:** `pnpm check` green (61 files, 448 tests; 12 new: determinism, legal-only play on random 16-card decks, beats the random bot, pulls a tank with a building or meets it, sparks a flight of wisps, answers flyers only with air-hitters, saves then pushes the weaker lane, finishes a tower, < 2% of ticks on full energy). Measured on main's sim over 100 seeds: vs random 98% and 99% by side; heuristic mirror 45/53/2.
+**Decisions:** As in `stage-3`: the bot never names a card; its tuning is content.
+**Left out / noticed:** **Playtest (director):** is the bot fun to play against?
+**Status:** complete
+
 ### S27 · 2026-10-04 · Sixteen cards
 **Stage:** 3 — Detail
 **Cut:** The first Stage 3 criterion: eight more cards for sixteen, each with a scenario test of its defining behavior on the real arena (VISION §7). Rebased port of `stage-3`'s S25 onto main's Stage 2 (S20–S26 here); that branch's own Stage 2 (its S20–S24) was dropped as a duplicate of main's.
