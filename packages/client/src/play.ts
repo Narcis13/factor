@@ -12,14 +12,16 @@ import { createMatch } from '@factor/sim';
 import { Application, Graphics } from 'pixi.js';
 import { blastScene, groundScene, hpBarScene, noDeployRects, projectileScene, splashScene, toScreen, towerScene, unitScene } from './arena-view.ts';
 import { tap, type Controls } from './controls.ts';
-import { BACKGROUND, drawArena, drawBlasts, drawHpBars, drawNoDeploy, drawProjectiles, drawSplashes, drawUnits } from './draw-arena.ts';
+import { BACKGROUND, drawArena, drawBlasts, drawEffects, drawGhost, drawHpBars, drawNoDeploy, drawProjectiles, drawSplashes, drawUnits } from './draw-arena.ts';
+import { effectScene } from './effects.ts';
+import { ghostScene } from './ghost.ts';
 import { EndView } from './draw-end.ts';
 import { HudView } from './draw-hud.ts';
 import { endScene } from './end-view.ts';
 import { hudScene } from './hud-view.ts';
 import { advance, alpha, BLAST_TICKS, createLoop, runTo } from './match-loop.ts';
 import { loopReplay, readReplay, REPLAY_STORAGE_KEY } from './match-replay.ts';
-import { layoutScreen, type ScreenLayout } from './screen-layout.ts';
+import { layoutScreen, type ScreenLayout, type ScreenPoint } from './screen-layout.ts';
 import { DECK_STORAGE_KEY, matchUrl, storedDeck } from './deck-builder.ts';
 import { freshSeed, parseSeed, parseTick } from './url-params.ts';
 
@@ -48,6 +50,7 @@ if (frozenAt !== null) {
   runTo(loop, frozenAt);
 }
 const controls: Controls = { side: 0, selected: null, watching: watched !== null };
+let hover: ScreenPoint | null = null;
 
 const ground = new Graphics();
 const field = new Graphics();
@@ -83,7 +86,9 @@ function render(): void {
   drawProjectiles(field, projectileScene(previous, current, t, layout.view));
   drawSplashes(field, splashScene(loop.splashes, current, t, BLAST_TICKS, layout.view));
   drawBlasts(field, blastScene(loop.blasts, current, t, BLAST_TICKS, layout.view));
+  drawEffects(field, effectScene(loop.effects, current, t, layout.view, units));
   drawHpBars(field, hpBarScene(current, units, layout.view));
+  drawGhost(field, ghostScene(current, controls.side, controls.selected, hover, layout));
   hud.draw(hudScene(previous, current, t, layout.hud, controls.side, controls.selected));
   end.draw(endScene(current, controls.side, layout.end), app.screen);
   app.render();
@@ -96,6 +101,13 @@ window.addEventListener('resize', () => {
 
 if (frozenAt === null) {
   let replayText: string | null = null;
+  // The pointer, for the deploy ghost; touch screens only have one while a finger is down.
+  app.canvas.addEventListener('pointermove', (event) => {
+    hover = { x: event.clientX, y: event.clientY };
+  });
+  app.canvas.addEventListener('pointerleave', () => {
+    hover = null;
+  });
   app.canvas.addEventListener('pointerdown', (event) => {
     const action = tap(controls, loop, layout, event.clientX, event.clientY);
     if (action === 'deck') {

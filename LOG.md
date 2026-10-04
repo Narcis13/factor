@@ -40,6 +40,16 @@ Sculpt log. The **Current state** block is rewritten at the end of every session
 
 ## Sessions
 
+### S31 · 2026-10-04 · Hit flashes, death puffs and the deploy ghost
+**Stage:** 3 — Detail
+**Cut:** Stage 3's hit effects with placeholder shapes (pillar 4), and feedback before a play. Rebased port of `stage-3`'s S29, trimmed to what main didn't have (main already draws splash rings, shots in flight and dimmed dormant Keeps).
+**Done:**
+- Client: `effects.ts`: `effectsBetween(previous, current)` reads hits (a flash) and deaths (a puff) off two consecutive states; `MatchLoop.effects` keeps 0.3 s of them; `effectScene` fades them, a flash riding its unit, a tower's covering its square. `ghost.ts`: with a card selected, the pointer shows where it would land (every unit of a group, a building's square, a spell's circle), white if the sim takes it (`placementRejection`), red if not, gold while energy is short. Sim exports `formation` for the ghost.
+**Verified:** `pnpm check` green (65 files, 463 tests; 4 new: both effect kinds and none without change, fading and placement, the live loop's 0.3 s window, the ghost's shapes and statuses).
+**Decisions:** Effects come from state differences in the client, so the sim and its hashes don't change. The ghost asks the sim, so it can't disagree with what a tap will do.
+**Left out / noticed:** Effects are flat placeholders; sprites, animation and sound wait for art direction. **Playtest (director):** do hits land with weight enough? Does the ghost help on touch (it shows only while a finger is down)?
+**Status:** complete
+
 ### S30 · 2026-10-04 · Deck builder, and a dealt deck for the bot
 **Stage:** 3 — Detail
 **Cut:** The deck builder (a Stage 3 UI item) and the match flow round it: pick 8 of the 16, battle on a fresh seed against the heuristic bot with a deck dealt from that seed, and come back to the deck from the end screen. Rebased port of `stage-3`'s S28 (main already had `?seed=` and *Play again* on a fresh seed).

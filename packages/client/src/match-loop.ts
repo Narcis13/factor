@@ -1,6 +1,7 @@
 import { botTurn, type Bot } from '@factor/bot';
 import { BOT_TUNING } from '@factor/content';
 import { step, TICKS_PER_SECOND, type Blast, type Command, type Side, type SimState, type Splash } from '@factor/sim';
+import { EFFECT_TICKS, effectsBetween, type Effect } from './effects.ts';
 
 /** Real time per tick: 50 ms at 20 ticks/s. */
 export const TICK_MS = 1000 / TICKS_PER_SECOND;
@@ -48,10 +49,12 @@ export interface MatchLoop {
   blasts: RecentBlast[];
   /** Splash hits that landed in the last `BLAST_TICKS` ticks, oldest first. */
   splashes: RecentSplash[];
+  /** Hits and deaths of the last `EFFECT_TICKS` ticks, oldest first. */
+  effects: Effect[];
 }
 
 export function createLoop(state: SimState, bots: Bot[] = [], feed: readonly Command[] = []): MatchLoop {
-  return { previous: state, current: state, pendingMs: 0, queued: [], bots, feed: [...feed], commands: [], blasts: [], splashes: [] };
+  return { previous: state, current: state, pendingMs: 0, queued: [], bots, feed: [...feed], commands: [], blasts: [], splashes: [], effects: [] };
 }
 
 /** Queues a play for the next tick. Once the match has ended, it is dropped. */
@@ -124,6 +127,8 @@ function tickOnce(loop: MatchLoop): void {
   loop.blasts.push(...loop.current.blasts.map((blast) => ({ ...blast, tick: now })));
   loop.splashes = loop.splashes.filter((splash) => now - splash.tick < BLAST_TICKS);
   loop.splashes.push(...loop.current.splashes.map((splash) => ({ ...splash, tick: now })));
+  loop.effects = loop.effects.filter((effect) => now - effect.tick < EFFECT_TICKS);
+  loop.effects.push(...effectsBetween(state, loop.current));
 }
 
 /** How far the display is from `previous` toward `current`, in [0, 1]. */
