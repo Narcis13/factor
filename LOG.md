@@ -6,39 +6,44 @@ Sculpt log. The **Current state** block is rewritten at the end of every session
 
 ## Current state
 
-**Stage:** 3 — Detail (Stage 2 — Form closed in S26)
-**Last session:** S26 · 2026-10-03
+**Stage:** 3 — Detail (open: art, sound and the director's feel sign-off remain; Stage 2 closed in S26)
+**Last session:** S32 · 2026-10-04
 **Works:**
-- A pnpm monorepo with `sim`, `content`, `bot`, `tools` and `client` packages, strict TS 6.0, no build step.
-- `pnpm check` is green: typecheck, lint, 413 tests (one of them drives headless Chromium), the golden replays included.
-- ESLint enforces the sim's hard rules (imports, Math/Date/timers, async, classes, `**`, float literals) in the sim and its tests, and in the bot (which may import only `sim` and `content`).
-- Sim: `createMatch(setup)`, pure `step(state, commands)` at a fixed tick, sfc32 RNG in state, `hashState`. `MatchSetup` carries rules, the `ArenaLayout`, tower stats, a card catalog and both decks. Every §4 rule is in and has scenario tests.
-- Players: energy 5 → 10, +1 per 56 ticks, 2× from 2:00 and in overtime. Decks of 8 shuffled from the seed; hand of 4 + queue; plays spend and cycle, with 6 rejection reasons. `deployZones` (own half + lanes opened by fallen enemy Outposts) and `placementRejection` (the bot uses both).
-- Units (`troops.ts`): `count` per play in a mirrored formation; 1 s deploy delay; lock-on until the target dies or leaves range; acquisition in sight by filter (`ground | air | buildings`; `air` reaches both layers, `buildings` towers and buildings); ground units walk lane and bridge around towers and buildings, `air` units fly straight. `collision.ts`: pushes by mass per layer, out of towers, buildings and the river; slides take the shorter clear way; head-on pairs step aside. `attacks.ts`: melee hits land at once, ranged ones fly as homing projectiles; splash hits what the filter reaches, towers too. Buildings: static units that decay over their lifetime.
-- Towers shoot the nearest enemy in range, ground or air, with projectiles. Keeps start dormant and wake when hurt or when an Outpost of theirs falls. Spells hit both layers, towers for `towerDamageBp`. Result: 3:00, overtime while tied, then the weakest-standing-tower tiebreak.
-- Content: 8 cards, one per archetype: juggernaut (tank), warden (melee), slinger (ranged), rabble (swarm), harrier (flyer), bombardier (splash), flare (spell), bastion (building). `STARTER_DECK` holds each once.
-- Bot: `createRandomBot`/`botTurn` (random legal plays, own seeded rng), `playBotMatch(seed)`.
-- Tools: `pnpm sim match`/`replay` (seed 42: side 0 wins 1-0 at 3:00, `8c4bb8f0`); `pnpm sim sweep --matches 1000`: 0 violations, 0 mismatches, ~61 s; `pnpm sim goldens [--update]`; `pnpm shots` (`arena.png` `dae59c9f3cc4`, `end.png` `2aec0a54fe55`); `pnpm playtest` (a full live match in headless Chromium, ~5 min).
-- Client (placeholder shapes): flyers lifted over shadows, buildings as squares, shots as dots, splashes as rings, dormant Keeps dimmed with an inner ring, no-deploy shade per closed lane. `?seed=`, *Play again* on a fresh seed, `?replay=`, `?tick=`; the end panel says when the tiebreak decided.
+- Monorepo (`sim`, `content`, `bot`, `client`, `tools`), strict TS 6.0, no build step. `pnpm check` green: typecheck, lint, 464 tests, two in headless Chromium (shots, and an end-to-end deck-builder-to-battle run), goldens included.
+- Sim: every §4 rule (energy and 2× time, cycling, deploy zones and lane extension, deploy delay, troops in formation, buildings that decay and, now, spawn, spells, `ground | air | buildings` targeting with lock-on, flyers, collision by mass with steering round towers and buildings, projectiles and splash, Keep dormancy, stars, overtime, tiebreak). `placementRejection` tells bots and the client where a card may go. Invariants every tick in tools and tests.
+- Content: 16 deck cards (+ the hive's spawn-only mite), tuned once from balance sweeps; `dealDeck`, `parseDeck`; bot tuning.
+- Bots: random, and heuristic (defends by threat value, pulls tanks with buildings, spells clusters, backs up pushes, saves to push the weaker lane, never leaks energy; beats random ~98%).
+- Tools: `sim match/replay/sweep/balance/goldens`, `shots`, `playtest` (vs the heuristic bot).
+- Client: deck builder → live match on a fresh seed vs the heuristic bot with a dealt deck; HUD, deploy ghost (legal/refused/energy), flyers lifted, buildings square, shots, splash rings, hit flashes, death puffs, dimmed dormant Keeps, end screen (Play again / Deck / Save replay, tiebreak note), replays.
 **Known issues:**
-- No formatter configured yet. Nothing on screen shows that a tower's footprint refuses troops.
-- Steering is local: a unit walled in by its own building between the arena's edge and a tower waits until the building decays. Sweeps take ~61 s.
-- The deploy-zone extension is the whole lane of the enemy half (§4 as written); random-bot Keep kills are now 18% of matches. Director to decide whether it should stop short of the Keep.
-- Hp bars are thin, units are small and low-contrast, and the flare marker and hollow HUD stars are faint.
-- On Windows: pnpm comes through corepack (`corepack pnpm`), and Chromium needs `pnpm --filter @factor/tools exec playwright install --only-shell chromium` once. In the cloud container, `FACTOR_CHROMIUM=/opt/pw-browsers/chromium_headless_shell-1194/chrome-linux/headless_shell`.
-- Replays don't carry rules, layout or stats; a content change silently changes what an old replay plays.
-- Context7 isn't reachable; library APIs were checked against the installed type definitions.
-**Golden replays:** `goldens/` holds bot-vs-bot replays with a hash every 200 ticks and at the end (`hashes.json`): seed-0, seed-42 and seed-54 always, plus the first seeds that cover a regulation win for each side, an overtime win, a Keep kill and a draw (now seed-3, seed-9, seed-234). The goldens tests read the names from `hashes.json`. After a rule change: re-record (`pnpm sim match --seed <n> --replay goldens/seed-<n>.json` for each) and `--update`.
+- Balance: spark wins 59.9% in bot mirrors (strong; a cheap cycle card), bombardier 42.9% (weak); bot mirrors lean slightly to side 1 (511 vs 472).
+- Steering is local: a unit walled in by its own building between the arena's edge and a tower waits until the building decays. Sweeps take ~70 s per 1000.
+- The deploy-zone extension is the whole lane of the enemy half (§4 as written); director to decide whether it should stop short of the Keep.
+- No formatter. Replays don't carry content. Units small and faint; effects flat placeholders.
+- On Windows: pnpm comes through corepack, and Chromium needs `pnpm --filter @factor/tools exec playwright install --only-shell chromium` once. In the cloud container, `FACTOR_CHROMIUM=/opt/pw-browsers/chromium_headless_shell-1194/chrome-linux/headless_shell`.
+**Golden replays:** `goldens/` holds bot-vs-bot replays with a hash every 200 ticks and at the end (`hashes.json`): seed-0, seed-42 and seed-54 always, plus the first seeds that cover a regulation win for each side, an overtime win, a Keep kill and stars tied at 5:00 (now seed-2, -3, -1, -8, -67). The goldens tests read the names from `hashes.json`. After a rule or content change: re-record and `--update`, and log why.
 
 **Next cuts** (in order):
-1. The heuristic bot: defends a threatened lane, counter-pushes, manages energy (Stage 3).
-2. Balance sweeps with varied decks: win rate per card, flagging outliers for the director (Stage 3).
-3. 8 more cards toward 16, each with scenario tests for its defining behavior (Stage 3).
-4. Waiting on the director: art direction for sprites, animations, hit effects and SFX (Stage 3; VISION §11).
+1. **Director:** play on a real phone (feel sign-off, bot difficulty, card readability) and review the balance flags (spark, bombardier).
+2. Art direction (VISION §11): sprite sheets, animations and sound replacing the placeholder shapes and effects.
+3. A dev panel for live tuning (VISION §6) and debug overlays (`?debug=1`: ranges, targets, paths) for readable shots.
+4. Stage 4 groundwork: performance on the target device (60 units + effects at 60 fps), tutorial match, settings.
 
 ---
 
 ## Sessions
+
+### S32 · 2026-10-04 · End to end in the browser, and the Stage 3 review
+**Stage:** 3 — Detail
+**Cut:** Prove the whole loop in a real browser (deck builder → battle → plays → the bot answering → the end screen and its replay) and review Stage 3's exit criteria. Rebased port of `stage-3`'s S30; this closes the rebase of `stage-3` onto main (S27–S32 here are that branch's S25–S30, rebuilt on main's Stage 2).
+**Done:**
+- Client: the match reports `data-tick`, `data-units0/1`, `data-plays0` and `data-result` on the page (a sense for browser tests).
+- Tools: `a-player-builds-a-deck-and-battles-the-bot.test.ts` (in `pnpm check`, ~20 s): from a fresh browser the menu shows 16 cards with the starter deck picked; taking bastion out disables Battle, adding hive enables it; Battle opens `?play&seed=<n>` with the deck kept; five taps go in as plays and units; the heuristic bot puts units down; no page errors.
+- Stage 3 review: 16 cards ✓ (S27); a heuristic bot that defends, counter-pushes and manages energy ✓ (S28); balance sweeps that flag outliers ✓ (S29), director review pending; hit effects as placeholders ✓ (S31, with main's splash rings); **sprites, animations and SFX not started** (they wait for art direction, VISION §11); UI: deck builder, hand, energy bar, timer, results ✓; **the director's feel sign-off on a real phone is pending**. Stage 3 stays open on those three.
+**Verified:** `pnpm check` green twice in a row (66 files, 464 tests; 1 new). `pnpm playtest` (real time, 182 s): the heuristic bot won 1-0 at 3:00 (`fc6e740f`), 22 of 44 taps taken (22 short of energy), 24 bot plays, live and `?replay=last` end screens pixel-identical, no page errors. `pnpm sim sweep --matches 1000`: 0 violations, 0 mismatches, 71 s; goldens ok.
+**Decisions:** Browser tests read the match through page attributes, not the page's objects.
+**Left out / noticed:** none beyond the review.
+**Status:** complete
 
 ### S31 · 2026-10-04 · Hit flashes, death puffs and the deploy ghost
 **Stage:** 3 — Detail

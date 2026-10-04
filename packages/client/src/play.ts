@@ -92,6 +92,20 @@ function render(): void {
   hud.draw(hudScene(previous, current, t, layout.hud, controls.side, controls.selected));
   end.draw(endScene(current, controls.side, layout.end), app.screen);
   app.render();
+  report(current);
+}
+
+/**
+ * What browser tests read about the match, as attributes on the page (a sense, VISION §6): the tick, how
+ * many units each side has on the field, how many plays side 0 has sent, and the result.
+ */
+function report(current: typeof loop.current): void {
+  const { dataset } = document.documentElement;
+  dataset.tick = String(current.tick);
+  dataset.units0 = String(current.units.filter((unit) => unit.side === 0).length);
+  dataset.units1 = String(current.units.filter((unit) => unit.side === 1).length);
+  dataset.plays0 = String(loop.commands.filter((command) => command.side === 0).length);
+  dataset.result = current.result === null ? 'none' : current.result.winner === null ? 'draw' : `side ${String(current.result.winner)}`;
 }
 
 window.addEventListener('resize', () => {
