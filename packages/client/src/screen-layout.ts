@@ -33,7 +33,9 @@ export interface EndLayout {
   /** Star centers, first star first: the viewer's on the left, the opponent's on the right. */
   stars: { left: ScreenPoint[]; right: ScreenPoint[] };
   starRadius: number;
+  /** Three buttons in a row: a new match, back to the deck builder, and the replay as a file. */
   again: ScreenRect;
+  deck: ScreenRect;
   save: ScreenRect;
 }
 
@@ -113,7 +115,7 @@ function layoutEnd(arenaLeft: number, arenaWidth: number, riverMiddle: number): 
   const starRadius = 14;
   const groupWidth = MAX_STARS * 2 * starRadius + (MAX_STARS - 1) * STAR_GAP;
   const starsY = panel.y + 104;
-  const buttonWidth = Math.floor((width - 3 * 2 * GAP) / 2);
+  const buttonWidth = Math.floor((width - 6 * GAP) / 3);
   const buttonY = panel.y + END_HEIGHT - 2 * GAP - BUTTON_HEIGHT;
   return {
     panel,
@@ -124,6 +126,7 @@ function layoutEnd(arenaLeft: number, arenaWidth: number, riverMiddle: number): 
     },
     starRadius,
     again: { x: panel.x + 2 * GAP, y: buttonY, width: buttonWidth, height: BUTTON_HEIGHT },
+    deck: { x: panel.x + 3 * GAP + buttonWidth, y: buttonY, width: buttonWidth, height: BUTTON_HEIGHT },
     save: { x: panel.x + width - 2 * GAP - buttonWidth, y: buttonY, width: buttonWidth, height: BUTTON_HEIGHT },
   };
 }

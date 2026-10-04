@@ -57,8 +57,17 @@ export interface SpellStats {
  */
 export type CardStats =
   | { cost: number; type: 'troop'; unit: UnitStats }
-  | { cost: number; type: 'building'; unit: UnitStats; lifetimeTicks: number }
+  | { cost: number; type: 'building'; unit: UnitStats; lifetimeTicks: number; spawn: Spawn | null }
   | { cost: number; type: 'spell'; spell: SpellStats };
+
+/**
+ * A building that deploys a troop card's units (not a card in either deck: it comes with the building)
+ * in front of it every `everyTicks`, the first time as soon as it stands. A spawning building doesn't attack.
+ */
+export interface Spawn {
+  card: CardId;
+  everyTicks: number;
+}
 
 /** Energy (VISION §4). The numbers come from `content`. */
 export interface EnergyRules {
@@ -124,10 +133,21 @@ export function regenerate(player: Player, rules: EnergyRules, rate: number): vo
   }
 }
 
-/** Copies the stats of every card in `ids` from `catalog`, and nothing else. Throws on an unknown id. */
+/**
+ * Copies the stats of every card in `ids` from `catalog`, and of every card a building among them spawns,
+ * and nothing else. Throws on an unknown id.
+ */
 export function pickCards(catalog: Readonly<Record<CardId, CardStats>>, ids: readonly CardId[]): Record<CardId, CardStats> {
+  // A spawning building brings the card it spawns.
+  const wanted = new Set(ids);
+  for (const id of ids) {
+    const stats = Object.hasOwn(catalog, id) ? catalog[id] : undefined;
+    if (stats?.type === 'building' && stats.spawn !== null) {
+      wanted.add(stats.spawn.card);
+    }
+  }
   const cards: Record<CardId, CardStats> = {};
-  for (const id of [...ids].sort()) {
+  for (const id of [...wanted].sort()) {
     const stats = Object.hasOwn(catalog, id) ? catalog[id] : undefined;
     if (stats === undefined) {
       throw new RangeError(`Unknown card: ${id}`);
@@ -144,5 +164,9 @@ function copyCard(stats: CardStats): CardStats {
   }
   const { hp, speed, radius, mass, range, sight, targets, layer, count, damage, splash, projectileSpeed, hitTicks, firstHitTicks } = stats.unit;
   const unit = { hp, speed, radius, mass, range, sight, targets, layer, count, damage, splash, projectileSpeed, hitTicks, firstHitTicks };
-  return stats.type === 'troop' ? { cost: stats.cost, type: 'troop', unit } : { cost: stats.cost, type: 'building', unit, lifetimeTicks: stats.lifetimeTicks };
+  if (stats.type === 'troop') {
+    return { cost: stats.cost, type: 'troop', unit };
+  }
+  const spawn = stats.spawn === null ? null : { card: stats.spawn.card, everyTicks: stats.spawn.everyTicks };
+  return { cost: stats.cost, type: 'building', unit, lifetimeTicks: stats.lifetimeTicks, spawn };
 }

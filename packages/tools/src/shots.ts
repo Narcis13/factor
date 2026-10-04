@@ -4,8 +4,8 @@ import { botReplay } from './match.ts';
 
 export const SHOT_VIEWPORT = CLIENT_VIEWPORT;
 
-/** The frozen tick the arena shot shows: 4.5 s in, so the clock has moved and the energy bar is part-filled. */
-export const SHOT_TICK = 90;
+/** The frozen tick the arena shot shows: 10 s in, once the heuristic bot has saved up and started a push. */
+export const SHOT_TICK = 200;
 
 /** Past the longest possible match, so a shot there shows how it ended. */
 export const END_TICK = MATCH_RULES.regulationTicks + MATCH_RULES.overtimeTicks;

@@ -11,7 +11,7 @@ const BRUTE = TROOPS.walker?.type === 'troop' ? TROOPS.walker.unit : undefined;
 /** `post`: a building that lasts 100 ticks and hits for 10 within 2 tiles. `brute`: a walker that only targets buildings. */
 const CARDS: Record<CardId, CardStats> = {
   ...TROOPS,
-  post: { cost: 1, type: 'building', lifetimeTicks: 100, unit: { ...POST, damage: 10, splash: 0, projectileSpeed: 0, hitTicks: 10, firstHitTicks: 5 } },
+  post: { cost: 1, type: 'building', lifetimeTicks: 100, spawn: null, unit: { ...POST, damage: 10, splash: 0, projectileSpeed: 0, hitTicks: 10, firstHitTicks: 5 } },
   ...(BRUTE === undefined ? {} : { brute: { cost: 1, type: 'troop', unit: { ...BRUTE, targets: 'buildings' } } }),
 };
 const DECK = ['post', 'walker', 'brute', 'archer', 'post', 'walker', 'brute', 'archer'];

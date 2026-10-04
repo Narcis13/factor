@@ -62,14 +62,16 @@ test('every golden replay still plays to its stored hashes', () => {
   }
 });
 
-test('the goldens cover regulation wins for each side, an overtime star, a Keep kill and a draw', () => {
+test('the goldens cover regulation wins for each side, an overtime star, a Keep kill and a tiebreak or draw', () => {
   const ends = readGoldens(GOLDENS).map(({ replay }) => playReplay(replay));
   const regulation = ends.filter((end) => end.tick === end.rules.regulationTicks);
   expect(regulation.map((end) => end.result?.winner)).toEqual(expect.arrayContaining([0, 1]));
   const overtime = ends.filter((end) => end.tick > end.rules.regulationTicks);
   expect(overtime.some((end) => end.result?.winner !== null && end.towers.every((tower) => tower.kind !== 'keep' || tower.hp > 0))).toBe(true);
   expect(ends.some((end) => end.towers.some((tower) => tower.kind === 'keep' && tower.hp === 0))).toBe(true);
-  expect(ends.some((end) => end.result?.winner === null)).toBe(true);
+  // Stars still tied at 5:00: the tiebreak decides, and only exactly equal towers draw (rare with random bots).
+  const fullTime = ends.filter((end) => end.tick === end.rules.regulationTicks + end.rules.overtimeTicks);
+  expect(fullTime.some((end) => end.stars[0] === end.stars[1])).toBe(true);
 });
 
 test('hashes are stored every checkpoint and at the end, and the last is the match’s final hash', () => {

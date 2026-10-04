@@ -1,5 +1,7 @@
 import type { Graphics } from 'pixi.js';
 import { FLY_LIFT, type BlastShape, type GroundKind, type HpBar, type ProjectileShape, type ScreenRect, type Shape, type SplashShape, type UnitShape } from './arena-view.ts';
+import type { EffectShape } from './effects.ts';
+import type { GhostShape } from './ghost.ts';
 import { cardColor, SIDE_COLOR } from './palette.ts';
 
 export { BACKGROUND } from './palette.ts';
@@ -14,6 +16,9 @@ const TOWER_EDGE = 0x1d2733;
 const RUBBLE = 0x6b6f75;
 const HP_TRACK = 0x1d2733;
 const NO_DEPLOY = 0x000000;
+const FLASH = 0xffffff;
+const PUFF = 0xd9d9d9;
+const GHOST: Record<GhostShape['status'], number> = { ok: 0xffffff, refused: 0xff4d4d, energy: 0xffd23f };
 const SHADOW = 0x000000;
 const SHOT_CORE = 0xffffff;
 const SPLASH_FILL = 0xffd27a;
@@ -66,6 +71,32 @@ export function drawUnits(graphics: Graphics, units: UnitShape[]): void {
       .circle(unit.x, unit.y - lift, unit.radius)
       .fill({ color: cardColor(unit.card), alpha })
       .stroke({ color: SIDE_COLOR[unit.side], width: 3, alpha });
+  }
+}
+
+/** Hit effects: a white flash over whatever took damage (a unit's circle, a tower's square), a pale puff where a unit died. Both fade. */
+export function drawEffects(graphics: Graphics, effects: EffectShape[]): void {
+  for (const { kind, square, x, y, radius, fade } of effects) {
+    if (kind === 'death') {
+      graphics.circle(x, y, radius).fill({ color: PUFF, alpha: 0.5 * fade });
+    } else if (square) {
+      graphics.rect(x - radius, y - radius, radius * 2, radius * 2).fill({ color: FLASH, alpha: 0.45 * fade });
+    } else {
+      graphics.circle(x, y, radius).fill({ color: FLASH, alpha: 0.7 * fade });
+    }
+  }
+}
+
+/** The deploy ghost: outlines where the selected card would land, white if the sim takes it, red if not, gold while energy is short. */
+export function drawGhost(graphics: Graphics, ghosts: GhostShape[]): void {
+  for (const ghost of ghosts) {
+    const color = GHOST[ghost.status];
+    if (ghost.shape === 'square') {
+      graphics.rect(ghost.x - ghost.radius, ghost.y - ghost.radius, ghost.radius * 2, ghost.radius * 2);
+    } else {
+      graphics.circle(ghost.x, ghost.y, ghost.radius);
+    }
+    graphics.fill({ color, alpha: 0.18 }).stroke({ color, width: 2, alpha: 0.9 });
   }
 }
 

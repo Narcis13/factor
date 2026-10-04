@@ -18,12 +18,13 @@ export class EndView {
   readonly root = new Container();
   private readonly shapes = new Graphics();
   private readonly title = new Text({ text: '', anchor: 0.5, style: { ...FONT, fontSize: 40, fontWeight: 'bold', stroke: { color: 0x000000, width: 5 } } });
-  private readonly again = new Text({ text: 'Play again', anchor: 0.5, style: { ...FONT, fontSize: 18, fontWeight: 'bold' } });
-  private readonly save = new Text({ text: 'Save replay', anchor: 0.5, style: { ...FONT, fontSize: 18, fontWeight: 'bold' } });
+  private readonly again = new Text({ text: 'Play again', anchor: 0.5, style: { ...FONT, fontSize: 15, fontWeight: 'bold' } });
+  private readonly deck = new Text({ text: 'Deck', anchor: 0.5, style: { ...FONT, fontSize: 15, fontWeight: 'bold' } });
+  private readonly save = new Text({ text: 'Save replay', anchor: 0.5, style: { ...FONT, fontSize: 15, fontWeight: 'bold' } });
   private readonly note = new Text({ text: '', anchor: 0.5, style: { ...FONT, fontSize: 14, fill: 0xd9d9d9 } });
 
   constructor() {
-    this.root.addChild(this.shapes, this.title, this.note, this.again, this.save);
+    this.root.addChild(this.shapes, this.title, this.note, this.again, this.deck, this.save);
     this.root.visible = false;
   }
 
@@ -46,6 +47,7 @@ export class EndView {
     this.note.text = scene.note ?? '';
     this.note.position.set(scene.noteAt.x, scene.noteAt.y);
     button(g, this.again, scene.again);
+    button(g, this.deck, scene.deck);
     button(g, this.save, scene.save);
   }
 }

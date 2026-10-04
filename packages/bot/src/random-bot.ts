@@ -18,6 +18,7 @@ import {
  * own rng so it never draws from the match's.
  */
 export interface RandomBot {
+  kind: 'random';
   side: Side;
   rng: Rng;
   /** The hand slot it will play next. */
@@ -26,7 +27,7 @@ export interface RandomBot {
   readyTick: number;
 }
 
-/** What a bot does at one tick: its next state and the commands for that tick. */
+/** What a random bot does at one tick: its next state and the commands for that tick. */
 export interface BotTurn {
   bot: RandomBot;
   commands: Command[];
@@ -38,7 +39,7 @@ const SEED_STRIDE = 0x9e3779b9;
 
 /** A bot for `side` of the match `state` starts, seeded from the match seed so a seed replays the same bot match. */
 export function createRandomBot(side: Side, seed: number, state: SimState, tuning: BotTuning): RandomBot {
-  const bot: RandomBot = { side, rng: seedRng((seed + SEED_STRIDE * (side + 1)) % UINT32), slot: 0, readyTick: 0 };
+  const bot: RandomBot = { kind: 'random', side, rng: seedRng((seed + SEED_STRIDE * (side + 1)) % UINT32), slot: 0, readyTick: 0 };
   pickNext(bot, state, tuning);
   return bot;
 }
@@ -47,7 +48,7 @@ export function createRandomBot(side: Side, seed: number, state: SimState, tunin
  * The bot's commands for `state.tick`: none, or one legal play. Never mutates `bot` or `state`.
  * Once the match has ended it does nothing.
  */
-export function botTurn(bot: RandomBot, state: SimState, tuning: BotTuning): BotTurn {
+export function randomTurn(bot: RandomBot, state: SimState, tuning: BotTuning): BotTurn {
   const { side, slot } = bot;
   const card = state.players[side].hand[slot];
   const stats = card === undefined ? undefined : state.cards[card];

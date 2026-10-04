@@ -136,6 +136,15 @@ export function createMatch(setup: MatchSetup): SimState {
         if (speed !== 0 || layer !== 'ground' || count !== 1) {
           throw new RangeError(`${id} is a building: speed 0, layer ground and count 1, got ${String(speed)}, ${layer}, ${String(count)}`);
         }
+        if (card.spawn !== null) {
+          requireInteger(`${id} spawn everyTicks`, card.spawn.everyTicks, 1);
+          if (cards[card.spawn.card]?.type !== 'troop') {
+            throw new RangeError(`${id} spawns ${card.spawn.card}, which is not a troop`);
+          }
+          if (card.unit.damage !== 0) {
+            throw new RangeError(`${id} spawns, so it must not attack (damage 0)`);
+          }
+        }
       } else {
         requireInteger(`${id} speed`, speed, 1);
       }

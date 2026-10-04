@@ -7,7 +7,7 @@ import type { EndLayout, ScreenPoint } from './screen-layout.ts';
 export type Outcome = 'victory' | 'defeat' | 'draw';
 
 /** What a tap on the end screen asks for. */
-export type EndAction = 'again' | 'save-replay';
+export type EndAction = 'again' | 'deck' | 'save-replay';
 
 /** The result panel as one side sees it. */
 export interface EndScene {
@@ -21,6 +21,7 @@ export interface EndScene {
   /** The center of the note, between the stars and the buttons. */
   noteAt: ScreenPoint;
   again: ScreenRect;
+  deck: ScreenRect;
   save: ScreenRect;
 }
 
@@ -40,6 +41,7 @@ export function endScene(state: Pick<SimState, 'result' | 'stars'>, side: Side, 
     note: tiebreak ? 'Stars tied: decided on tower hp' : null,
     noteAt: { x: layout.title.x, y: Math.round((starsBottom + layout.again.y) / 2) },
     again: layout.again,
+    deck: layout.deck,
     save: layout.save,
   };
 }
