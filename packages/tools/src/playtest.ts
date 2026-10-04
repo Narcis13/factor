@@ -64,7 +64,7 @@ export async function playtest(): Promise<PlaytestReport> {
     const context = await browser.newContext({ viewport: CLIENT_VIEWPORT, deviceScaleFactor: 1 });
     const page = await context.newPage();
     const errors = pageErrors(page);
-    await page.goto(url);
+    await page.goto(`${url}?play`);
     await waitForReady(page, 'the live match', errors);
     let taps = 0;
     for (;;) {

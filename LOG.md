@@ -40,6 +40,18 @@ Sculpt log. The **Current state** block is rewritten at the end of every session
 
 ## Sessions
 
+### S30 · 2026-10-04 · Deck builder, and a dealt deck for the bot
+**Stage:** 3 — Detail
+**Cut:** The deck builder (a Stage 3 UI item) and the match flow round it: pick 8 of the 16, battle on a fresh seed against the heuristic bot with a deck dealt from that seed, and come back to the deck from the end screen. Rebased port of `stage-3`'s S28 (main already had `?seed=` and *Play again* on a fresh seed).
+**Done:**
+- Content: `dealDeck(seed)` (eight different deck cards, salted off the match rng) and `parseDeck` (validates decks from outside).
+- Client: `main.ts` is now a router (`?play`, `?replay=`, `?tick=` → the match, else the menu); the match moved to `play.ts`. `deck-builder.ts` (`toggleCard`, `isComplete`, `storedDeck`, `cardSummaries` of plain facts from stats, `matchUrl`) and `menu.ts` (DOM: deck row, count and average cost, *Starter deck*, *Battle*, a card grid with color, cost, kind and facts). A live match plays side 0's kept deck (the starter deck if none) against `dealDeck(seed)`; the replay records both. End screen: *Play again*, *Deck*, *Save replay*.
+- Tools: `playtest` opens `?play`; the shots test builds the live match with the dealt bot deck.
+**Verified:** `pnpm check` green (64 files, 459 tests; 6 new: dealing, deck parsing, toggling, stored decks, summaries, the match URL; the end-screen tests cover the third button).
+**Decisions:** Menus are plain DOM, not Pixi: they are forms. A fresh seed comes from the client's `Math.random` (main's `freshSeed`), outside the sim; the replay carries it.
+**Left out / noticed:** **Playtest (director):** is picking a deck quick on a phone? Are the card facts the right ones?
+**Status:** complete
+
 ### S29 · 2026-10-04 · Balance sweeps and a first tuning pass
 **Stage:** 3 — Detail
 **Cut:** Stage 3's balance criterion: sweeps that flag outlier cards, and one tuning pass for the director to review. Rebased port of `stage-3`'s S27, re-tuned on main's numbers.

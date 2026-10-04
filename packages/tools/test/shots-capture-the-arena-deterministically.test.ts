@@ -1,5 +1,5 @@
 import { botTurn, createBot, playBotMatch } from '@factor/bot';
-import { BOT_TUNING, matchSetup, REPLAY_VERSION, STARTER_DECKS, type Replay } from '@factor/content';
+import { BOT_TUNING, dealDeck, matchSetup, REPLAY_VERSION, STARTER_DECK, type Replay } from '@factor/content';
 import { createMatch, step, type Command } from '@factor/sim';
 import { expect, test } from 'vitest';
 import { defaultShots, END_TICK, shoot, SHOT_TICK, SHOT_VIEWPORT, shotQuery } from '../src/shots.ts';
@@ -18,7 +18,9 @@ function pngSize(png: Buffer) {
  * match can't stand in: side 0's plays change what side 1's bot does.
  */
 function liveReplay(): Replay {
-  let state = createMatch(matchSetup(0));
+  // A fresh browser keeps no deck, so side 0 plays the starter deck; the bot's is dealt from the seed.
+  const decks: Replay['decks'] = [[...STARTER_DECK], dealDeck(0)];
+  let state = createMatch(matchSetup(0, decks));
   let bot = createBot('heuristic', 1, 0, state, BOT_TUNING);
   const commands: Command[] = [];
   while (state.tick < SHOT_TICK) {
@@ -28,7 +30,7 @@ function liveReplay(): Replay {
     state = step(state, turn.commands);
   }
   expect(commands.length).toBeGreaterThan(0);
-  return { version: REPLAY_VERSION, seed: 0, decks: [[...STARTER_DECKS[0]], [...STARTER_DECKS[1]]], commands };
+  return { version: REPLAY_VERSION, seed: 0, decks, commands };
 }
 
 test('the default shots are the live arena at tick 200 and the end of a bot-vs-bot replay', () => {

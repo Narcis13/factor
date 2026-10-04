@@ -2,6 +2,7 @@
 export { ARENA, towerFootprint } from './arena.ts';
 export { BOT_TUNING, type BotTuning, type HeuristicTuning } from './bot.ts';
 export { CARD_IDS, CARDS, DECK_CARD_IDS, SPAWN_ONLY, STARTER_DECK, type ContentCardId } from './cards.ts';
+export { dealDeck, parseDeck } from './decks.ts';
 export { MATCH_RULES } from './match.ts';
 export { matchSetup, STARTER_DECKS } from './setup.ts';
 export { TOWER_STATS } from './towers.ts';

@@ -23,6 +23,9 @@ export function tap(controls: Controls, loop: MatchLoop, layout: ScreenLayout, x
     if (contains(layout.end.again, x, y)) {
       return 'again';
     }
+    if (contains(layout.end.deck, x, y)) {
+      return 'deck';
+    }
     return contains(layout.end.save, x, y) ? 'save-replay' : null;
   }
   if (controls.watching) {

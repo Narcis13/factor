@@ -55,7 +55,10 @@ test('the panel sits over the arena, with its stars and both buttons inside it a
     const arena = { x: view.left, y: view.top, width: 18 * view.tilePx, height: 32 * view.tilePx };
     expect(inside(arena, end.panel)).toBe(true);
     expect(inside(end.panel, end.again)).toBe(true);
+    expect(inside(end.panel, end.deck)).toBe(true);
     expect(inside(end.panel, end.save)).toBe(true);
+    expect(end.deck.x).toBeGreaterThan(end.again.x + end.again.width);
+    expect(end.save.x).toBeGreaterThan(end.deck.x + end.deck.width);
     expect(end.again.x + end.again.width).toBeLessThan(end.save.x);
     expect(end.again.height).toBeGreaterThanOrEqual(44);
     const r = end.starRadius;
@@ -78,6 +81,7 @@ test('after the end, taps answer only the buttons: no card is selected and nothi
   expect(tap(controls, loop, PHONE, ...center(PHONE.end.again))).toBe('again');
   expect(controls.selected).toBeNull();
   expect(tap(controls, loop, PHONE, ...center(PHONE.end.save))).toBe('save-replay');
+  expect(tap(controls, loop, PHONE, ...center(PHONE.end.deck))).toBe('deck');
   const slot = PHONE.hud.slots[0];
   if (slot === undefined) {
     throw new Error('no hand slot');
