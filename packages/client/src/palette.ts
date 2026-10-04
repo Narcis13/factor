@@ -13,6 +13,15 @@ const CARD_COLOR: Record<CardId, number> = {
   rabble: 0x9c4fb8,
   bombardier: 0x5c5f66,
   bastion: 0xb7a98a,
+  hive: 0xb08a3e,
+  charger: 0xa8452f,
+  airship: 0x7a6fb8,
+  wisps: 0x8fd9c4,
+  meteor: 0xe0703a,
+  spark: 0xf2d84b,
+  reaver: 0x5e7f3f,
+  duelist: 0x3f4f7a,
+  mite: 0xc9a05a,
 };
 
 export function cardColor(card: CardId): number {

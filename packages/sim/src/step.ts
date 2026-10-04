@@ -5,7 +5,7 @@ import { placementRejection } from './placement.ts';
 import { decideResult } from './result.ts';
 import { blastHits } from './spells.ts';
 import { copyCards, copyRules, copyTerrain, copyTowerStats, MAX_STARS, type Command, type RejectReason, type Side, type SimState } from './state.ts';
-import { actTower, actUnit, formation, groundObstacles, isBuilding, unitStats, type Hit } from './troops.ts';
+import { actTower, actUnit, formation, groundObstacles, isBuilding, unitStats, type Hit, type Unit } from './troops.ts';
 
 /**
  * Advances the match by exactly one tick. `commands` are the commands for `state.tick`.
@@ -73,7 +73,7 @@ export function step(state: SimState, commands: readonly Command[]): SimState {
 
 /**
  * Projectiles fired before this tick fly, and those that arrive land. Then towers, then units, act in
- * id order; a new unit starts its deploy delay this very tick. Their strikes land at once or start
+ * id order; a new unit starts its deploy delay this very tick, and spawning buildings deploy their troops. Their strikes land at once or start
  * flying. All the tick's hits, the spells' included, land together afterwards, so a unit that dies
  * this tick still lands its own hit. Then the dead leave
  * the field and fallen towers score (VISION §4, Winning): an Outpost earns its destroyer 1 star, the
@@ -91,6 +91,7 @@ function fight(state: SimState, hits: Hit[]): void {
   for (const unit of state.units) {
     actUnit(unit, unitStats(state, unit), state, strikes);
   }
+  spawn(state);
   resolveStrikes(state, strikes, hits);
   for (const unit of state.units) {
     const card = state.cards[unit.card];
@@ -142,6 +143,32 @@ function fight(state: SimState, hits: Hit[]): void {
  */
 function decay(maxHp: number, lifetimeTicks: number, age: number): number {
   return Math.floor((maxHp * age) / lifetimeTicks) - Math.floor((maxHp * (age - 1)) / lifetimeTicks);
+}
+
+/**
+ * Spawning buildings that stand deploy their troop card's units just in front of them, toward the enemy,
+ * on their first standing tick and every `everyTicks` after. The units come out ready to act (no deploy
+ * delay) and take ids after everyone on the field.
+ */
+function spawn(state: SimState): void {
+  const spawned: Unit[] = [];
+  for (const building of state.units) {
+    const card = state.cards[building.card];
+    if (card?.type !== 'building' || card.spawn === null || building.age === 0 || (building.age - 1) % card.spawn.everyTicks !== 0) {
+      continue;
+    }
+    const troop = state.cards[card.spawn.card];
+    if (troop?.type !== 'troop') {
+      continue;
+    }
+    const { hp, count, radius } = troop.unit;
+    const ahead = (card.unit.radius + radius) * (building.side === 0 ? 1 : -1);
+    for (const { x, y } of formation(state.arena, { side: building.side, x: building.x, y: building.y + ahead }, count, radius)) {
+      spawned.push({ id: state.nextId, side: building.side, card: card.spawn.card, x, y, hp, maxHp: hp, deployTicks: 0, age: 0, targetId: null, cooldown: 0 });
+      state.nextId += 1;
+    }
+  }
+  state.units.push(...spawned);
 }
 
 function outpostFallen(state: SimState, side: Side): boolean {

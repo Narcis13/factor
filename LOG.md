@@ -40,6 +40,18 @@ Sculpt log. The **Current state** block is rewritten at the end of every session
 
 ## Sessions
 
+### S27 · 2026-10-04 · Sixteen cards
+**Stage:** 3 — Detail
+**Cut:** The first Stage 3 criterion: eight more cards for sixteen, each with a scenario test of its defining behavior on the real arena (VISION §7). Rebased port of `stage-3`'s S25 onto main's Stage 2 (S20–S26 here); that branch's own Stage 2 (its S20–S24) was dropped as a duplicate of main's.
+**Done:**
+- Sim: building cards carry `spawn: { card, everyTicks } | null`. A spawning building deploys its troop card's group just in front of it (formation, toward the enemy) on its first standing tick (age 1) and every `everyTicks` after, ready to act; the spawned card joins the match's catalog with the building (`pickCards`); a spawner must not attack. `bastion` gets `spawn: null`.
+- Content: `hive` (5: two `mite`s as it stands and every 5 s, 40 s), `charger` (4: fast building-hunter), `airship` (5: flying building-hunter, a 650 bomb), `wisps` (3: four fragile flyers that hit air), `meteor` (6: 1100 in 1.8 tiles), `spark` (2: 150 in 2 tiles), `reaver` (4: a swing whose splash hits everything round its target), `duelist` (4: 380-damage blows). `mite` is spawn-only: `SPAWN_ONLY`, `DECK_CARD_IDS` (the 16). `STARTER_DECK` is now the eight Stage 2 archetypes, one each (unchanged in practice). Palette colors for all.
+- `every-card-does-what-it-says.test.ts`: one scenario per deck card, numbers read from `CARDS`.
+**Verified:** `pnpm check` green (60 files, 436 tests; 23 new: 6 for spawning, 17 per card). `pnpm sim sweep --matches 1000`: 0 violations, 0 mismatches, 65 s. Golden hashes refreshed with `--update` (the replays are unchanged; every card now carries `spawn`, so every state hash moved).
+**Decisions:** Main's splash rule stands (a splash lands at the target; a `buildings` filter reaches only buildings), so the reaver's swing centers on its target and the airship's bomb hits towers and buildings only. Spawning keys off `age`, so it needs no new state.
+**Left out / noticed:** The starter-deck sweep doesn't play the new cards; the balance sweep (S29) will.
+**Status:** complete
+
 ### S26 · 2026-10-03 · Stage 2 exit review
 **Stage:** 2 — Form → 3 — Detail
 **Cut:** Check every Stage 2 exit criterion end to end, in the browser too, and finish the client readability left over (dormant Keeps, a fresh seed per match, why a tied match was won).
