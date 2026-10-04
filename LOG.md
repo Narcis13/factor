@@ -40,6 +40,19 @@ Sculpt log. The **Current state** block is rewritten at the end of every session
 
 ## Sessions
 
+### S29 · 2026-10-04 · Balance sweeps and a first tuning pass
+**Stage:** 3 — Detail
+**Cut:** Stage 3's balance criterion: sweeps that flag outlier cards, and one tuning pass for the director to review. Rebased port of `stage-3`'s S27, re-tuned on main's numbers.
+**Done:**
+- Tools: `balance.ts` and `pnpm sim balance [--matches] [--from]`: heuristic mirrors on two random 8-card decks per seed, each checked against its replay; per card, decks, matches won and lost (a card in both decks counts for neither), plays; outliers are 6+ points off 50% and 2+ standard errors clear.
+- Tuning (three rounds of 1,000 matches; before → after win rate): flare 500 → 380 damage, 2.5 → 2.2 tiles (63 → 55%), spark 150 → 110, 2 → 1.8 tiles (56 → 60%), bastion 75 → 65 damage, 5.5 → 5 tiles (57 → 54%), rabble 230 → 330 hp, 65 → 80 (34 → 45%), bombardier 650 → 700 hp, 130 → 150 (41 → 43%), slinger 600 → 660 hp (45 → 44%), wisps 40 → 48 damage (42 → 47%).
+- Final run, seeds 0–999: everything in 44.2–55.7% except **spark at 59.9% (strong) and bombardier at 42.9% (weak), both flagged**; side 0 472 · side 1 511 · 17 draws; 3:55 mean; 1.01 stars a match.
+- Goldens re-recorded (the starter deck's numbers changed): seed-0, -42, -54 plus seed-2/-3 (regulation wins), -1 (overtime), -8 (Keep kill), -67 (a tie at 5:00). No seed in 3,000 drew exactly any more, so the coverage test asks for stars tied at 5:00 (a tiebreak or a draw).
+**Verified:** `pnpm check` green (62 files, 453 tests; 5 new: deck dealing, record counting, outlier rule, report and CLI). `pnpm sim sweep --matches 1000`: 0 violations, 0 mismatches, 63 s.
+**Decisions:** As on `stage-3`, spark's edge survives every damage cut: it looks like a cheap card cycling, not damage. Left for the director.
+**Left out / noticed:** **For the director:** review spark and bombardier, and the slight side-1 lean in bot mirrors (511 vs 472).
+**Status:** complete
+
 ### S28 · 2026-10-04 · A heuristic bot
 **Stage:** 3 — Detail
 **Cut:** The Stage 3 bot that defends, counter-pushes and manages energy, reading cards by their stats so it plays any deck; the client now plays against it. Rebased port of `stage-3`'s S26.

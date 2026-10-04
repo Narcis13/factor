@@ -1,4 +1,4 @@
-import { BOT_TUNING, DECK_CARD_IDS, matchSetup, STARTER_DECKS } from '@factor/content';
+import { BOT_TUNING, CARDS, DECK_CARD_IDS, matchSetup, STARTER_DECKS } from '@factor/content';
 import { createMatch, nextBelow, seedRng, step, type CardId, type Command, type SimState, type Unit } from '@factor/sim';
 import { expect, test } from 'vitest';
 import { botTurn, createBot, createHeuristicBot, heuristicTurn, playBotMatch, type Bot } from '../src/index.ts';
@@ -120,7 +120,9 @@ test('with the field quiet it saves up, then pushes the weaker lane with its tou
 
 test('it finishes a tower a spell can bring down', () => {
   const ready = position(['flare', 'juggernaut', 'warden', 'slinger'], 4);
-  const weak = { ...ready, towers: ready.towers.map((tower) => (tower.id === 4 ? { ...tower, hp: 120 } : tower)) };
+  // Just under what a flare does to a tower.
+  const share = Math.floor((CARDS.flare.spell.damage * CARDS.flare.spell.towerDamageBp) / 10_000);
+  const weak = { ...ready, towers: ready.towers.map((tower) => (tower.id === 4 ? { ...tower, hp: share - 1 } : tower)) };
   const play = firstPlay(weak, 5);
   expect(play?.card).toBe('flare');
   expect(play?.command).toMatchObject({ x: 3500, y: 25_500 });

@@ -8,6 +8,7 @@ import { TICKS_PER_SECOND } from '@factor/sim';
 import { botReplay, describeResult, playReplay } from './match.ts';
 import { checkGoldens, GOLDEN_EVERY, GOLDEN_HASHES_FILE, updateGoldens } from './goldens.ts';
 import { describeSweep, sweep } from './sweep.ts';
+import { balance, describeBalance, OUTLIER_ERRORS, OUTLIER_POINTS } from './balance.ts';
 import type { ShotRequest } from './shots.ts';
 
 const USAGE = `factor sim (${String(TICKS_PER_SECOND)} ticks/s)
@@ -30,6 +31,13 @@ Commands:
       played back from its replay with invariants checked every tick, and both must end on the same hash.
       Print results, match length, stars, tower damage, plays per card and rejections, then every seed
       that broke an invariant or didn't reproduce. Exits non-zero if any did. Progress goes to stderr.
+
+  balance [--matches <n>] [--from <seed>]
+      Play <n> (default 500) heuristic-bot mirror matches on seeds <seed> (default 0) onward, each on two
+      random decks of eight different cards from the sixteen (the seed deals them), checked against their
+      replays like sweep. Print each card's win rate (± one standard error), decided matches and plays per
+      deck, best first, and flag outliers: ${String(OUTLIER_POINTS)}+ points off 50% and ${String(OUTLIER_ERRORS)}+ errors clear. Exits
+      non-zero if a match failed. Progress goes to stderr.
 
   goldens [--update] [--dir <dir>]
       Play every golden replay in <dir> (default: goldens) with invariants checked every tick, and compare
@@ -104,6 +112,28 @@ function sweepCommand(args: string[]): void {
   const seconds = (performance.now() - started) / 1000;
   console.log(`${describeSweep(report)}\ntook        ${seconds.toFixed(0)} s`);
   if (report.violations.length > 0 || report.mismatches.length > 0) {
+    process.exitCode = 1;
+  }
+}
+
+function balanceCommand(args: string[]): void {
+  const { values } = parseArgs({ args, options: { matches: { type: 'string', default: '500' }, from: { type: 'string', default: '0' } } });
+  const matches = parseInteger('--matches', values.matches, UINT32_MAX);
+  const from = parseInteger('--from', values.from, UINT32_MAX);
+  if (matches === 0 || from + matches - 1 > UINT32_MAX) {
+    throw new UsageError(`balance needs 1 or more matches on seeds up to ${String(UINT32_MAX)}`);
+  }
+  const started = performance.now();
+  const report = balance(from, matches, (seed) => {
+    const done = seed - from + 1;
+    if (done % SWEEP_PROGRESS_EVERY === 0 && done < matches) {
+      console.error(`played ${String(done)}/${String(matches)}`);
+    }
+  });
+  const seconds = (performance.now() - started) / 1000;
+  console.log(`${describeBalance(report)}
+took        ${seconds.toFixed(0)} s`);
+  if (report.failures.length > 0) {
     process.exitCode = 1;
   }
 }
@@ -241,6 +271,8 @@ try {
     goldens(args);
   } else if (command === 'sweep') {
     sweepCommand(args);
+  } else if (command === 'balance') {
+    balanceCommand(args);
   } else if (command === 'shots') {
     await shots(args);
   } else if (command === 'playtest') {

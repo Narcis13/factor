@@ -32,9 +32,9 @@ export const CARDS = {
   slinger: {
     cost: 4,
     type: 'troop',
-    unit: { hp: 600, speed: 50, radius: 450, mass: 4, range: 5000, sight: 5500, targets: 'air', layer: 'ground', count: 1, damage: 90, splash: 0, projectileSpeed: 500, hitTicks: (6 * TICKS) / 5, firstHitTicks: (2 * TICKS) / 5 },
+    unit: { hp: 660, speed: 50, radius: 450, mass: 4, range: 5000, sight: 5500, targets: 'air', layer: 'ground', count: 1, damage: 90, splash: 0, projectileSpeed: 500, hitTicks: (6 * TICKS) / 5, firstHitTicks: (2 * TICKS) / 5 },
   },
-  flare: { cost: 4, type: 'spell', spell: { radius: 2500, damage: 500, towerDamageBp: 3000 } },
+  flare: { cost: 4, type: 'spell', spell: { radius: 2200, damage: 380, towerDamageBp: 3000 } },
   harrier: {
     cost: 4,
     type: 'troop',
@@ -43,19 +43,19 @@ export const CARDS = {
   rabble: {
     cost: 3,
     type: 'troop',
-    unit: { hp: 230, speed: 60, radius: 300, mass: 2, range: 200, sight: 5000, targets: 'ground', layer: 'ground', count: 4, damage: 65, splash: 0, projectileSpeed: 0, hitTicks: TICKS, firstHitTicks: (3 * TICKS) / 10 },
+    unit: { hp: 330, speed: 60, radius: 300, mass: 2, range: 200, sight: 5000, targets: 'ground', layer: 'ground', count: 4, damage: 80, splash: 0, projectileSpeed: 0, hitTicks: TICKS, firstHitTicks: (3 * TICKS) / 10 },
   },
   bombardier: {
     cost: 4,
     type: 'troop',
-    unit: { hp: 650, speed: 45, radius: 500, mass: 6, range: 4500, sight: 5500, targets: 'ground', layer: 'ground', count: 1, damage: 130, splash: 1200, projectileSpeed: 400, hitTicks: (9 * TICKS) / 5, firstHitTicks: TICKS / 2 },
+    unit: { hp: 700, speed: 45, radius: 500, mass: 6, range: 4500, sight: 5500, targets: 'ground', layer: 'ground', count: 1, damage: 150, splash: 1200, projectileSpeed: 400, hitTicks: (9 * TICKS) / 5, firstHitTicks: TICKS / 2 },
   },
   bastion: {
     cost: 4,
     type: 'building',
     lifetimeTicks: 30 * TICKS,
     spawn: null,
-    unit: { hp: 1100, speed: 0, radius: 600, mass: 1, range: 5500, sight: 5500, targets: 'air', layer: 'ground', count: 1, damage: 75, splash: 0, projectileSpeed: 700, hitTicks: (4 * TICKS) / 5, firstHitTicks: TICKS / 2 },
+    unit: { hp: 1100, speed: 0, radius: 600, mass: 1, range: 5000, sight: 5000, targets: 'air', layer: 'ground', count: 1, damage: 65, splash: 0, projectileSpeed: 700, hitTicks: (4 * TICKS) / 5, firstHitTicks: TICKS / 2 },
   },
   // Stage 3 (VISION §8): eight more, for sixteen.
   hive: {
@@ -78,10 +78,10 @@ export const CARDS = {
   wisps: {
     cost: 3,
     type: 'troop',
-    unit: { hp: 100, speed: 70, radius: 280, mass: 1, range: 1500, sight: 5000, targets: 'air', layer: 'air', count: 4, damage: 40, splash: 0, projectileSpeed: 500, hitTicks: (9 * TICKS) / 10, firstHitTicks: (3 * TICKS) / 10 },
+    unit: { hp: 100, speed: 70, radius: 280, mass: 1, range: 1500, sight: 5000, targets: 'air', layer: 'air', count: 4, damage: 48, splash: 0, projectileSpeed: 500, hitTicks: (9 * TICKS) / 10, firstHitTicks: (3 * TICKS) / 10 },
   },
   meteor: { cost: 6, type: 'spell', spell: { radius: 1800, damage: 1100, towerDamageBp: 3000 } },
-  spark: { cost: 2, type: 'spell', spell: { radius: 2000, damage: 150, towerDamageBp: 3000 } },
+  spark: { cost: 2, type: 'spell', spell: { radius: 1800, damage: 110, towerDamageBp: 3000 } },
   reaver: {
     cost: 4,
     type: 'troop',
