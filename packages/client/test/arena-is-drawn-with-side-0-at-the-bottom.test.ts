@@ -1,7 +1,7 @@
 import { ARENA, matchSetup } from '@factor/content';
 import { createMatch, type SimState } from '@factor/sim';
 import { expect, test } from 'vitest';
-import { arenaScene, fitView, type ScreenRect, type Shape } from '../src/index.ts';
+import { fitView, groundScene, towerScene, type ScreenRect, type Shape, type View } from '../src/index.ts';
 
 // The screen as side 0's player sees it: side 1 (lowercase) at the top, side 0 (uppercase) at the bottom.
 // K/k: Keep. O/o: Outpost. ~: river. =: bridge.
@@ -46,11 +46,13 @@ function contains(rect: ScreenRect, x: number, y: number): boolean {
   return x >= rect.x && x < rect.x + rect.width && y >= rect.y && y < rect.y + rect.height;
 }
 
+/** The river and bridges, then the towers over them. */
+function arenaShapes(state: SimState, view: View): Shape[] {
+  return [...groundScene(state.arena, view), ...towerScene(state, view)];
+}
+
 function mark(shape: Shape): string {
   switch (shape.kind) {
-    case 'tile-light':
-    case 'tile-dark':
-      return '.';
     case 'river':
       return '~';
     case 'bridge':
@@ -63,10 +65,10 @@ function mark(shape: Shape): string {
   }
 }
 
-/** One character per on-screen tile, top row first: whatever is drawn last at the tile's center. */
+/** One character per on-screen tile, top row first: whatever is drawn last at the tile's center, grass ('.') if nothing. */
 function rasterize(width: number, height: number, state: SimState = MATCH): string {
   const view = fitView(state.arena, width, height);
-  const shapes = arenaScene(state, view);
+  const shapes = arenaShapes(state, view);
   const rows: string[] = [];
   for (let row = 0; row < 32; row++) {
     let line = '';
@@ -74,7 +76,7 @@ function rasterize(width: number, height: number, state: SimState = MATCH): stri
       const x = view.left + (col + 0.5) * view.tilePx;
       const y = view.top + (row + 0.5) * view.tilePx;
       const top = shapes.findLast((shape) => contains(shape.rect, x, y));
-      line += top === undefined ? ' ' : mark(top);
+      line += top === undefined ? '.' : mark(top);
     }
     rows.push(line);
   }
@@ -100,24 +102,11 @@ test('the screen shows side 1 at the top and side 0 at the bottom, towers over t
 test('every shape stays inside the arena on screen', () => {
   const view = fitView(ARENA, 600, 1000);
   const arena = { x: view.left, y: view.top, width: 18 * view.tilePx, height: 32 * view.tilePx };
-  for (const { rect } of arenaScene(MATCH, view)) {
+  for (const { rect } of arenaShapes(MATCH, view)) {
     expect(rect.x).toBeGreaterThanOrEqual(arena.x);
     expect(rect.y).toBeGreaterThanOrEqual(arena.y);
     expect(rect.x + rect.width).toBeLessThanOrEqual(arena.x + arena.width);
     expect(rect.y + rect.height).toBeLessThanOrEqual(arena.y + arena.height);
-  }
-});
-
-test('the ground is a checkerboard of whole tiles', () => {
-  const view = fitView(ARENA, 540, 960);
-  const tiles = arenaScene(MATCH, view).filter((shape) => shape.kind === 'tile-light' || shape.kind === 'tile-dark');
-  expect(tiles).toHaveLength(18 * 32);
-  for (const { kind, rect } of tiles) {
-    expect(rect.width).toBe(30);
-    expect(rect.height).toBe(30);
-    const parity = (rect.x / 30 + rect.y / 30) % 2;
-    // Arena tile (0, 0) is dark, and it sits at the bottom-left of the screen: column 0, row 31.
-    expect(kind).toBe(parity === 1 ? 'tile-dark' : 'tile-light');
   }
 });
 

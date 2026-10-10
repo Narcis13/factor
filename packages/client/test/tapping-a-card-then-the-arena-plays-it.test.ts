@@ -8,6 +8,8 @@ import { contains, layoutScreen, toArena } from '../src/screen-layout.ts';
 
 const START = createMatch(matchSetup(3));
 const PHONE = layoutScreen(ARENA, 4, 540, 960);
+/** A screen just tall enough for 24 px a tile, so tile centers fall on whole pixels. */
+const TALL = layoutScreen(ARENA, 4, 540, 990);
 
 function center(rect: ScreenRect): [number, number] {
   return [rect.x + rect.width / 2, rect.y + rect.height / 2];
@@ -20,7 +22,7 @@ function overlaps(a: ScreenRect, b: ScreenRect): boolean {
 test('on a phone, the arena sits above the hand and the energy bar, and nothing overlaps', () => {
   const { view, hud } = PHONE;
   const arena = { x: view.left, y: view.top, width: 18 * view.tilePx, height: 32 * view.tilePx };
-  expect(view.tilePx).toBe(24);
+  expect(view.tilePx).toBe(23);
   const parts = [...hud.slots, hud.next, hud.energyBar];
   for (const [i, part] of parts.entries()) {
     expect(part.y).toBeGreaterThanOrEqual(arena.y + arena.height);
@@ -35,8 +37,11 @@ test('on a phone, the arena sits above the hand and the energy bar, and nothing 
   const xs = hud.slots.map((slot) => slot.x);
   expect(xs).toEqual([...xs].sort((a, b) => a - b));
   expect(new Set(hud.slots.map((slot) => `${String(slot.width)}×${String(slot.height)}`)).size).toBe(1);
-  // The clock sits inside the arena's top-right corner.
-  expect(contains(arena, hud.timer.x - 1, hud.timer.y)).toBe(true);
+  // The clock sits in the band above the arena, at its right; the band ends where the arena starts.
+  expect(contains(hud.top, hud.timer.x - 1, hud.timer.y)).toBe(true);
+  expect(hud.timer.x).toBeGreaterThan(arena.x + arena.width / 2);
+  expect(hud.top.y + hud.top.height).toBe(arena.y);
+  expect(hud.top.y).toBeGreaterThanOrEqual(0);
 });
 
 test('on a wide desktop window the hand stays phone-sized and centered', () => {
@@ -48,7 +53,8 @@ test('on a wide desktop window the hand stays phone-sized and centered', () => {
 });
 
 test('a screen point maps to the arena point under it, with side 0 at the bottom', () => {
-  const { view } = PHONE;
+  const { view } = TALL;
+  expect(view.tilePx).toBe(24);
   // The center of the bottom-left tile and of the top-right tile.
   expect(toArena(view, ARENA, view.left + 12, view.top + 31 * 24 + 12)).toEqual({ x: 500, y: 499 });
   expect(toArena(view, ARENA, view.left + 17 * 24 + 12, view.top + 12)).toEqual({ x: 17_500, y: 31_499 });
@@ -62,10 +68,10 @@ test('a screen point maps to the arena point under it, with side 0 at the bottom
 test('tapping a card and then the arena queues a play for side 0 there', () => {
   const loop = createLoop(START);
   const controls: Controls = { side: 0, selected: null, watching: false };
-  tap(controls, loop, PHONE, ...center(PHONE.hud.slots[1] ?? PHONE.hud.next));
+  tap(controls, loop, TALL, ...center(TALL.hud.slots[1] ?? TALL.hud.next));
   expect(controls.selected).toBe(1);
-  const { view } = PHONE;
-  tap(controls, loop, PHONE, view.left + 6 * 24 + 12, view.top + 25 * 24 + 12);
+  const { view } = TALL;
+  tap(controls, loop, TALL, view.left + 6 * 24 + 12, view.top + 25 * 24 + 12);
   expect(loop.queued).toEqual([{ side: 0, handSlot: 1, x: 6500, y: 6499 }]);
   expect(controls.selected).toBeNull();
 

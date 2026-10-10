@@ -6,32 +6,46 @@ Sculpt log. The **Current state** block is rewritten at the end of every session
 
 ## Current state
 
-**Stage:** 3 — Detail (open: art, sound and the director's feel sign-off remain; Stage 2 closed in S26)
-**Last session:** S32 · 2026-10-04
+**Stage:** 3 — Detail (open: sound, and the director's feel sign-off on a real phone; Stage 2 closed in S26)
+**Last session:** S33 · 2026-10-10
 **Works:**
-- Monorepo (`sim`, `content`, `bot`, `client`, `tools`), strict TS 6.0, no build step. `pnpm check` green: typecheck, lint, 464 tests, two in headless Chromium (shots, and an end-to-end deck-builder-to-battle run), goldens included.
-- Sim: every §4 rule (energy and 2× time, cycling, deploy zones and lane extension, deploy delay, troops in formation, buildings that decay and, now, spawn, spells, `ground | air | buildings` targeting with lock-on, flyers, collision by mass with steering round towers and buildings, projectiles and splash, Keep dormancy, stars, overtime, tiebreak). `placementRejection` tells bots and the client where a card may go. Invariants every tick in tools and tests.
-- Content: 16 deck cards (+ the hive's spawn-only mite), tuned once from balance sweeps; `dealDeck`, `parseDeck`; bot tuning.
-- Bots: random, and heuristic (defends by threat value, pulls tanks with buildings, spells clusters, backs up pushes, saves to push the weaker lane, never leaks energy; beats random ~98%).
-- Tools: `sim match/replay/sweep/balance/goldens`, `shots`, `playtest` (vs the heuristic bot).
-- Client: deck builder → live match on a fresh seed vs the heuristic bot with a dealt deck; HUD, deploy ghost (legal/refused/energy), flyers lifted, buildings square, shots, splash rings, hit flashes, death puffs, dimmed dormant Keeps, end screen (Play again / Deck / Save replay, tiebreak note), replays.
+- Monorepo (`sim`, `content`, `bot`, `client`, `tools`), strict TS 6.0, no build step. `pnpm check` green: typecheck, lint, 476 tests, two in headless Chromium (shots, and an end-to-end deck-builder-to-battle run), goldens included.
+- Sim: every §4 rule (energy and 2× time, cycling, deploy zones and lane extension, deploy delay, troops in formation, buildings that decay and spawn, spells, `ground | air | buildings` targeting with lock-on, flyers, collision by mass, projectiles and splash, Keep dormancy, stars, overtime, tiebreak). Invariants every tick in tools and tests.
+- Content: 16 deck cards (+ the hive's mite), tuned once from balance sweeps; `dealDeck`, `parseDeck`; bot tuning. Bots: random, and heuristic (beats random ~98%).
+- Art (D8): all pixel art, drawn by code at load in `client/src/art` (~100 ms, one 2048-wide atlas page): every unit in three facings × idle/walk/attack for both sides, towers (body, cracks, rubble, turning weapons, flags, a sleeping Keep), terrain, 7 shot kinds, spells, explosions, hits, puffs, deploy dust, the HUD, the end screen and the deck builder, in a 5×7 and a 3×5 pixel font. `?gallery` shows it all; `pnpm shots --gallery` captures it.
+- Client: the arena draws at 16 art px a tile through a pixel layer (low-res render, sharp upscale), animations synced to the sim (attack frames from cooldowns, facings from movement and targets); a top band (opponent, timer), HUD (cards with portraits and cost gems, energy bar, ×2, selected card's name), ghost and no-deploy hatch, end screen. Shots stay pixel-deterministic, live and replay alike.
+- Tools: `sim match/replay/sweep/balance/goldens`, `shots` (+ `--gallery`), `playtest`.
 **Known issues:**
-- Balance: spark wins 59.9% in bot mirrors (strong; a cheap cycle card), bombardier 42.9% (weak); bot mirrors lean slightly to side 1 (511 vs 472).
-- Steering is local: a unit walled in by its own building between the arena's edge and a tower waits until the building decays. Sweeps take ~70 s per 1000.
-- The deploy-zone extension is the whole lane of the enemy half (§4 as written); director to decide whether it should stop short of the Keep.
-- No formatter. Replays don't carry content. Units small and faint; effects flat placeholders.
+- No sound yet (Stage 3's SFX).
+- Balance: spark wins 59.9% in bot mirrors (strong), bombardier 42.9% (weak); bot mirrors lean slightly to side 1.
+- Steering is local: a unit walled in by its own building can wait until the building decays. Sweeps take ~70 s per 1000.
+- The deploy-zone extension is the whole lane of the enemy half (§4 as written); director to decide.
+- No formatter. Replays don't carry content. Units are small at desktop sizes (true to the sim's radii); fine on a phone.
 - On Windows: pnpm comes through corepack, and Chromium needs `pnpm --filter @factor/tools exec playwright install --only-shell chromium` once. In the cloud container, `FACTOR_CHROMIUM=/opt/pw-browsers/chromium_headless_shell-1194/chrome-linux/headless_shell`.
-**Golden replays:** `goldens/` holds bot-vs-bot replays with a hash every 200 ticks and at the end (`hashes.json`): seed-0, seed-42 and seed-54 always, plus the first seeds that cover a regulation win for each side, an overtime win, a Keep kill and stars tied at 5:00 (now seed-2, -3, -1, -8, -67). The goldens tests read the names from `hashes.json`. After a rule or content change: re-record and `--update`, and log why.
+**Golden replays:** `goldens/` holds bot-vs-bot replays with a hash every 200 ticks and at the end (`hashes.json`): seed-0, -1, -2, -3, -8, -42, -54, -67. After a rule or content change: re-record and `--update`, and log why.
 
 **Next cuts** (in order):
-1. **Director:** play on a real phone (feel sign-off, bot difficulty, card readability) and review the balance flags (spark, bombardier).
-2. Art direction (VISION §11): sprite sheets, animations and sound replacing the placeholder shapes and effects.
+1. **Director:** play on a real phone: feel sign-off, art (readability of units and teams, hit weight), bot difficulty; review the balance flags (spark, bombardier).
+2. Sound: procedural SFX for hits, deploys, spells, tower falls and the end (WebAudio, like the art: made by code).
 3. A dev panel for live tuning (VISION §6) and debug overlays (`?debug=1`: ranges, targets, paths) for readable shots.
-4. Stage 4 groundwork: performance on the target device (60 units + effects at 60 fps), tutorial match, settings.
+4. Stage 4 groundwork: performance on the target device (60 units + effects at 60 fps; three pixel layers a frame), tutorial match, settings.
 
 ---
 
 ## Sessions
+
+### S33 · 2026-10-10 · Pixel art for everything
+**Stage:** 3 — Detail
+**Cut:** The director's request: every asset as pixel art made by code (units in every facing with animations, towers, terrain, effects, HUD, end screen, menu), checked in headless Chromium, no placeholder left. Settles VISION §11's art direction (D8).
+**Done:**
+- `client/src/art/` (pure, no DOM): image primitives (shaded balls and capsules, outlines), hue-shifted ramps and team ramps, a humanoid rig (front, back, side; idle 2, walk 4, attack 4 with swing smears; 6 swing styles), creatures, buildings, towers in parts, terrain, effects and shots, UI pieces, two pixel fonts, a catalog of ~1,800 frames, and an atlas packer.
+- Client: `PixelLayer` (low-res render + sharp upscale), `WorldView` (sprites from the arena scenes: y-sorted bodies, shadows, flyers lifted, bomb arcs, hit flashes, spells and splashes, tower hp numbers, ghost sprites, hatch), pixel `HudView` and `EndView`, pixel-art deck builder, `?gallery`, favicon. A 32 px top band holds the opponent's plate and the timer, so the enemy Keep isn't cut off. Effects gained deploys, tower falls and shots (each with its own life); spells and splashes are kept 2 s. `poses.ts` picks facings and attack frames from state alone.
+- Removed: the flat draw code and palette, `effectScene`, `ghostScene`, the ground's checker shapes.
+- Tools: `pnpm shots --gallery <query>`.
+**Verified:** `pnpm check` green (68 files, 476 tests; 2 new files: every card has every frame unclipped and team-colored, frames animate, spells and splashes sized, towers complete, art deterministic, atlas sound; facings and attack frames). Gallery shots of every section and unit, in-game shots (arena, end, a scripted replay with every card and spell, Victory, a tiebreak), a live match driven by script at 540×960 and on a 390×844 phone at DPR 3 (selection, ghost, refusal, battle). `pnpm playtest` (185 s): the bot won 1-0 at 3:00, 23 of 44 taps taken (21 short of energy), live and `?replay=last` end screens pixel-identical, no page errors.
+**Decisions:** D8 (art). Art is drawn at load, not stored: the gallery is how to look at it. Animations run off tick + alpha so frozen shots stay deterministic; the end panel's intro uses page time and settles in 1 s, and frozen shots show it settled. The layout's 540×960 tile is now 23 px (top band); tests use a 990-high screen where they need 24.
+**Left out / noticed:** Sound (Next cuts). Units are small at desktop sizes (true to radii). **Playtest (director):** do units and teams read at a glance on a phone? Do hits and spells land with weight?
+**Status:** complete
 
 ### S32 · 2026-10-04 · End to end in the browser, and the Stage 3 review
 **Stage:** 3 — Detail

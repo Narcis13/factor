@@ -14,8 +14,14 @@ export interface HudLayout {
   /** The next card: smaller, left of the hand. */
   next: ScreenRect;
   energyBar: ScreenRect;
-  /** The timer's top-right corner, inside the arena's top-right corner. */
+  /** The timer's top-right corner, in the band above the arena's top-right corner. */
   timer: ScreenPoint;
+  /** The band above the arena: the opponent's name on its left, the timer on its right. */
+  top: ScreenRect;
+  /** Everything below the arena: the hand, the next card and the energy bar sit on it. */
+  band: ScreenRect;
+  /** CSS pixels per pixel of the interface's art: whole, so its pixels stay square. */
+  pixel: number;
   /**
    * Each side's star centers, indexed by `Side`, first star first: a column in the arena's last tile
    * column, right of the bridge, starting on that side's bank of the river and growing away from it
@@ -46,12 +52,14 @@ export interface ScreenLayout {
 }
 
 const GAP = 8;
+/** The band above the arena, for the timer and the opponent's name. */
+const TOP_BAND = 32;
 const ENERGY_BAR_HEIGHT = 24;
 /** The next card is this fraction of a hand card. */
 const NEXT_SCALE = 0.6;
 const STAR_GAP = 3;
 const END_WIDTH = 320;
-const END_HEIGHT = 216;
+const END_HEIGHT = 240;
 const BUTTON_HEIGHT = 48;
 
 /**
@@ -69,7 +77,8 @@ export function layoutScreen(arena: Terrain, handSize: number, width: number, he
   const hudLeft = Math.floor((width - rowWidth) / 2);
   const bandHeight = GAP + cardHeight + GAP + ENERGY_BAR_HEIGHT + GAP;
 
-  const view = fitView(arena, width, Math.max(1, height - bandHeight));
+  const fitted = fitView(arena, width, Math.max(1, height - bandHeight - TOP_BAND));
+  const view = { ...fitted, top: fitted.top + TOP_BAND };
   const cardsTop = height - bandHeight + GAP;
   const handLeft = hudLeft + GAP + nextWidth + GAP;
   const slots: ScreenRect[] = [];
@@ -91,7 +100,10 @@ export function layoutScreen(arena: Terrain, handSize: number, width: number, he
       slots,
       next: { x: hudLeft + GAP, y: cardsTop + cardHeight - nextHeight, width: nextWidth, height: nextHeight },
       energyBar: { x: handLeft, y: cardsTop + cardHeight + GAP, width: handRight - handLeft, height: ENERGY_BAR_HEIGHT },
-      timer: { x: arenaRight - GAP, y: view.top + GAP },
+      timer: { x: arenaRight - GAP / 2, y: view.top - TOP_BAND + 3 },
+      top: { x: view.left, y: view.top - TOP_BAND, width: arenaRight - view.left, height: TOP_BAND },
+      band: { x: 0, y: view.top + (arena.height / MILLI_PER_TILE) * view.tilePx, width, height: height - view.top - (arena.height / MILLI_PER_TILE) * view.tilePx },
+      pixel: Math.max(1, Math.round(cardWidth / 36)),
       stars: [
         Array.from({ length: MAX_STARS }, (_, i) => ({ x: starX, y: riverBottom + offBank + i * starStep })),
         Array.from({ length: MAX_STARS }, (_, i) => ({ x: starX, y: riverTop - offBank - i * starStep })),

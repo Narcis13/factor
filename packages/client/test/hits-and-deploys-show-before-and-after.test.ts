@@ -1,14 +1,10 @@
-import { ARENA, CARDS, matchSetup } from '@factor/content';
+import { CARDS, matchSetup } from '@factor/content';
 import { createMatch, type SimState, type Unit } from '@factor/sim';
 import { expect, test } from 'vitest';
-import { unitScene } from '../src/arena-view.ts';
-import { EFFECT_TICKS, effectScene, effectsBetween } from '../src/effects.ts';
-import { ghostScene } from '../src/ghost.ts';
+import { EFFECT_LIFE, EFFECT_TICKS, effectsBetween } from '../src/effects.ts';
+import { ghostPlan } from '../src/ghost.ts';
 import { advance, createLoop, TICK_MS } from '../src/match-loop.ts';
-import { layoutScreen } from '../src/screen-layout.ts';
 
-// 540 × 960 puts the arena at 24 px a tile, its top-left corner at (54, 0).
-const PHONE = layoutScreen(ARENA, 4, 540, 960);
 const DECK = ['rabble', 'flare', 'bastion', 'warden', 'slinger', 'harrier', 'bombardier', 'juggernaut'];
 const START = createMatch(matchSetup(3, [DECK, DECK]));
 
@@ -30,53 +26,62 @@ test('a hit flashes, on a unit or a tower, and a death leaves a puff', () => {
   expect(effectsBetween(after, after)).toEqual([]);
 });
 
-test('effects fade out over 0.3 s; a flash stays on its unit, a tower’s covers its square', () => {
-  const before: SimState = { ...START, tick: 10, units: [unitAt('warden', 1, 9000, 21_000, 20)] };
-  const after: SimState = { ...before, tick: 11, towers: START.towers.map((tower) => (tower.id === 0 ? { ...tower, hp: tower.hp - 1 } : tower)), units: [unitAt('warden', 1, 9000, 21_000, 20, 1100)] };
-  const effects = effectsBetween(before, after);
-  const units = unitScene(after, after, 0, PHONE.view);
-  const now = effectScene(effects, after, 0, PHONE.view, units);
-  expect(now.map((shape) => [shape.kind, shape.square, shape.fade])).toEqual([
-    ['flash', true, 1],
-    ['flash', false, 1],
+test('arrivals raise dust, a fallen tower blows up, and a shot remembers who fired it from where', () => {
+  const outpost = START.towers.find((tower) => tower.id === 4);
+  const slinger = unitAt('slinger', 0, 4000, 9000, 20);
+  const before: SimState = { ...START, tick: 80, units: [slinger] };
+  const shots = [
+    { id: 30, side: 1 as const, x: outpost?.x ?? 0, y: outpost?.y ?? 0, targetId: 20, toX: 4000, toY: 9000, speed: 800, damage: 90, splash: 0, targets: 'air' as const },
+    { id: 31, side: 0 as const, x: 4000, y: 9000, targetId: 4, toX: 3500, toY: 25_500, speed: 500, damage: 90, splash: 0, targets: 'air' as const },
+  ];
+  const towers = START.towers.map((tower) => (tower.id === 1 ? { ...tower, hp: 0 } : tower));
+  const arrived = { ...unitAt('warden', 0, 9000, 6000, 32), deployTicks: 20 };
+  const after: SimState = { ...before, tick: 81, towers, units: [slinger, arrived], projectiles: shots };
+  expect(effectsBetween(before, after).map(({ kind, id, card }) => ({ kind, id, card }))).toEqual([
+    { kind: 'flash', id: 1, card: 'outpost' },
+    { kind: 'deploy', id: 32, card: 'warden' },
+    { kind: 'fall', id: 1, card: 'outpost' },
+    { kind: 'shot', id: 30, card: 'outpost' },
+    { kind: 'shot', id: 31, card: 'slinger' },
   ]);
-  expect(now[1]).toMatchObject({ x: units[0]?.x, y: units[0]?.y });
-  expect(EFFECT_TICKS).toBe(6);
-  expect(effectScene(effects, { ...after, tick: after.tick + 3 }, 0, PHONE.view, units)[0]?.fade).toBeCloseTo(0.5);
-  expect(effectScene(effects, { ...after, tick: after.tick + EFFECT_TICKS }, 0, PHONE.view, units)).toEqual([]);
 });
 
-test('the live loop keeps the effects of the last 0.3 s', () => {
+test('each kind of effect lasts its own time: a flash 0.3 s, longer for the animations', () => {
+  expect(EFFECT_TICKS).toBe(6);
+  expect(EFFECT_LIFE.flash).toBe(EFFECT_TICKS);
+  for (const kind of ['death', 'deploy', 'fall', 'shot'] as const) {
+    expect(EFFECT_LIFE[kind]).toBeGreaterThan(EFFECT_TICKS);
+  }
+});
+
+test('the live loop keeps each effect for its life', () => {
   const placed: SimState = { ...START, units: [unitAt('rabble', 1, 3500, 9000, START.nextId)], nextId: START.nextId + 1 };
   const loop = createLoop(placed);
-  let seen = 0;
+  const seen = new Set<string>();
   for (let i = 0; i < 200; i++) {
     advance(loop, TICK_MS);
-    seen += loop.effects.length;
-    expect(loop.effects.every((effect) => loop.current.tick - effect.tick < EFFECT_TICKS)).toBe(true);
+    for (const effect of loop.effects) {
+      seen.add(effect.kind);
+    }
+    expect(loop.effects.every((effect) => loop.current.tick - effect.tick < EFFECT_LIFE[effect.kind])).toBe(true);
   }
-  // The Outpost shoots the rabble down: flashes, and a puff.
-  expect(seen).toBeGreaterThan(0);
+  // The Outpost shoots the rabble down: shots, flashes, and a puff.
+  expect([...seen].sort()).toEqual(['death', 'flash', 'shot']);
 });
 
-test('the ghost shows where the selected card would land, and what the sim would say', () => {
+test('the ghost plans where the selected card would land, and what the sim would say', () => {
   const rich: SimState = { ...START, players: [{ ...START.players[0], hand: ['rabble', 'flare', 'bastion', 'warden'], energy: 10 }, START.players[1]] };
-  // Screen (270, 600) is arena (9000, ≈7000): side 0's own half, clear of towers.
-  const ownHalf = { x: 54 + 9 * 24, y: 600 };
-  const enemyHalf = { x: 54 + 9 * 24, y: 200 };
-  const group = ghostScene(rich, 0, 0, ownHalf, PHONE);
-  expect(group).toHaveLength(CARDS.rabble.unit.count);
-  expect(group.every((ghost) => ghost.shape === 'circle' && ghost.status === 'ok')).toBe(true);
-  const refused = ghostScene(rich, 0, 0, enemyHalf, PHONE);
-  expect(refused).toHaveLength(CARDS.rabble.unit.count);
-  expect(refused.every((ghost) => ghost.status === 'refused')).toBe(true);
-  const spell = ghostScene(rich, 0, 1, enemyHalf, PHONE);
-  expect(spell).toEqual([expect.objectContaining({ shape: 'circle', status: 'ok' })]);
-  expect(spell[0]?.radius).toBeCloseTo((CARDS.flare.spell.radius * 24) / 1000);
-  expect(ghostScene(rich, 0, 2, ownHalf, PHONE)).toEqual([expect.objectContaining({ shape: 'square', status: 'ok' })]);
+  // Side 0's own half, clear of towers, and the enemy's.
+  const ownHalf = { x: 9000, y: 7000 };
+  const enemyHalf = { x: 9000, y: 25_000 };
+  const group = ghostPlan(rich, 0, 0, ownHalf);
+  expect(group?.spots).toHaveLength(CARDS.rabble.unit.count);
+  expect(group).toMatchObject({ card: 'rabble', side: 0, status: 'ok' });
+  expect(ghostPlan(rich, 0, 0, enemyHalf)?.status).toBe('refused');
+  expect(ghostPlan(rich, 0, 1, enemyHalf)).toMatchObject({ card: 'flare', status: 'ok', spots: [enemyHalf] });
+  expect(ghostPlan(rich, 0, 2, ownHalf)).toMatchObject({ card: 'bastion', status: 'ok', spots: [ownHalf] });
   const poor: SimState = { ...rich, players: [{ ...rich.players[0], energy: 1 }, rich.players[1]] };
-  expect(ghostScene(poor, 0, 3, ownHalf, PHONE)[0]?.status).toBe('energy');
-  expect(ghostScene(rich, 0, null, ownHalf, PHONE)).toEqual([]);
-  expect(ghostScene(rich, 0, 0, null, PHONE)).toEqual([]);
-  expect(ghostScene(rich, 0, 0, { x: 10, y: 10 }, PHONE)).toEqual([]);
+  expect(ghostPlan(poor, 0, 3, ownHalf)?.status).toBe('energy');
+  expect(ghostPlan(rich, 0, null, ownHalf)).toBeNull();
+  expect(ghostPlan(rich, 0, 0, null)).toBeNull();
 });

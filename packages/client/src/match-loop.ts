@@ -1,7 +1,7 @@
 import { botTurn, type Bot } from '@factor/bot';
 import { BOT_TUNING } from '@factor/content';
 import { step, TICKS_PER_SECOND, type Blast, type Command, type Side, type SimState, type Splash } from '@factor/sim';
-import { EFFECT_TICKS, effectsBetween, type Effect } from './effects.ts';
+import { EFFECT_LIFE, effectsBetween, type Effect } from './effects.ts';
 
 /** Real time per tick: 50 ms at 20 ticks/s. */
 export const TICK_MS = 1000 / TICKS_PER_SECOND;
@@ -12,8 +12,8 @@ export const TICK_MS = 1000 / TICKS_PER_SECOND;
  */
 export const MAX_TICKS_PER_FRAME = 5;
 
-/** How long a landed spell stays on screen: half a second. */
-export const BLAST_TICKS = TICKS_PER_SECOND / 2;
+/** How long a landed spell or splash is kept for the screen: two seconds, for a burn mark to fade. */
+export const BLAST_TICKS = 2 * TICKS_PER_SECOND;
 
 /** A spell that landed, and the tick of the state it landed in. */
 export interface RecentBlast extends Blast {
@@ -49,7 +49,7 @@ export interface MatchLoop {
   blasts: RecentBlast[];
   /** Splash hits that landed in the last `BLAST_TICKS` ticks, oldest first. */
   splashes: RecentSplash[];
-  /** Hits and deaths of the last `EFFECT_TICKS` ticks, oldest first. */
+  /** Hits, deaths, arrivals, fallen towers and shots, each kept for its `EFFECT_LIFE`, oldest first. */
   effects: Effect[];
 }
 
@@ -127,7 +127,7 @@ function tickOnce(loop: MatchLoop): void {
   loop.blasts.push(...loop.current.blasts.map((blast) => ({ ...blast, tick: now })));
   loop.splashes = loop.splashes.filter((splash) => now - splash.tick < BLAST_TICKS);
   loop.splashes.push(...loop.current.splashes.map((splash) => ({ ...splash, tick: now })));
-  loop.effects = loop.effects.filter((effect) => now - effect.tick < EFFECT_TICKS);
+  loop.effects = loop.effects.filter((effect) => now - effect.tick < EFFECT_LIFE[effect.kind]);
   loop.effects.push(...effectsBetween(state, loop.current));
 }
 

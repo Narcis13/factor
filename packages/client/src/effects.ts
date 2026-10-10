@@ -1,30 +1,43 @@
 import { MILLI_PER_TILE, TICKS_PER_SECOND, type CardId, type Side, type SimState } from '@factor/sim';
-import { pointToScreen, type UnitShape, type View } from './arena-view.ts';
 
 /**
- * Something that happened between two ticks, worth a brief mark on screen (placeholder hit effects until
- * there is art): a unit or tower that took damage flashes, a unit that died leaves a puff. (Splashes have
- * their own rings.) Read off the change from one state to the next, so the sim records nothing for them.
+ * Something that happened between two ticks, worth a mark on screen: a unit or tower that took damage
+ * flashes, a unit that died leaves a puff of smoke, a unit that arrived raises a ring of dust, a tower
+ * that fell blows up, and a shot that was fired shows from where (a bomb arcs from there, a tower's
+ * weapon flashes). Read off the change from one state to the next, so the sim records nothing for them.
  */
 export interface Effect {
-  kind: 'flash' | 'death';
+  kind: 'flash' | 'death' | 'deploy' | 'fall' | 'shot';
   /** The tick of the state it showed up in. */
   tick: number;
-  /** Who it happened to. */
+  /** Who it happened to: the unit, the tower, or the shot. */
   id: number;
   side: Side;
   /** Where, in milli-tiles, and how big. */
   x: number;
   y: number;
   radius: number;
-  /** The unit's card, or a tower kind for a tower. */
+  /** The unit's card, a tower kind for a tower, or for a shot, who fired it. */
   card: CardId;
 }
 
-/** How long an effect stays on screen: 0.3 s. */
+/** How long a hit's flash stays on screen: 0.3 s. */
 export const EFFECT_TICKS = (3 * TICKS_PER_SECOND) / 10;
 
-/** The effects of going from `previous` to `current`, in order: flashes (towers, then units), then deaths. */
+/** How long each kind of effect lasts, in ticks: the flash, then the longer animations. */
+export const EFFECT_LIFE: Record<Effect['kind'], number> = {
+  flash: EFFECT_TICKS,
+  death: TICKS_PER_SECOND / 2,
+  deploy: (4 * TICKS_PER_SECOND) / 5,
+  fall: (3 * TICKS_PER_SECOND) / 2,
+  // Long enough to outlive any shot's flight, so its origin is known until it lands.
+  shot: 3 * TICKS_PER_SECOND,
+};
+
+/**
+ * The effects of going from `previous` to `current`, in order: flashes (towers, then units), deaths,
+ * then arrivals, fallen towers and new shots.
+ */
 export function effectsBetween(previous: SimState, current: SimState): Effect[] {
   const tick = current.tick;
   const effects: Effect[] = [];
@@ -46,44 +59,49 @@ export function effectsBetween(previous: SimState, current: SimState): Effect[] 
       effects.push({ kind: 'death', tick, id: unit.id, side: unit.side, x: unit.x, y: unit.y, radius: radiusOf(previous, unit.card), card: unit.card });
     }
   }
+  const before = new Set(previous.units.map((unit) => unit.id));
+  for (const unit of current.units) {
+    if (!before.has(unit.id)) {
+      effects.push({ kind: 'deploy', tick, id: unit.id, side: unit.side, x: unit.x, y: unit.y, radius: radiusOf(current, unit.card), card: unit.card });
+    }
+  }
+  for (const tower of current.towers) {
+    const was = previous.towers.find((candidate) => candidate.id === tower.id);
+    if (was !== undefined && was.hp > 0 && tower.hp === 0) {
+      effects.push({ kind: 'fall', tick, id: tower.id, side: tower.side, x: tower.x, y: tower.y, radius: Math.floor(tower.size / 2), card: tower.kind });
+    }
+  }
+  const flying = new Set(previous.projectiles.map((shot) => shot.id));
+  for (const shot of current.projectiles) {
+    if (!flying.has(shot.id)) {
+      effects.push({ kind: 'shot', tick, id: shot.id, side: shot.side, x: shot.x, y: shot.y, radius: shot.splash, card: shooter(previous, shot) });
+    }
+  }
   return effects;
+}
+
+/**
+ * Who fired a shot: the tower or unit of its side standing where it started (shots start at their
+ * attacker), else whichever card shoots at its speed and damage.
+ */
+function shooter(state: SimState, shot: SimState['projectiles'][number]): CardId {
+  const tower = state.towers.find((candidate) => candidate.side === shot.side && candidate.x === shot.x && candidate.y === shot.y);
+  if (tower !== undefined) {
+    return tower.kind;
+  }
+  const unit = state.units.find((candidate) => candidate.side === shot.side && candidate.x === shot.x && candidate.y === shot.y);
+  if (unit !== undefined) {
+    return unit.card;
+  }
+  for (const [card, stats] of Object.entries(state.cards)) {
+    if (stats.type !== 'spell' && stats.unit.projectileSpeed === shot.speed && stats.unit.damage === shot.damage) {
+      return card;
+    }
+  }
+  return 'outpost';
 }
 
 function radiusOf(state: SimState, card: CardId): number {
   const stats = state.cards[card];
   return stats === undefined || stats.type === 'spell' ? MILLI_PER_TILE / 2 : stats.unit.radius;
-}
-
-/** An effect on the screen: where, how big, and how far it has faded (1 new, toward 0 gone). */
-export interface EffectShape {
-  kind: Effect['kind'];
-  side: Side;
-  x: number;
-  y: number;
-  radius: number;
-  fade: number;
-  /** A tower's flash covers its square footprint. */
-  square: boolean;
-}
-
-/**
- * Recent effects on the screen, each fading over `EFFECT_TICKS` from the moment it showed (tick + alpha).
- * A flash follows its unit where it's drawn now (`units`); a puff stays where the unit died and grows a
- * little as it fades.
- */
-export function effectScene(effects: readonly Effect[], current: Pick<SimState, 'tick' | 'towers'>, alpha: number, view: View, units: readonly UnitShape[]): EffectShape[] {
-  const scale = view.tilePx / MILLI_PER_TILE;
-  const shapes: EffectShape[] = [];
-  for (const effect of effects) {
-    const fade = 1 - (current.tick - effect.tick + alpha) / EFFECT_TICKS;
-    if (fade <= 0) {
-      continue;
-    }
-    const square = effect.kind === 'flash' && current.towers.some((tower) => tower.id === effect.id);
-    const drawn = effect.kind === 'flash' ? units.find((unit) => unit.id === effect.id) : undefined;
-    const at = drawn ?? pointToScreen(view, effect.x, effect.y);
-    const grow = effect.kind === 'flash' ? 1 : 1 + (1 - Math.min(1, fade)) / 3;
-    shapes.push({ kind: effect.kind, side: effect.side, x: at.x, y: at.y, radius: effect.radius * scale * grow, fade: Math.min(1, fade), square });
-  }
-  return shapes;
 }

@@ -46,11 +46,13 @@ Commands:
       only after an intended change, and log why. To add a golden, save a replay into <dir> (for example
       with match --seed <n> --replay goldens/seed-<n>.json) and run --update.
 
-  shots [--out <dir>] [--replay <file>] [--tick <n>]
+  shots [--out <dir>] [--replay <file>] [--tick <n>] [--gallery <query>]
       Open the client frozen in headless Chromium and save PNGs in <dir> (default: shots). With no
       options: arena.png (live against the bot at tick 200) and end.png (the end of bot-vs-bot seed 0,
       played back with ?replay=). --tick <n> shoots the live match at tick n as arena-<n>.png.
       --replay <file> plays that replay back to --tick (default: its end) as <file name>-<n|end>.png.
+      --gallery <query> captures the art gallery (?gallery&<query>, e.g. "section=units&unit=warden",
+      or "" for all of it) whole, as gallery-<query>.png.
       Also runs as pnpm shots.
 
   playtest [--out <dir>]
@@ -196,13 +198,16 @@ function dump(replay: Replay, tickText: string): void {
 async function shots(args: string[]): Promise<void> {
   const { values } = parseArgs({
     args,
-    options: { out: { type: 'string', default: 'shots' }, replay: { type: 'string' }, tick: { type: 'string' } },
+    options: { out: { type: 'string', default: 'shots' }, replay: { type: 'string' }, tick: { type: 'string' }, gallery: { type: 'string' } },
   });
   // Loaded here so the other commands don't pay for starting Vite and Playwright.
   const { defaultShots, END_TICK, SHOT_VIEWPORT, shoot } = await import('./shots.ts');
   const tick = values.tick === undefined ? undefined : parseInteger('--tick', values.tick, Number.MAX_SAFE_INTEGER);
   let requests: ShotRequest[];
-  if (values.replay !== undefined) {
+  if (values.gallery !== undefined) {
+    const suffix = values.gallery.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '');
+    requests = [{ name: suffix === '' ? 'gallery' : `gallery-${suffix}`, tick: 0, gallery: values.gallery }];
+  } else if (values.replay !== undefined) {
     const name = `${basename(values.replay, extname(values.replay))}-${tick === undefined ? 'end' : String(tick)}`;
     requests = [{ name, tick: tick ?? END_TICK, replay: readReplayFile(values.replay) }];
   } else {
