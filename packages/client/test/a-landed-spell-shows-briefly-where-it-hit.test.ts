@@ -18,7 +18,7 @@ function loopWithFlare() {
   }
 }
 
-test('a flare lands where it was aimed, as a circle of its radius that fades out over half a second', () => {
+test('a flare lands where it was aimed, as a circle of its radius kept for the screen until its time is up', () => {
   const { loop, slot } = loopWithFlare();
   queuePlay(loop, 0, slot, 4000, 20_000);
   advance(loop, TICK_MS);

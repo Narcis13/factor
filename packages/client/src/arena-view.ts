@@ -3,7 +3,8 @@ import { deployZones, MILLI_PER_TILE, type Blast, type CardId, type Rect, type S
 
 /**
  * How the arena sits on the screen: a whole number of pixels per tile, centered, with side 0 at the
- * bottom as its player sees it. Screen y grows downward; arena y grows toward side 1.
+ * bottom as its player sees it. Screen y grows downward; arena y grows toward side 1. The same shape
+ * describes the art's own pixel grid (16 a tile), so everything below works in either.
  */
 export interface View {
   tilePx: number;
@@ -22,14 +23,12 @@ export interface ScreenRect {
   height: number;
 }
 
-export type GroundKind = 'tile-light' | 'tile-dark' | 'river' | 'bridge';
-
 /**
- * Something to draw. Towers carry their owner, whether they've fallen, and whether they're dormant
- * (a Keep before it wakes, VISION §4); the ground belongs to no one.
+ * Where something stands. The ground is the river and the bridges over it; towers carry their owner,
+ * whether they've fallen, and whether they're dormant (a Keep before it wakes, VISION §4).
  */
 export type Shape =
-  | { kind: GroundKind; rect: ScreenRect }
+  | { kind: 'river' | 'bridge'; rect: ScreenRect }
   | { kind: 'keep' | 'outpost'; side: Side; rect: ScreenRect; fallen: boolean; dormant: boolean };
 
 /** How much hp something has left, as a bar on the screen: `fraction` of it filled in its side's color. */
@@ -40,10 +39,10 @@ export interface HpBar {
   fraction: number;
 }
 
-/** How far above its shadow a flying unit is drawn, in its radii. */
-export const FLY_LIFT = 0.9;
+/** How far above its shadow a flying unit is drawn: this many radii, plus a fifth of a tile. */
+export const FLY_LIFT = 1.4;
 
-/** A unit on the screen: a circle, in CSS pixels. */
+/** A unit on the screen: where its feet are, in CSS pixels. */
 export interface UnitShape {
   id: number;
   side: Side;
@@ -53,9 +52,10 @@ export interface UnitShape {
   radius: number;
   /** Still waiting out its deploy delay. */
   deploying: boolean;
-  /** A flying unit: drawn over the ground units, lifted above its shadow. */
+  /** A flying unit: drawn over the ground units, `lift` pixels above its shadow. */
   flying: boolean;
-  /** A building: drawn as a square block rather than a disc. */
+  lift: number;
+  /** A building: it stands, and never walks. */
   building: boolean;
   hp: number;
   maxHp: number;
@@ -71,12 +71,12 @@ export interface BlastShape {
   fade: number;
 }
 
-/** A shot in flight on the screen: a dot in its side's color, bigger for a splash shell. */
+/** A shot in flight on the screen. */
 export interface ProjectileShape {
+  id: number;
   side: Side;
   x: number;
   y: number;
-  radius: number;
 }
 
 /** A splash that landed: a ring of its radius, fading out as `fade` falls from 1 toward 0. */
@@ -118,32 +118,13 @@ export function pointToScreen(view: View, x: number, y: number): { x: number; y:
   return { x: view.left + x * scale, y: view.top + (view.arenaHeight - y) * scale };
 }
 
-/**
- * Everything a match state draws, back to front: a checkerboard of tiles, the river, bridges, then the
- * towers standing in `state` (not the layout's sites, so the picture follows the sim).
- */
-export function arenaScene(state: Pick<SimState, 'arena' | 'towers'>, view: View): Shape[] {
-  return [...groundScene(state.arena, view), ...towerScene(state, view)];
-}
-
-/** The ground: it never changes during a match, so it is drawn once per screen size. */
+/** The river and the bridges over it: they never change during a match. */
 export function groundScene(arena: Terrain, view: View): Shape[] {
-  const shapes: Shape[] = [];
-  for (let row = 0; row < arena.height / MILLI_PER_TILE; row++) {
-    for (let col = 0; col < arena.width / MILLI_PER_TILE; col++) {
-      const tile = { x: col * MILLI_PER_TILE, y: row * MILLI_PER_TILE, width: MILLI_PER_TILE, height: MILLI_PER_TILE };
-      const kind = (row + col) % 2 === 0 ? 'tile-dark' : 'tile-light';
-      shapes.push({ kind, rect: toScreen(view, tile) });
-    }
-  }
-  shapes.push({ kind: 'river', rect: toScreen(view, arena.river) });
-  for (const bridge of arena.bridges) {
-    shapes.push({ kind: 'bridge', rect: toScreen(view, bridge) });
-  }
-  return shapes;
+  return [{ kind: 'river', rect: toScreen(view, arena.river) }, ...arena.bridges.map((bridge): Shape => ({ kind: 'bridge', rect: toScreen(view, bridge) }))];
 }
 
-export function towerScene(state: Pick<SimState, 'towers'>, view: View): Shape[] {
+/** The towers standing in `state` (not the layout's sites, so the picture follows the sim). */
+export function towerScene(state: Pick<SimState, 'towers'>, view: View): (Shape & { kind: 'keep' | 'outpost' })[] {
   return state.towers.map((tower) => ({
     kind: tower.kind,
     side: tower.side,
@@ -153,25 +134,35 @@ export function towerScene(state: Pick<SimState, 'towers'>, view: View): Shape[]
   }));
 }
 
+/** How tall things are drawn, in the view's pixels above where they stand: a tower's body by kind, a unit by card. */
+export interface Heights {
+  tower: (kind: 'keep' | 'outpost') => number;
+  unit: (card: CardId) => number;
+}
+
 /**
- * Hp bars, just above what they measure: every standing tower's (as wide as it is), and every damaged
- * unit's (as wide as its circle). A full-hp unit shows none, so the field stays readable.
+ * Hp bars, just above what they measure: every standing tower's (a little over half as wide as its
+ * footprint), and every damaged unit's (as wide as it is, between half a tile and a tile and an eighth).
+ * A full-hp unit shows none, so the field stays readable.
  */
-export function hpBarScene(state: Pick<SimState, 'towers'>, units: readonly UnitShape[], view: View): HpBar[] {
-  const height = Math.max(3, Math.round(view.tilePx / 6));
-  const gap = Math.max(1, Math.round(height / 2));
+export function hpBarScene(state: Pick<SimState, 'towers'>, units: readonly UnitShape[], view: View, heights: Heights): HpBar[] {
+  const towerHeight = Math.max(2, Math.round(view.tilePx / 4));
+  const unitHeight = Math.max(2, Math.round(view.tilePx / 8));
+  const gap = Math.max(1, Math.round(view.tilePx / 8));
   const bars: HpBar[] = [];
   for (const tower of state.towers) {
     if (tower.hp > 0) {
-      const { x, y, width } = toScreen(view, towerFootprint(tower));
-      bars.push({ side: tower.side, rect: { x, y: y - gap - height, width, height }, fraction: tower.hp / tower.maxHp });
+      const { x, y, width, height } = toScreen(view, towerFootprint(tower));
+      const barWidth = Math.round(width * 0.58);
+      const top = y + height / 2 - heights.tower(tower.kind) - gap - towerHeight;
+      bars.push({ side: tower.side, rect: { x: Math.round(x + (width - barWidth) / 2), y: Math.round(top), width: barWidth, height: towerHeight }, fraction: tower.hp / tower.maxHp });
     }
   }
   for (const unit of units) {
     if (unit.hp < unit.maxHp) {
-      const top = unit.y - unit.radius - (unit.flying ? unit.radius * FLY_LIFT : 0);
-      const rect = { x: unit.x - unit.radius, y: top - gap - height, width: unit.radius * 2, height };
-      bars.push({ side: unit.side, rect, fraction: unit.hp / unit.maxHp });
+      const width = Math.round(Math.min(view.tilePx * 1.125, Math.max(view.tilePx / 2, unit.radius * 2)));
+      const top = unit.y - unit.lift - heights.unit(unit.card) - gap - unitHeight;
+      bars.push({ side: unit.side, rect: { x: Math.round(unit.x - width / 2), y: Math.round(top), width, height: unitHeight }, fraction: unit.hp / unit.maxHp });
     }
   }
   return bars;
@@ -194,8 +185,9 @@ export function unitScene(previous: SimState, current: SimState, alpha: number, 
     const radius = known === undefined ? (scale * MILLI_PER_TILE) / 2 : known.unit.radius * scale;
     const flying = known?.unit.layer === 'air';
     const building = known?.type === 'building';
+    const lift = flying ? Math.round(radius * FLY_LIFT + view.tilePx / 5) : 0;
     const { id, side, card, hp, maxHp } = unit;
-    return { id, side, card, ...pointToScreen(view, x, y), radius, deploying: unit.deployTicks > 0, flying, building, hp, maxHp };
+    return { id, side, card, ...pointToScreen(view, x, y), radius, deploying: unit.deployTicks > 0, flying, lift, building, hp, maxHp };
   });
   return [...shapes.filter((shape) => !shape.flying), ...shapes.filter((shape) => shape.flying)];
 }
@@ -225,8 +217,7 @@ export function blastScene(
 
 /**
  * Shots in flight, `alpha` of the way from where they were in `previous` to where they are in
- * `current`. A shot new in `current` shows where it is. A dot is a sixth of a tile across, a splash
- * shell's a quarter.
+ * `current`. A shot new in `current` shows where it is.
  */
 export function projectileScene(previous: Pick<SimState, 'projectiles'>, current: Pick<SimState, 'projectiles'>, alpha: number, view: View): ProjectileShape[] {
   const before = new Map(previous.projectiles.map((shot) => [shot.id, shot]));
@@ -234,7 +225,7 @@ export function projectileScene(previous: Pick<SimState, 'projectiles'>, current
     const from = before.get(shot.id) ?? shot;
     const x = from.x + (shot.x - from.x) * alpha;
     const y = from.y + (shot.y - from.y) * alpha;
-    return { side: shot.side, ...pointToScreen(view, x, y), radius: view.tilePx * (shot.splash > 0 ? 0.25 : 1 / 6) };
+    return { id: shot.id, side: shot.side, ...pointToScreen(view, x, y) };
   });
 }
 

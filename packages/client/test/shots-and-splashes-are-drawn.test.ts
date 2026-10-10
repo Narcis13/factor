@@ -8,12 +8,12 @@ const VIEW = fitView(ARENA, 540, 960);
 
 const SHOT: Projectile = { id: 40, side: 1, x: 3000, y: 20_000, targetId: 12, toX: 3000, toY: 10_000, speed: 500, damage: 90, splash: 0, targets: 'air' };
 
-test('a shot is drawn between where it was and where it is, a sixth of a tile across', () => {
+test('a shot is drawn between where it was and where it is', () => {
   const later = { ...SHOT, y: 19_000 };
-  expect(projectileScene({ projectiles: [SHOT] }, { projectiles: [later] }, 0.5, VIEW)).toEqual([{ side: 1, x: 90, y: (32 - 19.5) * 30, radius: 5 }]);
-  // A new shot shows where it is; a splash shell is drawn bigger.
+  expect(projectileScene({ projectiles: [SHOT] }, { projectiles: [later] }, 0.5, VIEW)).toEqual([{ id: 40, side: 1, x: 90, y: (32 - 19.5) * 30 }]);
+  // A new shot shows where it is.
   const shell = { ...SHOT, id: 41, splash: 1200 };
-  expect(projectileScene({ projectiles: [] }, { projectiles: [shell] }, 0.5, VIEW)).toEqual([{ side: 1, x: 90, y: (32 - 20) * 30, radius: 7.5 }]);
+  expect(projectileScene({ projectiles: [] }, { projectiles: [shell] }, 0.5, VIEW)).toEqual([{ id: 41, side: 1, x: 90, y: (32 - 20) * 30 }]);
 });
 
 test('a splash shows as a ring of its radius where it landed, fading out over its life', () => {

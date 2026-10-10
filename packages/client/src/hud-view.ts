@@ -10,6 +10,8 @@ export interface CardFace {
   rect: ScreenRect;
   /** Enough energy to play it now. */
   affordable: boolean;
+  /** How far the energy has come toward its cost, in [0, 1]: 1 once affordable. */
+  progress: number;
   selected: boolean;
 }
 
@@ -26,8 +28,14 @@ export interface StarPip {
 export interface HudScene {
   /** Time left: `m:ss` in regulation, `OT m:ss` in overtime. */
   clock: string;
+  /** The last ten seconds of a period: the clock turns red. */
+  urgent: boolean;
+  /** Energy comes twice as fast (the final minute, and overtime). */
+  double: boolean;
   /** Top-right corner of the clock text. */
   clockAt: { x: number; y: number };
+  /** The band above the arena: the opponent's plate sits at its left. */
+  top: ScreenRect;
   /** Whole energy. */
   energy: number;
   /** The most energy a side can hold: the bar's notch count. */
@@ -55,19 +63,24 @@ export function hudScene(
 ): HudScene {
   const player = current.players[side];
   const { max } = current.rules.energy;
-  const fill = lerp(energyLevel(previous, side), energyLevel(current, side), alpha) / max;
+  const level = lerp(energyLevel(previous, side), energyLevel(current, side), alpha);
+  const fill = level / max;
   const hand = player.hand.map((card, slot): CardFace => {
     const cost = cardCost(current, card);
     const rect = layout.slots[slot];
     if (rect === undefined) {
       throw new RangeError(`The layout has no rect for hand slot ${String(slot)}`);
     }
-    return { slot, card, cost, rect, affordable: player.energy >= cost, selected: slot === selected };
+    const affordable = player.energy >= cost;
+    return { slot, card, cost, rect, affordable, progress: affordable ? 1 : Math.min(1, level / Math.max(1, cost)), selected: slot === selected };
   });
   const next = player.queue[0];
   return {
     clock: formatClock(current),
+    urgent: current.result === null && secondsLeft(current) <= 10,
+    double: current.result === null && current.tick >= current.rules.energy.doubleFromTick,
     clockAt: layout.timer,
+    top: layout.top,
     energy: player.energy,
     energyMax: max,
     energyFill: Math.min(1, Math.max(0, fill)),
@@ -94,12 +107,22 @@ export function energyLevel(state: SimState, side: Side): number {
  * A match decided when regulation runs out stays at `0:00`: overtime starts only if stars are tied.
  */
 export function formatClock(state: Pick<SimState, 'tick' | 'rules' | 'result'>): string {
-  const { regulationTicks, overtimeTicks } = state.rules;
-  const overtime = state.tick > regulationTicks || (state.tick === regulationTicks && state.result === null);
-  const end = overtime ? regulationTicks + overtimeTicks : regulationTicks;
-  const seconds = Math.ceil(Math.max(0, end - state.tick) / TICKS_PER_SECOND);
+  const overtime = inOvertime(state);
+  const seconds = secondsLeft(state);
   const clock = `${String(Math.floor(seconds / 60))}:${String(seconds % 60).padStart(2, '0')}`;
   return overtime ? `OT ${clock}` : clock;
+}
+
+function inOvertime(state: Pick<SimState, 'tick' | 'rules' | 'result'>): boolean {
+  const { regulationTicks } = state.rules;
+  return state.tick > regulationTicks || (state.tick === regulationTicks && state.result === null);
+}
+
+/** Whole seconds left in the current period, rounded up. */
+function secondsLeft(state: Pick<SimState, 'tick' | 'rules' | 'result'>): number {
+  const { regulationTicks, overtimeTicks } = state.rules;
+  const end = inOvertime(state) ? regulationTicks + overtimeTicks : regulationTicks;
+  return Math.ceil(Math.max(0, end - state.tick) / TICKS_PER_SECOND);
 }
 
 function cardCost(state: SimState, card: CardId): number {

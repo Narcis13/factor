@@ -9,19 +9,19 @@
 import { createBot, type BotKind } from '@factor/bot';
 import { BOT_TUNING, dealDeck, matchSetup, saveReplay, type ContentCardId, type Replay } from '@factor/content';
 import { createMatch } from '@factor/sim';
-import { Application, Graphics } from 'pixi.js';
-import { blastScene, groundScene, hpBarScene, noDeployRects, projectileScene, splashScene, toScreen, towerScene, unitScene } from './arena-view.ts';
+import { Application } from 'pixi.js';
+import { noDeployRects } from './arena-view.ts';
 import { tap, type Controls } from './controls.ts';
-import { BACKGROUND, drawArena, drawBlasts, drawEffects, drawGhost, drawHpBars, drawNoDeploy, drawProjectiles, drawSplashes, drawUnits } from './draw-arena.ts';
-import { effectScene } from './effects.ts';
-import { ghostScene } from './ghost.ts';
+import { ghostPlan } from './ghost.ts';
+import { INK } from './art/color.ts';
+import { WorldView } from './world-view.ts';
 import { EndView } from './draw-end.ts';
 import { HudView } from './draw-hud.ts';
 import { endScene } from './end-view.ts';
 import { hudScene } from './hud-view.ts';
-import { advance, alpha, BLAST_TICKS, createLoop, runTo } from './match-loop.ts';
+import { advance, alpha, createLoop, runTo } from './match-loop.ts';
 import { loopReplay, readReplay, REPLAY_STORAGE_KEY } from './match-replay.ts';
-import { layoutScreen, type ScreenLayout, type ScreenPoint } from './screen-layout.ts';
+import { layoutScreen, toArena, type ScreenLayout, type ScreenPoint } from './screen-layout.ts';
 import { DECK_STORAGE_KEY, matchUrl, storedDeck } from './deck-builder.ts';
 import { freshSeed, parseSeed, parseTick } from './url-params.ts';
 
@@ -29,7 +29,7 @@ const app = new Application();
 await app.init({
   width: window.innerWidth,
   height: window.innerHeight,
-  background: BACKGROUND,
+  background: INK,
   antialias: true,
   resolution: window.devicePixelRatio,
   autoDensity: true,
@@ -51,46 +51,55 @@ if (frozenAt !== null) {
 }
 const controls: Controls = { side: 0, selected: null, watching: watched !== null };
 let hover: ScreenPoint | null = null;
+/** When the end screen first showed, in page time: it animates in from there. */
+let endedAt: number | null = null;
 
-const ground = new Graphics();
-const field = new Graphics();
+const world = new WorldView(start.cards);
 const hud = new HudView();
 const end = new EndView();
-app.stage.addChild(ground, field, hud.root, end.root);
+app.stage.addChild(world.display, hud.root, end.root);
 let layout: ScreenLayout = resize();
 
 /** Lays the screen out again and redraws the ground, which only changes with the screen size. */
 function resize(): ScreenLayout {
   app.renderer.resize(window.innerWidth, window.innerHeight);
   const next = layoutScreen(loop.current.arena, loop.current.rules.handSize, window.innerWidth, window.innerHeight);
-  ground.clear();
-  drawArena(ground, groundScene(loop.current.arena, next.view));
+  world.resize(next, loop.current.arena, start.towers, window.innerWidth, window.innerHeight, window.devicePixelRatio);
+  hud.resize(next, window.innerWidth, window.innerHeight, window.devicePixelRatio);
+  end.resize(next, window.innerWidth, window.innerHeight, window.devicePixelRatio);
   return next;
 }
 
-/** Towers, the no-deploy shade while a troop is selected, units, shots, recent splashes and spells, and hp bars, then the HUD: every frame. */
+/** The arena (towers, units, shots, effects, the no-deploy shade and the ghost while a card is selected), then the HUD: every frame. */
 function render(): void {
   const { previous, current } = loop;
   const t = alpha(loop);
-  field.clear();
-  drawArena(field, towerScene(current, layout.view));
   const selected = controls.selected === null ? undefined : current.players[controls.side].hand[controls.selected];
   const selectedType = selected === undefined ? undefined : current.cards[selected]?.type;
-  if (selectedType === 'troop' || selectedType === 'building') {
-    for (const rect of noDeployRects(current, controls.side)) {
-      drawNoDeploy(field, toScreen(layout.view, rect));
-    }
+  const point = hover === null ? null : toArena(layout.view, current.arena, hover.x, hover.y);
+  const hudNow = hudScene(previous, current, t, layout.hud, controls.side, controls.selected);
+  world.draw({
+    stars: hudNow.stars,
+    previous,
+    current,
+    alpha: t,
+    effects: loop.effects,
+    blasts: loop.blasts,
+    splashes: loop.splashes,
+    noDeploy: selectedType === 'troop' || selectedType === 'building' ? noDeployRects(current, controls.side) : null,
+    ghost: ghostPlan(current, controls.side, controls.selected, point),
+  });
+  world.renderTo(app.renderer);
+  hud.draw(hudNow, { now: current.tick + t, opponent: 'Bot', cards: current.cards });
+  hud.renderTo(app.renderer);
+  const ending = endScene(current, controls.side, layout.end);
+  // The panel settles over a second after the match ends; a frozen shot shows it settled.
+  if (ending !== null && endedAt === null) {
+    endedAt = performance.now();
   }
-  const units = unitScene(previous, current, t, layout.view);
-  drawUnits(field, units);
-  drawProjectiles(field, projectileScene(previous, current, t, layout.view));
-  drawSplashes(field, splashScene(loop.splashes, current, t, BLAST_TICKS, layout.view));
-  drawBlasts(field, blastScene(loop.blasts, current, t, BLAST_TICKS, layout.view));
-  drawEffects(field, effectScene(loop.effects, current, t, layout.view, units));
-  drawHpBars(field, hpBarScene(current, units, layout.view));
-  drawGhost(field, ghostScene(current, controls.side, controls.selected, hover, layout));
-  hud.draw(hudScene(previous, current, t, layout.hud, controls.side, controls.selected));
-  end.draw(endScene(current, controls.side, layout.end), app.screen);
+  const shown = ending === null || frozenAt !== null || endedAt === null ? 1 : Math.min(1, (performance.now() - endedAt) / 1000);
+  end.draw(ending, shown);
+  end.renderTo(app.renderer);
   app.render();
   report(current);
 }

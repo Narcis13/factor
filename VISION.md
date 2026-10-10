@@ -3,7 +3,7 @@
 > Foundational document. Read at the start of every session. Changes only with the director's approval, recorded in §10 Decisions.
 
 **Codename:** Factor (working title — see §11)
-**Last revised:** 2026-09-29
+**Last revised:** 2026-10-10
 
 ---
 
@@ -171,10 +171,10 @@ We work like a sculptor: rough out the whole figure first, then refine it everyw
 | D5 | 2026-09-29 | Original names and assets only | The mechanics are fair game; the IP isn't |
 | D6 | 2026-09-29 | Sculpt coding: one cut per session, logged in LOG.md | Keeps the whole working and gives each new session its context back |
 | D7 | 2026-09-29 | The arena layout (size, river, bridges, tower sites) is data in `content`; the sim receives it through `MatchSetup` once it needs it | Game numbers never live in the sim, and §5 already lists the arena under `content`. Stage 0 had said "sim constants" |
+| D8 | 2026-10-10 | Art direction: pixel art drawn by code at load (`client/src/art`), no image files. 16 art pixels a tile, a 3/4 top-down view, chibi figures facing down, up and sideways; hand-picked hue-shifted ramps; side 0 blue, side 1 red. The HUD and menus are pixel art too | The director asked for it. Art as code is generated, tested and screenshotted like the rest (the agent can see it), costs no assets pipeline, and stays original (D5) |
 
 ## 11. Open questions (director to decide)
 
 - Final title and setting/theme.
-- Art direction: geometric placeholders until stage 3, then which style, and where the assets come from.
 - Target test device for the §7 performance bar.
 - Whether PvP moves into v1.

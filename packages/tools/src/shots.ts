@@ -4,6 +4,9 @@ import { botReplay } from './match.ts';
 
 export const SHOT_VIEWPORT = CLIENT_VIEWPORT;
 
+/** The gallery is wide, so whole animations fit on a row. */
+export const GALLERY_VIEWPORT = { width: 1600, height: 900 };
+
 /** The frozen tick the arena shot shows: 10 s in, once the heuristic bot has saved up and started a push. */
 export const SHOT_TICK = 200;
 
@@ -21,6 +24,8 @@ export interface ShotRequest {
   name: string;
   tick: number;
   replay?: Replay;
+  /** Instead of a match: the art gallery (`?gallery&<query>`), captured whole. */
+  gallery?: string;
 }
 
 export interface Shot {
@@ -40,6 +45,9 @@ export function defaultShots(): ShotRequest[] {
 
 /** The page's query for a request. */
 export function shotQuery(request: ShotRequest): string {
+  if (request.gallery !== undefined) {
+    return request.gallery === '' ? 'gallery' : `gallery&${request.gallery}`;
+  }
   const tick = `tick=${String(request.tick)}`;
   return request.replay === undefined ? tick : `replay=${REPLAY_URL}&${tick}`;
 }
@@ -52,7 +60,7 @@ export async function shoot(requests: readonly ShotRequest[]): Promise<Shot[]> {
   return withClient(async (url, browser) => {
     const shots: Shot[] = [];
     for (const request of requests) {
-      const page = await browser.newPage({ viewport: SHOT_VIEWPORT, deviceScaleFactor: 1 });
+      const page = await browser.newPage({ viewport: request.gallery === undefined ? SHOT_VIEWPORT : GALLERY_VIEWPORT, deviceScaleFactor: 1 });
       const errors = pageErrors(page);
       const { replay } = request;
       if (replay !== undefined) {
@@ -61,7 +69,7 @@ export async function shoot(requests: readonly ShotRequest[]): Promise<Shot[]> {
       await page.goto(`${url}?${shotQuery(request)}`);
       await waitForReady(page, request.name, errors);
       const renderer = (await page.getAttribute('html', 'data-renderer')) ?? 'unknown';
-      shots.push({ name: request.name, png: await page.screenshot(), renderer });
+      shots.push({ name: request.name, png: await page.screenshot({ fullPage: request.gallery !== undefined }), renderer });
       await page.close();
     }
     return shots;
